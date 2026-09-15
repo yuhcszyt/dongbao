@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import AccountGone from '@/components/AccountGone.vue'
 import CapturePanel from '@/components/CapturePanel.vue'
 import ProfileForm from '@/components/ProfileForm.vue'
 import RecordForm from '@/components/RecordForm.vue'
-import { ageText, buildDateStrip, dayLabel, describeRecord, genderText, nowParts, pickerValue, RECORD_TYPES, recordTimeText, recordsOnDay, type Baby, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
+import { ageText, buildDateStrip, dayLabel, describeRecord, genderText, nowParts, pickerValue, RECORD_TYPES, recordTimeText, recordsOnDay, type Baby, type MediaAsset, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
 import { takeQuickAction } from '@/features/record/quickAction'
 import { recordStore } from '@/features/record/store'
 import { mediaUrl } from '@/services/api'
@@ -15,14 +16,19 @@ const editing = ref<RecordItem | null>(null)
 const selectedType = ref<RecordType>('feeding')
 const filter = ref<RecordType | 'all'>('all')
 
-const today = nowParts().date
+const today = ref(nowParts().date)
 /** 记录页盯着的那一天：切日期就看到那一天的时间线，补记昨天的事才顺手。 */
-const day = ref(today)
-const strip = computed(() => buildDateStrip(7, day.value))
+const day = ref(today.value)
+/** 日期条固定锚在今天：条上永远有「今天」这一格，跳到过去某天后想回来是一下。
+ * 选中日可能是条外的一天（用右边的日期选择器跳过去），这时条上不高亮任何一格，
+ * 但日期选择器与标题都指着那一天。（验收：7 天日期条 + 可跳任意一天的日期选择器） */
+const strip = computed(() => buildDateStrip(7, today.value))
 const dayRecords = computed(() => recordsOnDay(state.records, day.value))
 const visibleRecords = computed(() => filter.value === 'all' ? dayRecords.value : dayRecords.value.filter((item) => item.record_type === filter.value))
 const emptyText = computed(() => filter.value === 'all' ? '这一天还没有记录' : '还没有这类记录')
-const dayText = computed(() => day.value === today ? '今天' : dayLabel(day.value, today))
+const dayText = computed(() => dayLabel(day.value, today.value))
+/** 指标只能是「已经拉到的那一天」的：拉失败时 `summaryDate` 不跟手，宁可不出数字也不出错数字。 */
+const summaryReady = computed(() => state.summaryDate === day.value && !state.error)
 const formInitial = computed<Partial<RecordInput>>(() => editing.value ? {
   record_type: editing.value.record_type,
   occurred_at: editing.value.occurred_at,
@@ -75,18 +81,26 @@ function restore() {
   void recordStore.restoreRecord()
 }
 
-function openMedia(record: RecordItem) {
-  const media = record.media?.[0]
-  if (!media) return
+/** 一条记录可能带多份媒体（连拍、多段语音）：每一份都能单独点开。
+ * 图片把整条记录的图片一起交给预览器，横滑就能看完；语音就播这一份。 */
+function openMedia(record: RecordItem, media: MediaAsset) {
   const url = mediaUrl(media.url)
-  if (media.media_type === 'image') uni.previewImage({ urls: [url] })
-  else {
-    const audio = uni.createInnerAudioContext()
-    audio.src = url
-    audio.onEnded(() => audio.destroy())
-    audio.onError(() => { audio.destroy(); uni.showToast({ title: '录音播放失败', icon: 'none' }) })
-    audio.play()
+  if (media.media_type === 'image') {
+    const urls = (record.media ?? []).filter((item) => item.media_type === 'image').map((item) => mediaUrl(item.url))
+    uni.previewImage({ urls, current: url })
+    return
   }
+  const audio = uni.createInnerAudioContext()
+  audio.src = url
+  audio.onEnded(() => audio.destroy())
+  audio.onError(() => { audio.destroy(); uni.showToast({ title: '录音播放失败', icon: 'none' }) })
+  audio.play()
+}
+
+/** 多份媒体时按份编号，单份时直接说来源（「语音来源」），家长一眼知道点开的是什么。 */
+const mediaLabel = (record: RecordItem, index: number) => {
+  const head = (record.media?.length ?? 0) > 1 ? `第 ${index + 1} 份` : `${sourceText(record.source)}来源`
+  return `${head} · 点击${record.media?.[index]?.media_type === 'image' ? '查看' : '播放'}`
 }
 
 const captureSaved = () => {
@@ -95,6 +109,8 @@ const captureSaved = () => {
 }
 
 onShow(() => {
+  // tab 页常驻，跨夜后「今天」会变：先把它翻新，日期条与「今天」标签才不会停在昨天。
+  today.value = nowParts().date
   // 记录页可能停在别的日期：进来时按当前选中日重新对齐指标。
   void recordStore.load(day.value)
   // 首页的快速记录意图：取走即清空，只生效这一次。
@@ -107,6 +123,8 @@ onShow(() => {
 <template>
   <view class="page">
     <view v-if="state.loading" class="state">正在加载…</view>
+
+    <AccountGone v-else-if="state.accountDeleted" />
 
     <view v-else-if="!state.baby" class="onboarding">
       <view class="baby-mark">👶🏻</view>
@@ -130,16 +148,19 @@ onShow(() => {
             </button>
           </view>
         </scroll-view>
-        <picker mode="date" :value="day" :end="today" @change="selectDay(pickerValue($event))">
+          <picker mode="date" :value="day" :end="today" @change="selectDay(pickerValue($event))">
           <button class="day-jump">📅 选日期</button>
         </picker>
       </view>
 
       <view class="summary">
-        <view><text>{{ state.summary.feeding_ml }}</text><small>奶量 ml</small></view>
-        <view><text>{{ state.summary.sleep_minutes }}</text><small>睡眠 分钟</small></view>
-        <view><text>{{ state.summary.diaper_count }}</text><small>尿布 次</small></view>
-        <view><text>{{ state.summary.complementary_food_count }}</text><small>辅食 次</small></view>
+        <template v-if="summaryReady">
+          <view><text>{{ state.summary.feeding_ml }}</text><small>奶量 ml</small></view>
+          <view><text>{{ state.summary.sleep_minutes }}</text><small>睡眠 分钟</small></view>
+          <view><text>{{ state.summary.diaper_count }}</text><small>尿布 次</small></view>
+          <view><text>{{ state.summary.complementary_food_count }}</text><small>辅食 次</small></view>
+        </template>
+        <text v-else class="summary-waiting">{{ state.error || '正在取这一天的指标…' }}</text>
       </view>
       <text class="summary-note">{{ dayText }}指标仅统计已记录内容，没记录不代表没有发生。</text>
 
@@ -158,15 +179,17 @@ onShow(() => {
       <scroll-view class="filters" scroll-x><view class="filter-row"><button :class="{ selected: filter === 'all' }" @click="filter = 'all'">全部</button><button v-for="item in RECORD_TYPES" :key="item.value" :class="{ selected: filter === item.value }" @click="filter = item.value">{{ item.label }}</button></view></scroll-view>
 
       <view v-if="!visibleRecords.length" class="empty">{{ emptyText }}<br><small>换个日期或类型看看，或点上面按钮记一条</small></view>
-      <view v-for="record in visibleRecords" :key="record.id" class="record-card">
+      <view v-for="record in visibleRecords" :key="record.id" class="record-card" @click="openEdit(record)">
         <view class="record-icon">{{ typeMeta(record.record_type).icon }}</view>
         <view class="record-body">
           <view class="record-top"><text class="record-title">{{ typeMeta(record.record_type).label }}</text><text class="record-time">{{ recordTimeText(record.occurred_at) }}</text></view>
           <text class="record-detail">{{ describeRecord(record) }}</text>
           <text v-if="record.note" class="record-note">{{ record.note }}</text>
-          <button v-if="record.media?.length" class="source" @click="openMedia(record)">{{ sourceText(record.source) }}来源 · 点击{{ record.media[0]?.media_type === 'image' ? '查看' : '播放' }}</button>
+          <view v-if="record.media?.length" class="media-row">
+            <button v-for="(item, index) in record.media" :key="item.id" class="source" @click.stop="openMedia(record, item)">{{ mediaLabel(record, index) }}</button>
+          </view>
           <text v-if="record.transcript" class="transcript">“{{ record.transcript }}”</text>
-          <view class="record-actions"><button @click="openEdit(record)">修改</button><button class="danger" @click="remove(record)">删除</button></view>
+          <view class="record-actions"><button @click.stop="openEdit(record)">修改</button><button class="danger" @click.stop="remove(record)">删除</button></view>
         </view>
       </view>
     </template>
@@ -238,6 +261,7 @@ onShow(() => {
 .record-detail { margin-top: 5px; font-size: 16px; }
 .record-note, .transcript { margin-top: 7px; color: #637a81; font-size: 13px; line-height: 1.5; }
 .source { min-height: 48px; margin-top: 8px; padding: 0 12px; border-radius: 10px; background: #edf6f8; color: #27788f; font-size: 13px; }
+.media-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .record-actions { display: flex; gap: 8px; margin-top: 10px; }
 .record-actions button { min-width: 70px; min-height: 48px; border-radius: 10px; background: #f3f6f5; color: #46626a; font-size: 14px; }
 .record-actions .danger { color: #a04e3d; }

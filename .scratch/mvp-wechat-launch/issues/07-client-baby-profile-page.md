@@ -38,3 +38,13 @@
 
 - 真实微信环境的建档 / 编辑未验，证据全部来自主机闭环（typecheck / vitest / 两端构建）；真机留给人工验收。
 - 两轴只读子代理审查（Standards / Spec，固定点 `5705643`）本轮因看门狗（连续 5 分钟无输出）中断：Standards 轴无产出，Spec 轴产出到验收项 2 即断（已读到的两条均为「已满足」，与上表一致）。本票的证据由主代理逐条对照票据与代码给出，两轴复审并入票据 08-10 完成后的整批 review 一起补做并记档。
+
+---
+
+**两轴复审补齐（2026-09-17，与 08/09/10 合并整批复审）**
+
+Standards `del_mu3bli1y_qlqz` / Spec `del_mu3bllu8_omp6` 对本票的发现与处置：
+
+- **「未填」有两套文案，互相看不出关系**（Standards 轴）：性别按钮上的「暂不填」是**选项名**（本票原文要求），只读展示里的「待完善」是**未填字段的占位**（`domain.ts:87` 的 `genderText`）。已在 `ProfileForm.vue:51-53` 写明两套文案各自的归属，不合并。
+- **未采纳：把 `ageText` 的空生日文案从「生日待完善」改成「待完善」**（Spec 轴）：它出现在月龄槽位（`profile/index.vue:42` 的 `{{ ageText(birth_date) }} · {{ genderText(gender) }}`），单独一个「待完善」会读不出缺的是哪一项；本票要求的「未填项显示待完善」由三个字段行（`profile/index.vue:47-49`）满足。
+- **已知取舍：编辑浮层的表单值靠 `:key` 重挂**（Standards 轴）：`profile/index.vue:58` 用 `:key="state.baby.updated_at ?? state.baby.id"`；服务端若从不返回 `updated_at`，key 恒为 id，表单不会因为 props 变化刷新。当前「保存成功 → 关浮层 → 下次打开重挂」的路径下成立，但如果以后把浮层改成常驻渲染会静默失效，届时改用 `watch` 或显式 `reset`。

@@ -113,6 +113,11 @@ export const api = {
     return request<RecordItem>(`/babies/${babyId}/records/${recordId}/restore`, 'POST')
   },
 
+  /** 注销账号：服务端把整族数据删干净（票 04），客户端不重登、不留残留。 */
+  deleteAccount() {
+    return request<void>('/auth/me', 'DELETE')
+  },
+
   async dailySummary(babyId: string, date: string, timezone = detectTimeZone()) {
     // 带上客户端本地时区：服务端按它把当天的记录归到正确的自然日（票 08 起固定带上）。
     const result = await request<Partial<DailySummary> & Record<string, unknown>>(

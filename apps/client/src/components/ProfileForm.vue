@@ -48,6 +48,8 @@ function submit() {
     <label><text class="label">宝宝昵称</text><input v-model="profile.nickname" class="input" maxlength="30" placeholder="例如 安安" /></label>
     <label><text class="label">生日</text><picker mode="date" :end="today" @change="profile.birth_date = pickerValue($event)"><view class="input">{{ profile.birth_date || '请选择生日' }}</view></picker></label>
     <text class="label">性别</text>
+    <!-- 「暂不填」是选项本身的名字（票据 07：性别可选男宝 / 女宝 / 暂不填）；
+         只读展示里同一份数据是「未填成的字段」，由 `genderText()` 显示为「待完善」。 -->
     <view class="gender-row">
       <button v-for="item in [{ v: 'male', t: '男宝' }, { v: 'female', t: '女宝' }, { v: 'unknown', t: '暂不填' }]" :key="item.v" :class="{ selected: profile.gender === item.v }" @click="profile.gender = item.v as Baby['gender']">{{ item.t }}</button>
     </view>

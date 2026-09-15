@@ -122,7 +122,7 @@ export const dayLabel = (date: string, today = nowParts().date) => {
 export const pickerValue = (event: unknown) =>
   String((event as { detail?: { value?: string } })?.detail?.value ?? '')
 
-/** 记录页顶部日期条：`days` 天，最后一天就是 `anchor`（默认今天，也是选中日）。 */
+/** 记录页顶部日期条：`days` 天，最后一天就是 `anchor`（默认今天）。 */
 export function buildDateStrip(days: number, anchor = nowParts().date) {
   const today = nowParts().date
   return Array.from({ length: days }, (_, index) => {

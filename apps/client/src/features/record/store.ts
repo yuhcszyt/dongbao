@@ -27,6 +27,8 @@ interface RecordState {
   retryable: boolean
   /** 刚被删除、还没撤销的那条。 */
   deleted: RecordItem | null
+  /** 账号已注销：本地已清空，且不会自动静默重登成新账号。 */
+  accountDeleted: boolean
 }
 
 const emptySummary = (): DailySummary => ({ feeding_ml: 0, sleep_minutes: 0, diaper_count: 0, complementary_food_count: 0 })
@@ -41,6 +43,7 @@ const state = reactive<RecordState>({
   error: '',
   retryable: false,
   deleted: null,
+  accountDeleted: false,
 })
 
 const clearError = () => {
@@ -50,14 +53,21 @@ const clearError = () => {
 
 const fail = (reason: unknown) => {
   state.error = errorText(reason)
-  state.retryable = reason instanceof SessionError
+  // 「已注销」给重试入口也没有意义：重登被主动禁止，只能重新进入小程序。
+  state.retryable = reason instanceof SessionError && reason.code !== 'signed_out'
 }
 
 /** 只拉某一日的四项指标（首页看今天，记录页看选中的那一天）。 */
 async function loadSummary(date: string) {
   if (!state.baby) return
-  state.summary = await api.dailySummary(state.baby.id, date)
-  state.summaryDate = date
+  try {
+    state.summary = await api.dailySummary(state.baby.id, date)
+    state.summaryDate = date
+  } catch (reason) {
+    // 指标拉不到不能默默过去：不然日期条已跳到新的一天，卡片上还是上一天的数。
+    // `summaryDate` 保持旧值，页面据此不展示数字，只展示这条中文提示。
+    fail(reason)
+  }
 }
 
 /**
@@ -67,13 +77,21 @@ async function loadSummary(date: string) {
  * 因为「今日指标」必须是今天——记录页停在昨天时不能把首页也带到昨天。
  */
 async function load(date = state.summaryDate) {
+  // 注销后不再拉取：页面展示「已注销」，不把用户静默重登成新账号。
+  if (state.accountDeleted) return
   state.loading = true
   clearError()
   try {
     state.baby = await api.getBaby()
     if (state.baby) {
-      state.records = await api.records(state.baby.id)
-      await loadSummary(date)
+      // 记录与指标分开取：其中一趟失败不该让另一趟也停在旧值上
+      //（旧写法里记录列表失败会让「今日指标」继续显示上一天的数字）。
+      await Promise.all([
+        api.records(state.baby.id).then((records) => {
+          state.records = records
+        }),
+        loadSummary(date),
+      ])
     }
   } catch (reason) {
     fail(reason)
@@ -181,7 +199,30 @@ function reset() {
   state.loading = false
   state.saving = false
   state.deleted = null
+  // `accountDeleted` 不在这里复位：它是「这台设备上的账号已经没了」的一次性开关，
+  // 只由 `deleteAccount()` 置上，任何调用 `reset()` 的地方都不应该把它解除。
   clearError()
+}
+
+/**
+ * 注销账号：服务端删干净（票 04）才算数，然后清本地并停用会话。
+ * 任何一步失败都直接返回 false，本地不动——不会停在「删了一半」的状态里。
+ */
+async function deleteAccount() {
+  clearError()
+  state.saving = true
+  try {
+    await api.deleteAccount()
+  } catch (reason) {
+    fail(reason)
+    return false
+  } finally {
+    state.saving = false
+  }
+  reset()
+  state.accountDeleted = true
+  session.logout()
+  return true
 }
 
 export const recordStore = {
@@ -197,5 +238,6 @@ export const recordStore = {
   removeRecord,
   restoreRecord,
   dismissUndo,
+  deleteAccount,
   reset,
 }

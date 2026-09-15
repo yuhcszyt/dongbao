@@ -5,15 +5,18 @@
  * 只呈现宝宝行、问候语、今日四项指标、快速记录、最近 3 条动态。
  * AI 对话、哭声监测、文章推荐、统计图表都不在这里（CONTEXT.md 上线决策 6）。
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import AccountGone from '@/components/AccountGone.vue'
 import { ageText, genderText, greetingFor, nowParts, orPending, RECORD_TYPES, recordTimeText, describeRecord, typeMeta } from '@/features/record/domain'
 import { requestQuickAction, type QuickAction } from '@/features/record/quickAction'
 import { recordStore } from '@/features/record/store'
 
 const { state } = recordStore
-const today = nowParts().date
-const greeting = greetingFor(new Date().getHours())
+// tab 页常驻：`today` 与问候语都得在每次 onShow 重算，否则跨夜后指标会挂在「今天」
+// 标题下却是昨天的数，问候语也停在「晚上好」。
+const today = ref(nowParts().date)
+const greeting = ref(greetingFor(new Date().getHours()))
 const recent = computed(() => state.records.slice(0, 3))
 const metrics = computed(() => [
   { label: '奶量', value: `${state.summary.feeding_ml} ml` },
@@ -32,7 +35,11 @@ function openRecord(action?: QuickAction) {
 }
 
 /** 今日指标只算今天；记录页可能正停在别的日期，所以这里显式传 `today`。 */
-onShow(() => void recordStore.load(today))
+onShow(() => {
+  today.value = nowParts().date
+  greeting.value = greetingFor(new Date().getHours())
+  void recordStore.load(today.value)
+})
 </script>
 
 <template>
@@ -44,7 +51,9 @@ onShow(() => void recordStore.load(today))
       <button v-if="state.retryable" class="retry" @click="recordStore.retrySession">重试</button>
     </view>
 
-    <view v-if="!state.loading && !state.baby" class="onboarding">
+    <AccountGone v-if="!state.loading && state.accountDeleted" />
+
+    <view v-if="!state.loading && !state.baby && !state.accountDeleted" class="onboarding">
       <view class="baby-mark">👶🏻</view>
       <text class="eyebrow">欢迎来到懂宝</text>
       <text class="page-title">先认识一下宝宝</text>
