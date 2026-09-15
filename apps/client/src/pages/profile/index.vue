@@ -85,6 +85,9 @@ async function confirmDelete() {
     <view v-if="formOpen && state.baby" class="overlay" @click.self="formOpen = false">
       <view class="sheet">
         <view class="sheet-head"><text class="card-title">编辑宝宝档案</text><button aria-label="关闭" @click="formOpen = false">×</button></view>
+        <!-- `:key` 是这块表单唯一会被外部改动到的东西：表单只在挂载时读一次 `initial`，
+             而「重试」会重新拉一次档案，所以让档案变一次就换一个实例，值才是最新的。
+             平时开关浮层靠 `v-if` 卸载就够，`key` 不是等效的装饰。 -->
         <ProfileForm :key="state.baby.updated_at ?? state.baby.id" :initial="state.baby" :submitting="state.saving" submit-text="保存修改" :error="state.error" :retryable="state.retryable" @submit="save" @retry="recordStore.retrySession" />
       </view>
     </view>

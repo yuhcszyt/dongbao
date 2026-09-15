@@ -248,7 +248,6 @@ export const recordStore = {
   loadSummary,
   summaryFor,
   retrySession,
-  createBaby,
   saveBaby,
   saveRecord,
   removeRecord,

@@ -3,7 +3,7 @@
  * 宝宝档案表单：建档与编辑共用同一套字段与校验（票 07 起编辑走这里，规则不会两边打架）。
  * 校验先在本地挡住并给中文提示，不把「必填项缺失」当成一次失败的提交。
  */
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { nowParts, pickerValue, validateBabyProfile, type Baby } from '@/features/record/domain'
 
 const props = withDefaults(
@@ -29,7 +29,8 @@ const profile = reactive({
   gender: (props.initial?.gender ?? 'unknown') as Baby['gender'],
 })
 const localError = ref('')
-const today = nowParts().date
+// 计算属性而不是快照：小程序常驻，过了午夜还能选到当天。
+const today = computed(() => nowParts().date)
 
 function submit() {
   // 建档与编辑共用 domain 里那一条校验，本地先挡住，不让「必填项缺失」走成一趟失败请求。

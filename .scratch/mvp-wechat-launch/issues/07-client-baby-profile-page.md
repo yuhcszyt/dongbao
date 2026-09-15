@@ -55,3 +55,12 @@ Standards `del_mu3bli1y_qlqz` / Spec `del_mu3bllu8_omp6` 对本票的发现与�
 - **「生日格式」校验漏 `2025-02-30`**（Standards 轴）：原来只判 `\d{4}-\d{2}-\d{2}` 正则。现在 `validateBabyProfile`（`domain.ts:146-152`）改用 `dateOf()` 回读比对，格式非法与「回读不等」都拒。
 - **`typeMeta` 越界回落成第一类**（Standards 轴）：`?? RECORD_TYPES[0]` 会让未知类型冒充「喂奶」。改为回落最后一个自定义类（`domain.ts:238`），不再凭空产生业务含义。
 - **重试按钮直接把带参函数当处理器**（Standards 轴，类型层）：`recordStore.retrySession` 现在首参是日期（见票据 09），模板里改成 `@click="() => recordStore.retrySession()"`（`profile/index.vue:62` / `home/index.vue:54`），避免把点击事件对象当作日期传进去。
+
+**迟到的两轴复审（`del_mu3ax9ng_lhsq`，直审本票提交 `0d2121f`）后的一轮收口**
+
+复审结论是「可以结票，无必修项，Standards 10 条可不改」，处置如下：
+
+- **建档与编辑的两条分岔在 store 层没有用例**（Standards 轴，可不改里唯一补了测试的一条）：`saveBaby` 的 `if (!state.baby) return createBaby(input)`（`store.ts:146-147`）此前只被 domain 的校验用例间接覆盖。现在 `store.test.ts` 新增「建档与编辑走同一个入口」两例：家里没有宝宝时断言调 `createBaby` 且不碰 `updateBaby`、落库后再拉一遍数据；已有档案时断言用 `updateBaby('baby-1', input)` 并显示新值。同时把 `createBaby` 从 `recordStore` 的导出面撤掉（只留 `saveBaby` 一个入口，`createBaby` 退成模块内部函数），页面侧不会再有人绕过统一入口。
+- **`ProfileForm` 的 `today` 是挂载时的快照**（Standards 轴）：小程序常驻，跨过午夜后日期选择器的上限会停在昨天。改成计算属性（`ProfileForm.vue:31-32`，`today = computed(() => nowParts().date)`），模板 `:end="today"` 自动取最新值；校验本身用的是调用时的当天，不受影响。
+- **编辑浮层的 `:key` 不是装饰**（Standards 轴曾指出语义容易误读）：保留并补了注释（`profile/index.vue:86-89`）——表单只在挂载时读一次 `initial`，而浮层里的「重试」会重新拉一次档案，所以让档案变一次就换一个实例；平时开关浮层的卸载靠 `v-if` 就够。
+- **未采纳（记档）**：错误槽与「重试」串台（重试只把会话拉回来、不会重发保存）——与票据 05 的裁定一致，输入留在表单里，重新点一次保存即可；保存成功后的短暂加载态；`as Baby['gender']` 两处断言；性别文案两处来源（表单选项「暂不填」与只读展示「待完善」是刻意的两层语义）；服务端 `PUT /api/v1/babies/{id}` 不做未来日期校验（前端在提交前挡住，服务端只负责格式，属票据 03/09 范围）。

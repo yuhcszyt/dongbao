@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   getBaby: vi.fn(),
   records: vi.fn(),
   dailySummary: vi.fn(),
+  createBaby: vi.fn(),
+  updateBaby: vi.fn(),
   deleteAccount: vi.fn(),
   logout: vi.fn(),
   retry: vi.fn(),
@@ -44,8 +46,8 @@ vi.mock('@/services/api', () => {
       records: mocks.records,
       dailySummary: mocks.dailySummary,
       deleteAccount: mocks.deleteAccount,
-      createBaby: idle,
-      updateBaby: idle,
+      createBaby: mocks.createBaby,
+      updateBaby: mocks.updateBaby,
       createRecord: idle,
       updateRecord: idle,
       deleteRecord: idle,
@@ -77,6 +79,8 @@ beforeEach(async () => {
   mocks.records.mockResolvedValue([])
   mocks.dailySummary.mockResolvedValue(NO_SUMMARY)
   mocks.deleteAccount.mockResolvedValue(undefined)
+  mocks.createBaby.mockResolvedValue(baby)
+  mocks.updateBaby.mockResolvedValue(baby)
 })
 
 describe('注销账号', () => {
@@ -146,6 +150,36 @@ describe('取数解耦：记录列表与当日指标各拉各的', () => {
     expect(recordStore.state.records).toEqual([record])
     expect(recordStore.state.summaryDate).toBe(before)
     expect(recordStore.state.error).toBe('服务暂时不可用')
+  })
+})
+
+describe('建档与编辑走同一个入口', () => {
+  const input = { nickname: '安安', birth_date: '2024-03-05', gender: 'male' as const }
+
+  it('家里还没有宝宝时建档走 createBaby，落库后再拉一遍数据', async () => {
+    const fresh = { ...baby, id: 'baby-new' }
+    mocks.createBaby.mockResolvedValue(fresh)
+    mocks.getBaby.mockResolvedValue(fresh)
+
+    expect(await recordStore.saveBaby(input)).toBe(true)
+
+    expect(mocks.createBaby).toHaveBeenCalledWith(input)
+    expect(mocks.updateBaby).not.toHaveBeenCalled()
+    expect(recordStore.state.baby).toEqual(fresh)
+    expect(mocks.getBaby).toHaveBeenCalled()
+  })
+
+  it('已有档案时保存修改走 updateBaby，带 id 去更新并显示新值', async () => {
+    await recordStore.load()
+    const renamed = { ...baby, nickname: '安安宝' }
+    mocks.updateBaby.mockResolvedValue(renamed)
+    mocks.getBaby.mockResolvedValue(renamed)
+
+    expect(await recordStore.saveBaby({ ...input, nickname: '安安宝' })).toBe(true)
+
+    expect(mocks.updateBaby).toHaveBeenCalledWith('baby-1', { ...input, nickname: '安安宝' })
+    expect(mocks.createBaby).not.toHaveBeenCalled()
+    expect(recordStore.state.baby?.nickname).toBe('安安宝')
   })
 })
 
