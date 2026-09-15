@@ -6,6 +6,12 @@ x-server-environment: &server-environment
   APP_CONFIG: /app/config/providers.toml
   TEST_FAMILY_ID: ${TEST_FAMILY_ID:-00000000-0000-0000-0000-000000000001}
   TEST_USER_ID: ${TEST_USER_ID:-00000000-0000-0000-0000-000000000002}
+  # 登录：真实微信凭证 / JWT 签名密钥（默认开发值，生产必须覆盖）
+  WECHAT_APPID: ${WECHAT_APPID:-}
+  WECHAT_SECRET: ${WECHAT_SECRET:-}
+  JWT_SECRET: ${JWT_SECRET:-dongbao-dev-secret}
+  # 开发降级：仅本地/CI 显式设 DEV_LOGIN=1；默认空 = 真实微信，生产禁止设置
+  DEV_LOGIN: ${DEV_LOGIN:-}
   TENCENT_SECRET_ID: ${TENCENT_SECRET_ID:-}
   TENCENT_SECRET_KEY: ${TENCENT_SECRET_KEY:-}
   MODEL_API_KEY: ${MODEL_API_KEY:-}

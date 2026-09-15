@@ -124,6 +124,15 @@ Key variables: `DATABASE_URL`, `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `MODEL
 
 日常开发与测试都在主机上跑，不要为了验证而重建镜像。见下方《Testing》。
 
+### 本地登录（无微信凭证）
+
+没有 `WECHAT_APPID` / `WECHAT_SECRET` 时，显式开开发降级才能登录：`DEV_LOGIN=1` 会让 `code` 直接当 openid（仅本地与 CI，生产禁止设置）。启动日志会打印当前模式（真实微信 / 开发降级）。
+
+```bash
+DEV_LOGIN=1 make dev-server   # 服务端
+DEV_LOGIN=1 make e2e          # 端到端人工验收（H5 也走同一登录接口）
+```
+
 ### 只用于端到端验收的 Docker
 
 `docker compose up` 启动 server + client + postgres，用于人工验收（以及里程碑时的容器一致性检查）。它**不是**日常测试手段。

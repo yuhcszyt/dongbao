@@ -1,4 +1,3 @@
-import pytest
 from fastapi.testclient import TestClient
 
 from app.auth.models import Family, User
@@ -6,15 +5,6 @@ from app.main import app
 from app.record.database import SessionLocal
 
 client = TestClient(app)
-
-@pytest.fixture(autouse=True)
-def no_wechat_credentials(monkeypatch):
-    """让「未配置微信凭证」成为用例前提，而不是环境巧合。
-
-    凭证一旦存在，`code_to_openid` 会真的去请求微信接口（10s 超时）。
-    """
-    monkeypatch.delenv("WECHAT_APPID", raising=False)
-    monkeypatch.delenv("WECHAT_SECRET", raising=False)
 
 def test_single_app_serves_health_record_and_auth_routes():
     health = client.get("/health")

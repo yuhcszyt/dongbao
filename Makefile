@@ -11,7 +11,11 @@ TEST_DATABASE_URL ?= postgresql+psycopg://dongbao:change-me@localhost:55432/dong
 # 仅服务端进程需要，不进 compose 插值
 SERVER_ENV = DATABASE_URL=$(TEST_DATABASE_URL) \
 	APP_CONFIG=$(CURDIR)/config/providers.toml \
-	MEDIA_ROOT=$(CURDIR)/data/media
+	MEDIA_ROOT=$(CURDIR)/data/media \
+	DEV_LOGIN=$(DEV_LOGIN)
+
+# 开发降级：仅本地/CI 显式 `make DEV_LOGIN=1 ...` 才开；默认空 = 真实微信。
+DEV_LOGIN ?=
 
 APP_MODULE ?= app.main:app
 PORT ?= 8001
@@ -25,7 +29,7 @@ help:
 	@echo "make test-client   仅客户端 typecheck + vitest"
 	@echo "make typecheck     仅 vue-tsc"
 	@echo "make build         客户端 h5 + mp-weixin 构建校验"
-	@echo "make dev-server    本地 uvicorn --reload（$(APP_MODULE)，端口 $(PORT)）"
+	@echo "make dev-server    本地 uvicorn --reload（$(APP_MODULE)，端口 $(PORT)）；无微信凭证时加 DEV_LOGIN=1"
 	@echo "make db-up         只起测试库（localhost:55432，tmpfs，跑了就丢）"
 	@echo "make e2e           docker compose up --build 端到端人工验收"
 	@echo "make docker-test   里程碑一致性：容器内带 --build 跑一遍全部测试"
