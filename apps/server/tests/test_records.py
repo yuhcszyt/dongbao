@@ -7,9 +7,9 @@ import httpx
 from fastapi.testclient import TestClient
 from sqlalchemy import delete
 
-from app.database import SessionLocal
-from app.main import app
-from app.models import Baby, BabyRecord, MediaAsset, RecordDraft, RecordMedia
+from app.record.database import SessionLocal
+from app.record.main import app
+from app.record.models import Baby, BabyRecord, MediaAsset, RecordDraft, RecordMedia
 
 client = TestClient(app)
 

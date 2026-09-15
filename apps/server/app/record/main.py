@@ -15,7 +15,7 @@ from mutagen import File as MutagenFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .config import get_config
+from ..config import get_config
 from .database import get_db
 from .models import Baby, BabyRecord, MediaAsset, RecordDraft, RecordMedia, now
 from .providers import ProviderUnavailable, extract_draft, transcribe_audio

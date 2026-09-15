@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx
 
-from .config import get_config
+from ..config import get_config
 
 class ProviderUnavailable(Exception):
     pass
