@@ -3,15 +3,16 @@ import os
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from ..record.database import get_db
 from ..record.models import Baby, BabyRecord, MediaAsset, RecordDraft, RecordMedia
+from .dependencies import api_error, current_user
 from .models import Family, User
-from .security import issue_token, verify_token
+from .security import issue_token
 from .wechat import LOGIN_FAILED_MESSAGE, WeChatLoginError, code_to_openid
 
 logger = logging.getLogger(__name__)
@@ -19,21 +20,6 @@ logger = logging.getLogger(__name__)
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/app/data/media"))
 
 router = APIRouter(prefix="/api/v1", tags=["auth"])
-
-def _raise(status: int, code: str, message: str) -> None:
-    raise HTTPException(status_code=status, detail={"code": code, "message": message})
-
-def current_user(authorization: str = Header(""), db: Session = Depends(get_db)) -> User:
-    if not authorization.startswith("Bearer "):
-        _raise(401, "missing_token", "请先登录")
-    try:
-        user_id, _ = verify_token(authorization[7:])
-    except ValueError:
-        _raise(401, "invalid_token", "登录已过期，请重新进入")
-    user = db.scalar(select(User).where(User.id == user_id))
-    if not user:
-        _raise(401, "invalid_token", "账号已注销")  # 吊销：用户删了即 401，无需 Redis
-    return user
 
 class WeChatLoginIn(BaseModel):
     code: str = Field(min_length=1, max_length=128)
@@ -48,7 +34,7 @@ async def login_wechat(body: WeChatLoginIn, db: Session = Depends(get_db)):
         openid = await code_to_openid(body.code)
     except WeChatLoginError as exc:
         logger.warning("微信登录失败：%s", exc)  # 原始细节只进日志
-        _raise(502, "wechat_login_failed", LOGIN_FAILED_MESSAGE)
+        raise api_error(502, "wechat_login_failed", LOGIN_FAILED_MESSAGE)
     user = db.scalar(select(User).where(User.openid == openid))
     if not user:
         family = Family()

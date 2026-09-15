@@ -12,8 +12,10 @@ def test_single_app_serves_health_record_and_auth_routes():
     assert health.json() == {"status": "ok"}
     assert health.headers["X-Request-ID"]
 
-    # 记录路由已挂载（未带 token 也仍按记录侧现状工作，硬编码家庭下没有宝宝）
-    assert client.get("/api/v1/babies").status_code == 200
+    # 记录路由已挂载：未带 token 时是 401 missing_token（鉴权已接入记录侧），而不是 404
+    unauthenticated = client.get("/api/v1/babies")
+    assert unauthenticated.status_code == 401, unauthenticated.text
+    assert unauthenticated.json()["error"]["code"] == "missing_token"
 
     # 鉴权路由被真正挂载：未配置微信凭证时是 502，而不是 404
     login = client.post("/api/v1/auth/wechat", json={"code": "any-code"})

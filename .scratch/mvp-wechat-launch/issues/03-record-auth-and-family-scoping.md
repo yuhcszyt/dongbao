@@ -23,3 +23,13 @@
 - [ ] 代码与 compose 中不再出现 `FAMILY_ID` / `USER_ID` / `TEST_FAMILY_ID` / `TEST_USER_ID`，新建记录的 `created_by` 是真实用户 ID
 - [ ] 原有四个记录场景（十类记录 + 时间线 + 今日汇总 + 编辑 / 删除 / 撤销；语音草稿需确认且保留来源；Provider 失败返回可编辑草稿且不丢媒体；拒绝 payload 类型不匹配与非法上传）改为带 token 调用后全部通过，作为「鉴权重构没弄坏原有行为」的回归网
 - [ ] 鉴权依赖只有一份实现，记录路由与鉴权路由共用
+
+## Comments
+
+2026-09-15 实施记录（agent）。清单里第 3 条与第 4 条对媒体文件的表述互相矛盾：第 4 条要求「媒体 GET 无需 token 即可取到文件」，而没有 token 就没法比对家庭。按 spec《媒体文件的取用方式》里那句解释（「即媒体 URL 只在『已鉴权的列表 / 详情响应』里被下发，拿到 URL 的人只拿到这一个文件」）与《媒体免 token 的取舍》（「URL 泄露即文件泄露，MVP 接受该风险」）落地为：
+
+- 文件本身 `GET /api/v1/media/{uuid}` 免 token、不做家庭校验 —— UUID 即能力凭证；
+- 第 3 条的「媒体」按「带 token 的媒体相关接口」理解：拿别家的 baby / media / draft id 一律 404 且是 not_found 系列（`baby_not_found` / `media_not_found` / `draft_not_found`），并且任何带 token 的响应体都不下发别家的媒体 URL（URL 只在已鉴权的列表 / 详情里出现）；
+- 覆盖在 `apps/server/tests/test_record_auth.py` 的 `test_a_second_family_cannot_reach_the_first_family_data` 与 `test_media_get_is_a_capability_url_while_upload_needs_a_token`。
+
+若要更严（文件 GET 也按家庭校验），后续改为短时效签名 URL 即可，只需改下发 URL 一处（spec 已记）。

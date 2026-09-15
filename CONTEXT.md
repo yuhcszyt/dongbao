@@ -31,6 +31,7 @@
 9. **配置**：`WECHAT_APPID`、`WECHAT_SECRET`、`JWT_SECRET`（默认开发值，生产必须覆盖）环境变量。
 10. **隐私政策**：按实际收集字段起草（宝宝昵称/生日/性别、记录内容、语音/照片），贴小程序后台。
 11. **推迟**：多宝宝切换、家庭共享、退出登录、头像昵称同步（Phase 5 一并考虑）。
+12. **媒体取用**：`GET /api/v1/media/{uuid}` 免 token，UUID 即能力凭证（`uni.previewImage` / `createInnerAudioContext` 无法带请求头）；URL 只在带 token 的列表 / 详情响应里下发，上传走正常 Bearer 鉴权。要更严则改短时效签名 URL，只需改下发 URL 一处。
 
 ## 冲突提示
 

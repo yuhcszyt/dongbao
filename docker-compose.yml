@@ -4,8 +4,6 @@ x-server-environment: &server-environment
   PYTHONPATH: /app
   DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://dongbao:change-me@postgres:5432/dongbao}
   APP_CONFIG: /app/config/providers.toml
-  TEST_FAMILY_ID: ${TEST_FAMILY_ID:-00000000-0000-0000-0000-000000000001}
-  TEST_USER_ID: ${TEST_USER_ID:-00000000-0000-0000-0000-000000000002}
   # 登录：真实微信凭证 / JWT 签名密钥（默认开发值，生产必须覆盖）
   WECHAT_APPID: ${WECHAT_APPID:-}
   WECHAT_SECRET: ${WECHAT_SECRET:-}

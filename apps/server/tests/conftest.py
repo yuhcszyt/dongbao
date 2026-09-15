@@ -1,9 +1,13 @@
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import delete
 
 from app.auth.models import Family, User
+from app.main import app
 from app.record.database import SessionLocal
 from app.record.models import Baby, BabyRecord, MediaAsset, RecordDraft, RecordMedia
+
+DEFAULT_OPENID = "openid-of-parent-a"
 
 @pytest.fixture(autouse=True)
 def no_login_configuration(monkeypatch):
@@ -23,3 +27,26 @@ def clean_database():
             db.execute(delete(model))
         db.commit()
     yield
+
+
+@pytest.fixture
+def login(monkeypatch):
+    """走真实登录接口拿凭证（开发降级）：回归网跑的是带 token 的全链路，不是测试期身份。"""
+    monkeypatch.setenv("DEV_LOGIN", "1")
+
+    def _login(code: str = DEFAULT_OPENID) -> dict:
+        response = TestClient(app).post("/api/v1/auth/wechat", json={"code": code})
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    return _login
+
+
+@pytest.fixture
+def auth(login):
+    """返回 Authorization 头工厂；不同 openid 即不同家庭。"""
+
+    def _headers(code: str = DEFAULT_OPENID) -> dict:
+        return {"Authorization": f"Bearer {login(code)['token']}"}
+
+    return _headers
