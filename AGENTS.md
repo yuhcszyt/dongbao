@@ -1,4 +1,4 @@
-o每次完成任务，commit and push 到github上
+每次完成任务，commit and push 到github上
 
 ## 硬性约束：禁止控制本机验证前端界面
 
@@ -12,12 +12,26 @@ o每次完成任务，commit and push 到github上
 
 **前端验证只允许这些手段：**
 
-1. 单元测试 — `cd apps/client && npm test`（Vitest）
+1. 单元测试 — `make test-client`（内部是 `npm run typecheck && npm test`，Vitest）
 2. 类型检查 — `cd apps/client && npm run typecheck`（vue-tsc）
 3. 构建校验 — `cd apps/client && npm run build:h5`（构建失败即视为错误）
 4. 代码级审查 — 读源码、追踪组件树 / props / 响应式依赖 / 条件渲染分支，确认逻辑正确
 
 如需人工目视确认，**停下来向用户说明需要人工确认的点**，由用户自己去操作和查看，不要代为控制本机。
+
+## 硬性约束：测试在本地跑，不要为了测试重建 docker 镜像
+
+验证代码一律走主机上的本地闭环：
+
+```bash
+make test                                            # 服务端 pytest + 客户端 typecheck/vitest
+docker compose --profile tools up -d postgres-test   # 唯一需要的容器（主机 55432）
+```
+
+- 日常开发、调试、改 bug、跑单测，**都在主机上跑**，用 `Makefile` 里的目标（`make help` 看全）。
+- **禁止**为了跑一遍测试而 `docker compose build` / `run --rm ... --build` / `up --build`：服务端镜像是 `COPY . .`，重建就是几十秒到几分钟一轮。
+- 容器只在两处用：`make e2e`（端到端人工验收）与里程碑结束时的 `make docker-test`（容器一致性检查）。
+- 依赖安装是一次性动作（`make setup`）：服务端进 `apps/server/.venv`，客户端进 `apps/client/node_modules`。缺依赖就补装，不要退回去用容器跑测试。
 
 ## Project Overview
 
