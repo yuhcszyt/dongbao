@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import CapturePanel from '@/components/CapturePanel.vue'
 import RecordForm from '@/components/RecordForm.vue'
 import { ageText, describeRecord, nowParts, RECORD_TYPES, type Baby, type DailySummary, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
-import { api, ApiError, mediaUrl } from '@/services/api'
+import { api, ApiError, mediaUrl, session, SessionError } from '@/services/api'
 
 const baby = ref<Baby | null>(null)
 const records = ref<RecordItem[]>([])
@@ -11,6 +11,8 @@ const summary = ref<DailySummary>({ feeding_ml: 0, sleep_minutes: 0, diaper_coun
 const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
+/** 错误来自会话模块时（登录失败 / 登录过期）才给重试入口：重试即重登，再重新拉数据。 */
+const retryable = ref(false)
 const panel = ref<'capture' | 'form' | null>(null)
 const editing = ref<RecordItem | null>(null)
 const selectedType = ref<RecordType>('feeding')
@@ -27,7 +29,15 @@ const formInitial = computed<Partial<RecordInput>>(() => editing.value ? {
   note: editing.value.note ?? null,
 } : { record_type: selectedType.value })
 
-const message = (reason: unknown) => reason instanceof ApiError ? reason.message : '操作没有完成，请稍后重试'
+const message = (reason: unknown) => (reason instanceof ApiError || reason instanceof SessionError) ? reason.message : '操作没有完成，请稍后重试'
+const clearError = () => {
+  error.value = ''
+  retryable.value = false
+}
+const fail = (reason: unknown) => {
+  error.value = message(reason)
+  retryable.value = reason instanceof SessionError
+}
 const sourceText = (source: RecordItem['source']) => ({ manual: '手动', voice: '语音', photo: '图片', system: '系统' })[source]
 const genderText = (gender: Baby['gender']) => ({ male: '男宝', female: '女宝', unknown: '暂不填写' })[gender]
 const timeText = (value: string) => {
@@ -38,7 +48,7 @@ const pickerValue = (event: unknown) => String((event as { detail?: { value?: st
 
 async function load() {
   loading.value = true
-  error.value = ''
+  clearError()
   try {
     baby.value = await api.getBaby()
     if (baby.value) {
@@ -47,10 +57,21 @@ async function load() {
       summary.value = daily
     }
   } catch (reason) {
-    error.value = message(reason)
+    fail(reason)
   } finally {
     loading.value = false
   }
+}
+
+/** 会话进入「需要重试」时用户点的那个重试：先重登，成功了再把手头这屏数据拉一遍。 */
+async function retrySession() {
+  try {
+    await session.retry()
+  } catch (reason) {
+    fail(reason)
+    return
+  }
+  await load()
 }
 
 async function saveProfile() {
@@ -59,12 +80,12 @@ async function saveProfile() {
     return
   }
   saving.value = true
-  error.value = ''
+  clearError()
   try {
     baby.value = await api.createBaby({ ...profile, nickname: profile.nickname.trim() })
     await load()
   } catch (reason) {
-    error.value = message(reason)
+    fail(reason)
   } finally {
     saving.value = false
   }
@@ -85,7 +106,7 @@ function openEdit(record: RecordItem) {
 async function saveRecord(input: RecordInput) {
   if (!baby.value) return
   saving.value = true
-  error.value = ''
+  clearError()
   try {
     if (editing.value) await api.updateRecord(baby.value.id, editing.value.id, input)
     else await api.createRecord(baby.value.id, input)
@@ -94,7 +115,7 @@ async function saveRecord(input: RecordInput) {
     await load()
     uni.showToast({ title: '记好了', icon: 'success' })
   } catch (reason) {
-    error.value = message(reason)
+    fail(reason)
   } finally {
     saving.value = false
   }
@@ -112,7 +133,7 @@ function remove(record: RecordItem) {
         deleted.value = record
         await load()
       } catch (reason) {
-        error.value = message(reason)
+        fail(reason)
       }
     },
   })
@@ -125,7 +146,7 @@ async function restore() {
     deleted.value = null
     await load()
   } catch (reason) {
-    error.value = message(reason)
+    fail(reason)
   }
 }
 
@@ -159,7 +180,7 @@ onMounted(load)
       <label><text class="label">生日</text><picker mode="date" :end="today" @change="profile.birth_date = pickerValue($event)"><view class="input">{{ profile.birth_date || '请选择生日' }}</view></picker></label>
       <text class="label">性别</text>
       <view class="gender-row"><button v-for="item in [{v:'male',t:'男宝'}, {v:'female',t:'女宝'}, {v:'unknown',t:'暂不填'}]" :key="item.v" :class="{ selected: profile.gender === item.v }" @click="profile.gender = item.v as Baby['gender']">{{ item.t }}</button></view>
-      <view v-if="error" class="error">{{ error }}</view>
+      <view v-if="error" class="error"><text>{{ error }}</text><button v-if="retryable" class="retry" @click="retrySession">重试</button></view>
       <button class="primary" :disabled="saving" @click="saveProfile">{{ saving ? '正在保存…' : '创建宝宝档案' }}</button>
     </view>
 
@@ -187,7 +208,7 @@ onMounted(load)
         <button class="text-button" @click="openManual('custom')">查看全部记录类型 ›</button>
       </view>
 
-      <view v-if="error" class="error">{{ error }}</view>
+      <view v-if="error" class="error"><text>{{ error }}</text><button v-if="retryable" class="retry" @click="retrySession">重试</button></view>
       <view class="timeline-head"><text class="card-title">成长时间线</text><text>{{ records.length }} 条</text></view>
       <scroll-view class="filters" scroll-x><view class="filter-row"><button :class="{ selected: filter === 'all' }" @click="filter = 'all'">全部</button><button v-for="item in RECORD_TYPES" :key="item.value" :class="{ selected: filter === item.value }" @click="filter = item.value">{{ item.label }}</button></view></scroll-view>
 
@@ -213,7 +234,7 @@ onMounted(load)
         <template v-else>
           <view class="sheet-head"><text class="card-title">{{ editing ? '修改记录' : '手动记录' }}</text><button aria-label="关闭" @click="panel = null">×</button></view>
           <RecordForm :initial="formInitial" :lock-type="Boolean(editing)" :submitting="saving" :submit-text="editing ? '保存修改' : '保存记录'" @submit="saveRecord" />
-          <view v-if="error" class="error">{{ error }}</view>
+          <view v-if="error" class="error"><text>{{ error }}</text><button v-if="retryable" class="retry" @click="retrySession">重试</button></view>
         </template>
       </view>
     </view>
@@ -254,6 +275,7 @@ onMounted(load)
 .quick-grid text { display: block; font-size: 20px; }
 .text-button { width: 100%; min-height: 48px; margin-top: 5px; background: transparent; color: #2d8098; font-size: 14px; }
 .error { max-width: 760px; margin: 12px auto; border-radius: 12px; background: #fff0ec; padding: 12px; color: #9a4c3e; }
+.error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: #fff; color: #9a4c3e; font-weight: 700; }
 .timeline-head { display: flex; justify-content: space-between; max-width: 760px; margin: 28px auto 8px; color: #71858b; }
 .filters { max-width: 760px; margin: 0 auto; white-space: nowrap; }
 .filter-row { display: inline-flex; gap: 8px; padding: 4px 0 8px; }

@@ -8,9 +8,14 @@ import type {
   RecordType,
 } from '@/features/record/domain'
 import { normalizeSummary } from '@/features/record/domain'
+import { API_BASE, mediaUrl } from './config'
+import { isSuccess } from './http'
+import type { SessionResponse } from './session'
+import { session } from './sessionHost'
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '')
-export const mediaUrl = (path: string) => path.startsWith('http') ? path : `${API_BASE.replace(/\/api\/v1$/, '')}${path}`
+export { mediaUrl }
+export { session }
+export { SessionError } from './session'
 
 interface ApiErrorBody {
   error?: { message?: string }
@@ -33,29 +38,44 @@ const errorMessage = (body: ApiErrorBody | null, fallback: string) => {
   return body?.error?.message || body?.message || fallback
 }
 
+const unwrapList = <T>(value: T[] | { items: T[] }) => (Array.isArray(value) ? value : value.items)
+
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
-const request = <T>(path: string, method: HttpMethod = 'GET', data?: Record<string, unknown>) =>
-  new Promise<T>((resolve, reject) => {
+const sendRequest = (options: { url: string; method: HttpMethod; data?: Record<string, unknown>; headers: Record<string, string> }) =>
+  new Promise<SessionResponse>((resolve, reject) => {
     uni.request({
-      url: `${API_BASE}${path}`,
-      method,
-      data,
+      url: options.url,
+      method: options.method,
+      data: options.data,
+      header: options.headers,
       timeout: 15_000,
-      success(response) {
-        if (response.statusCode >= 200 && response.statusCode < 300) {
-          resolve(response.data as T)
-          return
-        }
-        reject(new ApiError(errorMessage(response.data as ApiErrorBody, '请求没有完成，请稍后重试'), response.statusCode))
-      },
-      fail(error) {
-        reject(new ApiError(error.errMsg || '网络连接失败，请稍后重试'))
-      },
+      success: (response) => resolve({ statusCode: response.statusCode, data: response.data }),
+      fail: (error) => reject(new ApiError(error.errMsg || '网络连接失败，请稍后重试')),
     })
   })
 
-const unwrapList = <T>(value: T[] | { items: T[] }) => (Array.isArray(value) ? value : value.items)
+/**
+ * 统一网络层：所有请求的凭证都由会话模块附加，401 后的重登与重放也在 session.run 里，
+ * 页面只表达「要什么」，不拼 header。
+ */
+const request = async <T>(path: string, method: HttpMethod = 'GET', data?: Record<string, unknown>): Promise<T> => {
+  const response = await session.run((headers) => sendRequest({ url: `${API_BASE}${path}`, method, data, headers }))
+  if (isSuccess(response.statusCode)) return response.data as T
+  throw new ApiError(errorMessage(response.data as ApiErrorBody | null, '请求没有完成，请稍后重试'), response.statusCode)
+}
+
+const mediaFormData = (babyId: string, mediaType: 'audio' | 'image', durationMs?: number) => ({
+  baby_id: babyId,
+  media_type: mediaType,
+  ...(durationMs ? { duration_ms: String(durationMs) } : {}),
+})
+
+const uploadResult = (response: SessionResponse, fallback: string): MediaAsset => {
+  const body = response.data as MediaAsset | ApiErrorBody | null
+  if (isSuccess(response.statusCode) && body && typeof body === 'object' && 'id' in body) return body as MediaAsset
+  throw new ApiError(errorMessage(body as ApiErrorBody | null, fallback), response.statusCode)
+}
 
 export const api = {
   async getBaby() {
@@ -100,50 +120,43 @@ export const api = {
     return normalizeSummary(result)
   },
 
-  uploadPath(filePath: string, babyId: string, mediaType: 'audio' | 'image', durationMs?: number) {
-    return new Promise<MediaAsset>((resolve, reject) => {
-      uni.uploadFile({
-        url: `${API_BASE}/media`,
-        filePath,
-        name: 'file',
-        timeout: 30_000,
-        formData: {
-          baby_id: babyId,
-          media_type: mediaType,
-          ...(durationMs ? { duration_ms: String(durationMs) } : {}),
-        },
-        success(response) {
-          let body: MediaAsset | ApiErrorBody | null = null
-          try {
-            body = JSON.parse(response.data) as MediaAsset | ApiErrorBody
-          } catch {
-            // 服务端非 JSON 错误由统一文案承接。
-          }
-          if (response.statusCode >= 200 && response.statusCode < 300 && body && 'id' in body) {
-            resolve(body)
-            return
-          }
-          reject(new ApiError(errorMessage(body as ApiErrorBody, '上传没有完成，请重试'), response.statusCode))
-        },
-        fail(error) {
-          reject(new ApiError(error.errMsg || '上传没有完成，请重试'))
-        },
-      })
-    })
+  async uploadPath(filePath: string, babyId: string, mediaType: 'audio' | 'image', durationMs?: number) {
+    const response = await session.run(
+      (headers) =>
+        new Promise<SessionResponse>((resolve, reject) => {
+          uni.uploadFile({
+            url: `${API_BASE}/media`,
+            filePath,
+            name: 'file',
+            header: headers,
+            timeout: 30_000,
+            formData: mediaFormData(babyId, mediaType, durationMs),
+            success: (result) => {
+              let body: unknown = null
+              try {
+                body = JSON.parse(result.data) as unknown
+              } catch {
+                // 服务端非 JSON 错误由统一文案承接。
+              }
+              resolve({ statusCode: result.statusCode, data: body })
+            },
+            fail: (error) => reject(new ApiError(error.errMsg || '上传没有完成，请重试')),
+          })
+        }),
+    )
+    return uploadResult(response, '上传没有完成，请重试')
   },
 
   async uploadBlob(blob: Blob, babyId: string, mediaType: 'audio' | 'image', durationMs?: number) {
-    const form = new FormData()
-    form.append('file', blob, mediaType === 'audio' ? 'recording.webm' : 'photo.jpg')
-    form.append('baby_id', babyId)
-    form.append('media_type', mediaType)
-    if (durationMs) form.append('duration_ms', String(durationMs))
-    const response = await fetch(`${API_BASE}/media`, { method: 'POST', body: form })
-    const body = (await response.json().catch(() => null)) as MediaAsset | ApiErrorBody | null
-    if (!response.ok || !body || !('id' in body)) {
-      throw new ApiError(errorMessage(body as ApiErrorBody, '上传没有完成，请重试'), response.status)
-    }
-    return body
+    const response = await session.run(async (headers) => {
+      const form = new FormData()
+      form.append('file', blob, mediaType === 'audio' ? 'recording.webm' : 'photo.jpg')
+      for (const [key, value] of Object.entries(mediaFormData(babyId, mediaType, durationMs))) form.append(key, value)
+      const result = await fetch(`${API_BASE}/media`, { method: 'POST', headers, body: form })
+      const body = (await result.json().catch(() => null)) as unknown
+      return { statusCode: result.status, data: body }
+    })
+    return uploadResult(response, '上传没有完成，请重试')
   },
 
   draftFromMedia(kind: 'voice' | 'photo', babyId: string, mediaId: string) {

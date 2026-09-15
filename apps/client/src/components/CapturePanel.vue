@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
 import RecordForm from '@/components/RecordForm.vue'
-import { api, ApiError } from '@/services/api'
+import { api, ApiError, SessionError } from '@/services/api'
 import { RECORD_TYPES, type MediaAsset, type RecordDraft, type RecordInput, type RecordItem, type RecordType } from '@/features/record/domain'
 
 const props = defineProps<{ babyId: string }>()
@@ -42,7 +42,7 @@ const cleanTimers = () => {
   hardStop = null
 }
 
-const friendlyError = (value: unknown) => value instanceof ApiError ? value.message : '这次没有识别成功，请重试或手动填写'
+const friendlyError = (value: unknown) => (value instanceof ApiError || value instanceof SessionError) ? value.message : '这次没有识别成功，请重试或手动填写'
 
 async function recognize(media: MediaAsset, kind: 'voice' | 'photo') {
   phase.value = 'processing'
