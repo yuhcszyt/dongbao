@@ -53,7 +53,7 @@ const emptyValues = (): FormValues => ({
   duration_minutes: '',
   color: '',
   consistency: '',
-  content: 'wet',
+  content: '',
   description: '',
   height_cm: '',
   weight_kg: '',
@@ -133,11 +133,6 @@ const feedingOptions = [
   { label: '配方奶', value: 'formula' },
   { label: '母乳', value: 'breast' },
   { label: '未注明', value: 'unknown' },
-]
-const diaperOptions = [
-  { label: '尿湿', value: 'wet' },
-  { label: '排便', value: 'stool' },
-  { label: '两者都有', value: 'both' },
 ]
 const stoolColors = ['黄色', '绿色', '棕色', '黑色', '其他']
 const stoolConsistency = ['稀便', '软便', '成形', '干硬', '其他']
@@ -227,10 +222,8 @@ function submit() {
 
     <view v-else-if="recordType === 'diaper'" class="fields">
       <label>
-        <text class="field-title">尿布情况</text>
-        <picker :range="diaperOptions" range-key="label" @change="values.content = diaperOptions[eventIndex($event)]?.value || 'wet'">
-          <view class="picker-field">{{ optionLabel(diaperOptions, values.content) }} <text>⌄</text></view>
-        </picker>
+        <text class="field-title">记录内容</text>
+        <input v-model="values.content" class="input" placeholder="例如 更换尿布" maxlength="100" />
       </label>
     </view>
 

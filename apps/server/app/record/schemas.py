@@ -41,7 +41,7 @@ class StoolPayload(StrictModel):
 
 class DiaperPayload(StrictModel):
     kind: Literal["diaper"]
-    content: Literal["wet", "stool", "both"]
+    content: str = Field(min_length=1, max_length=100)
 
 class CryingPayload(StrictModel):
     kind: Literal["crying"]

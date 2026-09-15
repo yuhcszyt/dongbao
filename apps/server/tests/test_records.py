@@ -40,7 +40,7 @@ PAYLOADS = [
     ("complementary_food", {"kind": "complementary_food", "food_name": "南瓜泥", "amount_text": "半碗"}),
     ("sleep", {"kind": "sleep", "duration_minutes": 90}),
     ("stool", {"kind": "stool", "color": "黄色", "consistency": "糊状"}),
-    ("diaper", {"kind": "diaper", "content": "wet"}),
+    ("diaper", {"kind": "diaper", "content": "更换尿布"}),
     ("crying", {"kind": "crying", "duration_minutes": 5, "description": "哄抱后平静"}),
     ("growth", {"kind": "growth", "height_cm": 68.5}),
     ("vaccine", {"kind": "vaccine", "name": "乙肝疫苗", "dose": "第 2 剂"}),
@@ -146,7 +146,7 @@ def test_rejects_mismatched_payload_and_invalid_upload():
     baby_id = create_baby()
     mismatch = client.post(
         f"/api/v1/babies/{baby_id}/records",
-        json={"record_type": "feeding", "occurred_at": datetime.now(timezone.utc).isoformat(), "payload": {"kind": "diaper", "content": "wet"}},
+        json={"record_type": "feeding", "occurred_at": datetime.now(timezone.utc).isoformat(), "payload": {"kind": "diaper", "content": "更换尿布"}},
     )
     assert mismatch.status_code == 422
     invalid = client.post("/api/v1/media", data={"baby_id": baby_id}, files={"file": ("fake.png", b"not-png", "image/png")})

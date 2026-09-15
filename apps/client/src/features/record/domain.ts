@@ -112,7 +112,7 @@ export function validatePayload(type: RecordType, payload: Record<string, unknow
     case 'stool':
       return present(payload.color) && present(payload.consistency) ? null : '请选择颜色和性状'
     case 'diaper':
-      return present(payload.content) ? null : '请选择尿布情况'
+      return present(payload.content) ? null : '请填写记录内容'
     case 'crying':
       return null
     case 'growth':
@@ -146,7 +146,7 @@ export function describeRecord(record: Pick<RecordItem, 'record_type' | 'payload
     case 'stool':
       return [payload.color, payload.consistency].filter(present).join(' · ') || '已记录排便'
     case 'diaper':
-      return ({ wet: '尿湿', stool: '排便', both: '尿湿和排便' } as Record<string, string>)[String(payload.content)] || '已更换尿布'
+      return ({ wet: '尿湿', stool: '排便', both: '尿湿和排便' } as Record<string, string>)[String(payload.content)] || String(payload.content ?? '').trim() || '已更换尿布'
     case 'crying':
       return [payload.duration_minutes ? `${numberText(payload.duration_minutes)} 分钟` : '', payload.description].filter(present).join(' · ') || '已记录哭闹'
     case 'growth':
