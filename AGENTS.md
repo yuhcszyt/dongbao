@@ -1,5 +1,24 @@
 每次完成任务，commit and push 到github上
 
+## 硬性约束：禁止控制本机验证前端界面
+
+验证前端时**禁止以任何方式控制本机去看界面**，包括但不限于：
+
+- 启动浏览器（Chrome / Safari / Playwright / Puppeteer 等）打开 H5 页面并截图
+- 使用 AppleScript / `osascript` / `open` / `screencapture` / `cliclick` 等操控本机窗口或模拟点击
+- 启动 `dev:h5` / `dev:mp-weixin` 开发服务器后去访问、截屏、录屏
+- 打开微信开发者工具、IDE 预览面板或任何 GUI
+- 任何“人眼式”验证（看渲染结果、对像素、看动画）
+
+**前端验证只允许这些手段：**
+
+1. 单元测试 — `cd apps/client && npm test`（Vitest）
+2. 类型检查 — `cd apps/client && npm run typecheck`（vue-tsc）
+3. 构建校验 — `cd apps/client && npm run build:h5`（构建失败即视为错误）
+4. 代码级审查 — 读源码、追踪组件树 / props / 响应式依赖 / 条件渲染分支，确认逻辑正确
+
+如需人工目视确认，**停下来向用户说明需要人工确认的点**，由用户自己去操作和查看，不要代为控制本机。
+
 ## Project Overview
 
 Dongbao (懂宝) is a family-oriented application with a Python/FastAPI backend and a uni-app (Vue 3) frontend targeting both H5 and WeChat Mini Program.
@@ -131,6 +150,10 @@ cd apps/client && npm test
 # Client typecheck
 cd apps/client && npm run typecheck
 ```
+
+### 前端验证（受限）
+
+见上文《硬性约束：禁止控制本机验证前端界面》。Agent 只能通过 `npm test` / `npm run typecheck` / `npm run build:h5` 和代码级审查验证前端；一律不得启动浏览器、开发服务器或截图来“看界面”。
 
 ## Database Migrations
 
