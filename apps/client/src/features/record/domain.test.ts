@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { describeRecord, detectTimeZone, greetingFor, normalizeSummary, recordTimeText, timeZoneName, validateBabyProfile, validatePayload } from './domain'
+import {
+  buildDateStrip,
+  dateOf,
+  dayLabel,
+  describeRecord,
+  detectTimeZone,
+  greetingFor,
+  normalizeSummary,
+  pickerValue,
+  recordTimeText,
+  recordsOnDay,
+  shiftDate,
+  timeZoneName,
+  validateBabyProfile,
+  validatePayload,
+} from './domain'
 
 describe('记录领域契约', () => {
   it('与后端字段一致并允许不填奶量', () => {
@@ -55,5 +70,52 @@ describe('首页展示用的时间文案（票 08）', () => {
     expect(timeZoneName(null)).toBe('Asia/Shanghai')
     expect(timeZoneName('')).toBe('Asia/Shanghai')
     expect(detectTimeZone()).toBeTruthy()
+  })
+})
+
+describe('记录页的日期归日与日期条（票 09）', () => {
+  const today = '2026-09-16'
+
+  it('时间戳按本地日期归入某一天，解析不了不落到今天', () => {
+    expect(dateOf('2026-03-05T09:07:00')).toBe('2026-03-05')
+    expect(dateOf('2026-11-20T23:59:00')).toBe('2026-11-20')
+    expect(dateOf('不是时间')).toBe('')
+  })
+
+  it('日期加减跳月、跳年都是对的', () => {
+    expect(shiftDate('2026-03-01', -1)).toBe('2026-02-28')
+    expect(shiftDate('2026-01-01', -1)).toBe('2025-12-31')
+    expect(shiftDate('2026-02-28', 1)).toBe('2026-03-01')
+    expect(shiftDate('不是日期', 1)).toBe('不是日期')
+  })
+
+  it('日期条标签：今天 / 昨天 / 周X', () => {
+    expect(dayLabel(today, today)).toBe('今天')
+    expect(dayLabel('2026-09-15', today)).toBe('昨天')
+    expect(dayLabel('2026-09-13', today)).toBe('周日')
+  })
+
+  it('7 天日期条以选中日结尾，选中日就是最后一天', () => {
+    const strip = buildDateStrip(7, today)
+    expect(strip).toHaveLength(7)
+    expect(strip[0]).toEqual({ date: '2026-09-10', day: '10', label: '周四' })
+    expect(strip[6]).toEqual({ date: today, day: '16', label: '今天' })
+  })
+
+  it('时间线只显示选中那一天（按客户端本地日期过滤）', () => {
+    const records = [
+      { id: 'a', occurred_at: '2026-09-16T08:00:00' },
+      { id: 'b', occurred_at: '2026-09-15T22:30:00' },
+      { id: 'c', occurred_at: '不是时间' },
+    ]
+    expect(recordsOnDay(records, '2026-09-16').map((item) => item.id)).toEqual(['a'])
+    expect(recordsOnDay(records, '2026-09-15').map((item) => item.id)).toEqual(['b'])
+    expect(recordsOnDay(records, '2026-09-14')).toEqual([])
+  })
+
+  it('日期选择器取值：两端口径一致，取不到就当没选', () => {
+    expect(pickerValue({ detail: { value: '2026-09-10' } })).toBe('2026-09-10')
+    expect(pickerValue({ detail: {} })).toBe('')
+    expect(pickerValue(undefined)).toBe('')
   })
 })

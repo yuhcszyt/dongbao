@@ -15,6 +15,8 @@ class ProviderUnavailable(Exception):
     pass
 
 def _secret(name: str) -> str:
+    # 凭证只从环境变量里读：缺了就降级成「已转为手动填写」，而不是抛 NameError 变成 500。
+    value = os.environ.get(name, "")
     if not value:
         raise ProviderUnavailable("服务尚未配置，已转为手动填写")
     return value

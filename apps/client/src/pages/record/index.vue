@@ -4,7 +4,7 @@ import { onShow } from '@dcloudio/uni-app'
 import CapturePanel from '@/components/CapturePanel.vue'
 import ProfileForm from '@/components/ProfileForm.vue'
 import RecordForm from '@/components/RecordForm.vue'
-import { ageText, describeRecord, genderText, RECORD_TYPES, recordTimeText, type Baby, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
+import { ageText, buildDateStrip, dayLabel, describeRecord, genderText, nowParts, pickerValue, RECORD_TYPES, recordTimeText, recordsOnDay, type Baby, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
 import { takeQuickAction } from '@/features/record/quickAction'
 import { recordStore } from '@/features/record/store'
 import { mediaUrl } from '@/services/api'
@@ -15,7 +15,14 @@ const editing = ref<RecordItem | null>(null)
 const selectedType = ref<RecordType>('feeding')
 const filter = ref<RecordType | 'all'>('all')
 
-const visibleRecords = computed(() => filter.value === 'all' ? state.records : state.records.filter((item) => item.record_type === filter.value))
+const today = nowParts().date
+/** 记录页盯着的那一天：切日期就看到那一天的时间线，补记昨天的事才顺手。 */
+const day = ref(today)
+const strip = computed(() => buildDateStrip(7, day.value))
+const dayRecords = computed(() => recordsOnDay(state.records, day.value))
+const visibleRecords = computed(() => filter.value === 'all' ? dayRecords.value : dayRecords.value.filter((item) => item.record_type === filter.value))
+const emptyText = computed(() => filter.value === 'all' ? '这一天还没有记录' : '还没有这类记录')
+const dayText = computed(() => day.value === today ? '今天' : dayLabel(day.value, today))
 const formInitial = computed<Partial<RecordInput>>(() => editing.value ? {
   record_type: editing.value.record_type,
   occurred_at: editing.value.occurred_at,
@@ -24,6 +31,13 @@ const formInitial = computed<Partial<RecordInput>>(() => editing.value ? {
 } : { record_type: selectedType.value })
 
 const sourceText = (source: RecordItem['source']) => ({ manual: '手动', voice: '语音', photo: '图片', system: '系统' })[source]
+
+function selectDay(date: string) {
+  if (!date || date === day.value) return
+  day.value = date
+  // 指标跟着选中日走；记录本身已在内存里，不用重新拉列表。
+  void recordStore.loadSummary(date)
+}
 
 const createProfile = (input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) => void recordStore.saveBaby(input)
 
@@ -81,7 +95,8 @@ const captureSaved = () => {
 }
 
 onShow(() => {
-  void recordStore.load()
+  // 记录页可能停在别的日期：进来时按当前选中日重新对齐指标。
+  void recordStore.load(day.value)
   // 首页的快速记录意图：取走即清空，只生效这一次。
   const action = takeQuickAction()
   if (action?.kind === 'capture') panel.value = 'capture'
@@ -103,8 +118,21 @@ onShow(() => {
 
     <template v-else>
       <view class="topbar">
-        <view><text class="eyebrow">懂宝 · 日常记录</text><text class="page-title">{{ state.baby.nickname }}，今天怎么样？</text><text class="muted">{{ ageText(state.baby.birth_date) }} · {{ genderText(state.baby.gender) }}</text></view>
+        <view><text class="eyebrow">懂宝 · 日常记录</text><text class="page-title">{{ day === today ? `${state.baby.nickname}，今天怎么样？` : `${state.baby.nickname}，${dayText}的记录` }}</text><text class="muted">{{ ageText(state.baby.birth_date) }} · {{ genderText(state.baby.gender) }}</text></view>
         <view class="avatar">👶🏻</view>
+      </view>
+
+      <view class="day-bar">
+        <scroll-view class="day-strip" scroll-x>
+          <view class="day-row">
+            <button v-for="item in strip" :key="item.date" :class="{ selected: day === item.date }" @click="selectDay(item.date)">
+              <text class="day-label">{{ item.label }}</text><text class="day-number">{{ item.day }}</text>
+            </button>
+          </view>
+        </scroll-view>
+        <picker mode="date" :value="day" :end="today" @change="selectDay(pickerValue($event))">
+          <button class="day-jump">📅 选日期</button>
+        </picker>
       </view>
 
       <view class="summary">
@@ -113,7 +141,7 @@ onShow(() => {
         <view><text>{{ state.summary.diaper_count }}</text><small>尿布 次</small></view>
         <view><text>{{ state.summary.complementary_food_count }}</text><small>辅食 次</small></view>
       </view>
-      <text class="summary-note">仅统计已记录内容，没记录不代表没有发生。</text>
+      <text class="summary-note">{{ dayText }}指标仅统计已记录内容，没记录不代表没有发生。</text>
 
       <view class="capture-card">
         <text class="card-title">给宝宝记一笔</text>
@@ -126,10 +154,10 @@ onShow(() => {
       </view>
 
       <view v-if="state.error" class="error"><text>{{ state.error }}</text><button v-if="state.retryable" class="retry" @click="recordStore.retrySession">重试</button></view>
-      <view class="timeline-head"><text class="card-title">成长时间线</text><text>{{ state.records.length }} 条</text></view>
+      <view class="timeline-head"><text class="card-title">{{ dayText }}的时间线</text><text>{{ dayRecords.length }} 条</text></view>
       <scroll-view class="filters" scroll-x><view class="filter-row"><button :class="{ selected: filter === 'all' }" @click="filter = 'all'">全部</button><button v-for="item in RECORD_TYPES" :key="item.value" :class="{ selected: filter === item.value }" @click="filter = item.value">{{ item.label }}</button></view></scroll-view>
 
-      <view v-if="!visibleRecords.length" class="empty">还没有这类记录<br><small>点上方按钮，记下第一条吧</small></view>
+      <view v-if="!visibleRecords.length" class="empty">{{ emptyText }}<br><small>换个日期或类型看看，或点上面按钮记一条</small></view>
       <view v-for="record in visibleRecords" :key="record.id" class="record-card">
         <view class="record-icon">{{ typeMeta(record.record_type).icon }}</view>
         <view class="record-body">
@@ -144,6 +172,9 @@ onShow(() => {
     </template>
 
     <view v-if="state.deleted" class="undo"><text>已删除“{{ typeMeta(state.deleted.record_type).label }}”</text><button @click="restore">撤销</button></view>
+
+    <!-- 原型 03 的 ＋：按当前筛选的类型直接新增，类型仍可在表单里改。 -->
+    <button v-if="state.baby" class="fab" @click="openManual(filter === 'all' ? selectedType : filter)">＋</button>
 
     <view v-if="panel && state.baby" class="overlay" @click.self="panel = null">
       <view class="sheet">
@@ -181,7 +212,7 @@ onShow(() => {
 .card-title { font-size: 20px; font-weight: 800; }
 .capture-main { width: 100%; min-height: 54px; margin-top: 15px; border-radius: 15px; background: #328da9; color: white; font-size: 17px; font-weight: 750; }
 .quick-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px; margin-top: 12px; }
-.quick-grid button { min-height: 61px; padding: 6px 2px; border: 1px solid #e3e9e8; border-radius: 12px; background: #fff; color: #49646d; font-size: 11px; }
+.quick-grid button { min-height: 61px; padding: 6px 2px; border: 1px solid #e3e9e8; border-radius: 12px; background: #fff; color: #49646d; font-size: 12px; }
 .quick-grid text { display: block; font-size: 20px; }
 .text-button { width: 100%; min-height: 48px; margin-top: 5px; background: transparent; color: #2d8098; font-size: 14px; }
 .error { max-width: 760px; margin: 12px auto; border-radius: 12px; background: #fff0ec; padding: 12px; color: #9a4c3e; }
@@ -189,7 +220,15 @@ onShow(() => {
 .timeline-head { display: flex; justify-content: space-between; max-width: 760px; margin: 28px auto 8px; color: #71858b; }
 .filters { max-width: 760px; margin: 0 auto; white-space: nowrap; }
 .filter-row { display: inline-flex; gap: 8px; padding: 4px 0 8px; }
-.filter-row button { min-width: 72px; min-height: 48px; padding: 0 15px; border: 1px solid #dde7e8; border-radius: 13px; background: white; color: #49646d; }
+.filter-row button { min-width: 76px; min-height: 52px; padding: 0 16px; border: 1px solid #dde7e8; border-radius: 13px; background: white; color: #49646d; font-size: 16px; }
+.day-bar { display: flex; align-items: center; gap: 10px; max-width: 760px; margin: 18px auto 0; }
+.day-strip { flex: 1; min-width: 0; white-space: nowrap; }
+.day-row { display: inline-flex; gap: 8px; }
+.day-row button { display: grid; place-items: center; gap: 2px; min-width: 62px; min-height: 62px; padding: 6px 10px; border: 1px solid #dde7e8; border-radius: 14px; background: white; color: #49646d; }
+.day-row .selected { border-color: #328da9 !important; background: #edf6f8 !important; color: #236f87 !important; }
+.day-label { font-size: 14px; }
+.day-number { font-size: 19px; font-weight: 800; }
+.day-jump { min-height: 52px; padding: 0 14px; border: 1px solid #dde7e8; border-radius: 13px; background: white; color: #2d8098; font-size: 15px; }
 .record-card { display: flex; gap: 12px; padding: 16px; }
 .record-icon { display: grid; flex: 0 0 48px; height: 48px; place-items: center; border-radius: 14px; background: #f2e8d8; font-size: 23px; }
 .record-body { min-width: 0; flex: 1; }
@@ -208,5 +247,6 @@ onShow(() => {
 .sheet-head button { width: 48px; height: 48px; border-radius: 50%; background: #eef2f1; font-size: 27px; }
 .undo { position: fixed; z-index: 30; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom)); left: 16px; display: flex; align-items: center; justify-content: space-between; max-width: 680px; min-height: 54px; margin: auto; border-radius: 14px; background: #244a56; padding: 8px 10px 8px 16px; color: white; }
 .undo button { min-width: 72px; min-height: 48px; border-radius: 11px; background: #fff; color: #267b93; font-weight: 700; }
+.fab { position: fixed; z-index: 15; right: 18px; bottom: calc(96px + env(safe-area-inset-bottom)); width: 62px; height: 62px; border-radius: 50%; background: #328da9; color: white; font-size: 30px; font-weight: 700; line-height: 1; box-shadow: 0 9px 22px rgba(38, 110, 132, .34); }
 @media (max-width: 520px) { .quick-grid { grid-template-columns: repeat(3, 1fr); } .summary { grid-template-columns: repeat(2, 1fr); gap: 15px 0; } .summary view:nth-child(2) { border: 0; } .page-title { font-size: 24px; } }
 </style>

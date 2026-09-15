@@ -92,6 +92,49 @@ export const nowParts = () => {
   return { date: local.slice(0, 10), time: local.slice(11, 16) }
 }
 
+const pad2 = (value: number) => String(value).padStart(2, '0')
+
+/** 记录按家长所在时区归日：时间戳解析不了时返回空串，不落到「今天」。 */
+export const dateOf = (value: string) => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+}
+
+/** 日期加减：用本地零点算，跨月、跨年都对。 */
+export const shiftDate = (date: string, days: number) => {
+  const [year, month, day] = date.split('-').map(Number)
+  if (!year || !month || !day) return date
+  const shifted = new Date(year, month - 1, day + days)
+  return `${shifted.getFullYear()}-${pad2(shifted.getMonth() + 1)}-${pad2(shifted.getDate())}`
+}
+
+/** 日期条上的短标签：今天 / 昨天 / 周X。 */
+export const dayLabel = (date: string, today = nowParts().date) => {
+  if (date === today) return '今天'
+  if (date === shiftDate(today, -1)) return '昨天'
+  const [year, month, day] = date.split('-').map(Number)
+  if (!year || !month || !day) return date
+  return `周${'日一二三四五六'[new Date(year, month - 1, day).getDay()]}`
+}
+
+/** uni `picker` 的 change 事件取值：H5 与小程序都把选中的日期放在 `detail.value`。 */
+export const pickerValue = (event: unknown) =>
+  String((event as { detail?: { value?: string } })?.detail?.value ?? '')
+
+/** 记录页顶部日期条：`days` 天，最后一天就是 `anchor`（默认今天，也是选中日）。 */
+export function buildDateStrip(days: number, anchor = nowParts().date) {
+  const today = nowParts().date
+  return Array.from({ length: days }, (_, index) => {
+    const date = shiftDate(anchor, index - days + 1)
+    return { date, day: String(Number(date.split('-')[2])), label: dayLabel(date, today) }
+  })
+}
+
+/** 时间线只显示选中的那一天：记录接口没有 from/to，按客户端本地日期过滤。 */
+export const recordsOnDay = <T extends { occurred_at: string }>(records: T[], date: string) =>
+  records.filter((item) => dateOf(item.occurred_at) === date)
+
 export const dateTimeParts = (value?: string | null) => {
   if (!value) return nowParts()
   const date = new Date(value)
