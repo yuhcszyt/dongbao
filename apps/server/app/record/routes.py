@@ -7,10 +7,8 @@ import os
 import wave
 
 import httpx
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 from mutagen import File as MutagenFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -21,8 +19,7 @@ from .models import Baby, BabyRecord, MediaAsset, RecordDraft, RecordMedia, now
 from .providers import ProviderUnavailable, extract_draft, transcribe_audio
 from .schemas import BabyCreate, BabyOut, BabyUpdate, DailySummary, DraftConfirm, DraftOut, DraftRequest, MediaOut, RecordCreate, RecordOut, RecordUpdate, RecordType
 
-app = FastAPI(title="懂宝记录 API", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False, allow_methods=["*"], allow_headers=["*"])
+router = APIRouter()
 
 FAMILY_ID = UUID(os.environ.get("TEST_FAMILY_ID", "00000000-0000-0000-0000-000000000001"))
 USER_ID = UUID(os.environ.get("TEST_USER_ID", "00000000-0000-0000-0000-000000000002"))
@@ -35,22 +32,6 @@ RECORD_TYPES = {"feeding", "complementary_food", "sleep", "stool", "diaper", "cr
 def error(status: int, code: str, message: str) -> HTTPException:
     return HTTPException(status_code=status, detail={"code": code, "message": message})
 
-@app.middleware("http")
-async def request_id(request: Request, call_next):
-    request.state.request_id = request.headers.get("X-Request-ID", str(uuid4()))
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = request.state.request_id
-    return response
-
-@app.exception_handler(HTTPException)
-async def http_error(request: Request, exc: HTTPException):
-    detail = exc.detail if isinstance(exc.detail, dict) else {"code": "request_error", "message": str(exc.detail)}
-    return JSONResponse(status_code=exc.status_code, content={"error": detail, "request_id": request.state.request_id})
-
-@app.exception_handler(RequestValidationError)
-async def validation_error(request: Request, exc: RequestValidationError):
-    fields = [{key: item[key] for key in ("type", "loc", "msg") if key in item} for item in exc.errors()]
-    return JSONResponse(status_code=422, content={"error": {"code": "validation_error", "message": "请检查填写内容", "fields": fields}, "request_id": request.state.request_id})
 
 def baby_for(db: Session, baby_id: UUID) -> Baby:
     baby = db.scalar(select(Baby).where(Baby.id == baby_id, Baby.family_id == FAMILY_ID))
@@ -75,27 +56,27 @@ def record_out(db: Session, record: BabyRecord) -> RecordOut:
     draft = db.scalar(select(RecordDraft).join(RecordMedia, RecordMedia.media_id == RecordDraft.media_id).where(RecordMedia.record_id == record.id)) if media else None
     return RecordOut.model_validate(record, from_attributes=True).model_copy(update={"media": [media_out(item) for item in media], "transcript": draft.transcript if draft else None})
 
-@app.get("/health")
+@router.get("/health")
 def health():
     get_config()
     return {"status": "ok"}
 
-@app.post("/api/v1/babies", response_model=BabyOut, status_code=201)
+@router.post("/api/v1/babies", response_model=BabyOut, status_code=201)
 def create_baby(body: BabyCreate, db: Session = Depends(get_db)):
     baby = Baby(family_id=FAMILY_ID, **body.model_dump())
     db.add(baby); db.commit(); db.refresh(baby)
     return baby
 
-@app.get("/api/v1/babies", response_model=list[BabyOut])
+@router.get("/api/v1/babies", response_model=list[BabyOut])
 def list_babies(db: Session = Depends(get_db)):
     return db.scalars(select(Baby).where(Baby.family_id == FAMILY_ID).order_by(Baby.created_at)).all()
 
-@app.get("/api/v1/babies/{baby_id}", response_model=BabyOut)
+@router.get("/api/v1/babies/{baby_id}", response_model=BabyOut)
 def get_baby(baby_id: UUID, db: Session = Depends(get_db)):
     return baby_for(db, baby_id)
 
-@app.patch("/api/v1/babies/{baby_id}", response_model=BabyOut)
-@app.put("/api/v1/babies/{baby_id}", response_model=BabyOut)
+@router.patch("/api/v1/babies/{baby_id}", response_model=BabyOut)
+@router.put("/api/v1/babies/{baby_id}", response_model=BabyOut)
 def update_baby(baby_id: UUID, body: BabyUpdate, db: Session = Depends(get_db)):
     baby = baby_for(db, baby_id)
     for key, value in body.model_dump().items(): setattr(baby, key, value)
@@ -114,7 +95,7 @@ MAGIC = {
 }
 EXTENSIONS = {"image/jpeg": ".jpg", "image/png": ".png", "audio/wav": ".wav", "audio/x-wav": ".wav", "audio/mpeg": ".mp3", "audio/mp4": ".m4a", "audio/x-m4a": ".m4a", "audio/webm": ".webm"}
 
-@app.post("/api/v1/media", response_model=MediaOut, status_code=201)
+@router.post("/api/v1/media", response_model=MediaOut, status_code=201)
 async def upload_media(baby_id: UUID = Form(...), reported_duration_ms: int | None = Form(default=None, alias="duration_ms"), file: UploadFile = File(...), db: Session = Depends(get_db)):
     baby_for(db, baby_id)
     mime = (file.content_type or "").lower()
@@ -160,7 +141,7 @@ async def upload_media(baby_id: UUID = Form(...), reported_duration_ms: int | No
         raise
     return media_out(media)
 
-@app.get("/api/v1/media/{media_id}")
+@router.get("/api/v1/media/{media_id}")
 def read_media(media_id: UUID, db: Session = Depends(get_db)):
     media = db.scalar(select(MediaAsset).where(MediaAsset.id == media_id, MediaAsset.family_id == FAMILY_ID))
     if not media: raise error(404, "media_not_found", "没有找到这个媒体文件")
@@ -191,15 +172,15 @@ async def make_draft(body: DraftRequest, source: str, expected_media: str, db: S
     db.add(draft); db.commit(); db.refresh(draft)
     return draft
 
-@app.post("/api/v1/record-drafts/from-voice", response_model=DraftOut, status_code=201)
+@router.post("/api/v1/record-drafts/from-voice", response_model=DraftOut, status_code=201)
 async def draft_voice(body: DraftRequest, db: Session = Depends(get_db)):
     return await make_draft(body, "voice", "audio", db)
 
-@app.post("/api/v1/record-drafts/from-photo", response_model=DraftOut, status_code=201)
+@router.post("/api/v1/record-drafts/from-photo", response_model=DraftOut, status_code=201)
 async def draft_photo(body: DraftRequest, db: Session = Depends(get_db)):
     return await make_draft(body, "photo", "image", db)
 
-@app.post("/api/v1/record-drafts/{draft_id}/confirm", response_model=RecordOut, status_code=201)
+@router.post("/api/v1/record-drafts/{draft_id}/confirm", response_model=RecordOut, status_code=201)
 def confirm_draft(draft_id: UUID, body: DraftConfirm, db: Session = Depends(get_db)):
     draft = db.scalar(select(RecordDraft).where(RecordDraft.id == draft_id, RecordDraft.family_id == FAMILY_ID).with_for_update())
     if not draft: raise error(404, "draft_not_found", "没有找到这份草稿")
@@ -212,14 +193,14 @@ def confirm_draft(draft_id: UUID, body: DraftConfirm, db: Session = Depends(get_
     db.commit(); db.refresh(record)
     return record_out(db, record)
 
-@app.post("/api/v1/babies/{baby_id}/records", response_model=RecordOut, status_code=201)
+@router.post("/api/v1/babies/{baby_id}/records", response_model=RecordOut, status_code=201)
 def create_record(baby_id: UUID, body: RecordCreate, db: Session = Depends(get_db)):
     baby_for(db, baby_id)
     record = BabyRecord(family_id=FAMILY_ID, baby_id=baby_id, record_type=body.record_type, occurred_at=body.occurred_at, source="manual", payload=body.payload.model_dump(mode="json"), note=body.note, created_by=USER_ID)
     db.add(record); db.commit(); db.refresh(record)
     return record_out(db, record)
 
-@app.get("/api/v1/babies/{baby_id}/records", response_model=list[RecordOut])
+@router.get("/api/v1/babies/{baby_id}/records", response_model=list[RecordOut])
 def list_records(baby_id: UUID, record_type: RecordType | None = None, db: Session = Depends(get_db)):
     baby_for(db, baby_id)
     query = select(BabyRecord).where(BabyRecord.baby_id == baby_id, BabyRecord.family_id == FAMILY_ID, BabyRecord.deleted_at.is_(None))
@@ -227,13 +208,13 @@ def list_records(baby_id: UUID, record_type: RecordType | None = None, db: Sessi
     records = db.scalars(query.order_by(BabyRecord.occurred_at.desc(), BabyRecord.created_at.desc())).all()
     return [record_out(db, item) for item in records]
 
-@app.get("/api/v1/babies/{baby_id}/records/{record_id}", response_model=RecordOut)
+@router.get("/api/v1/babies/{baby_id}/records/{record_id}", response_model=RecordOut)
 def get_record(baby_id: UUID, record_id: UUID, db: Session = Depends(get_db)):
     baby_for(db, baby_id)
     return record_out(db, record_for(db, baby_id, record_id))
 
-@app.patch("/api/v1/babies/{baby_id}/records/{record_id}", response_model=RecordOut)
-@app.put("/api/v1/babies/{baby_id}/records/{record_id}", response_model=RecordOut)
+@router.patch("/api/v1/babies/{baby_id}/records/{record_id}", response_model=RecordOut)
+@router.put("/api/v1/babies/{baby_id}/records/{record_id}", response_model=RecordOut)
 def update_record(baby_id: UUID, record_id: UUID, body: RecordUpdate, db: Session = Depends(get_db)):
     record = record_for(db, baby_id, record_id)
     if record.record_type != body.payload.kind: raise error(422, "payload_kind_mismatch", "记录类型与填写内容不一致")
@@ -241,19 +222,19 @@ def update_record(baby_id: UUID, record_id: UUID, body: RecordUpdate, db: Sessio
     db.commit(); db.refresh(record)
     return record_out(db, record)
 
-@app.delete("/api/v1/babies/{baby_id}/records/{record_id}", status_code=204)
+@router.delete("/api/v1/babies/{baby_id}/records/{record_id}", status_code=204)
 def delete_record(baby_id: UUID, record_id: UUID, db: Session = Depends(get_db)):
     record = record_for(db, baby_id, record_id)
     record.deleted_at = now(); db.commit()
 
-@app.post("/api/v1/babies/{baby_id}/records/{record_id}/restore", response_model=RecordOut)
+@router.post("/api/v1/babies/{baby_id}/records/{record_id}/restore", response_model=RecordOut)
 def restore_record(baby_id: UUID, record_id: UUID, db: Session = Depends(get_db)):
     record = record_for(db, baby_id, record_id, include_deleted=True)
     if record.deleted_at is None: raise error(409, "record_not_deleted", "这条记录没有被删除")
     record.deleted_at = None; db.commit(); db.refresh(record)
     return record_out(db, record)
 
-@app.get("/api/v1/babies/{baby_id}/daily-summary", response_model=DailySummary)
+@router.get("/api/v1/babies/{baby_id}/daily-summary", response_model=DailySummary)
 def daily_summary(baby_id: UUID, day: date = Query(alias="date", default_factory=date.today), timezone_name: str = Query("Asia/Shanghai", alias="timezone"), db: Session = Depends(get_db)):
     baby_for(db, baby_id)
     try: zone = ZoneInfo(timezone_name)

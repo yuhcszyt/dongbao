@@ -13,8 +13,7 @@ SERVER_ENV = DATABASE_URL=$(TEST_DATABASE_URL) \
 	APP_CONFIG=$(CURDIR)/config/providers.toml \
 	MEDIA_ROOT=$(CURDIR)/data/media
 
-# 票据 01 把入口统一到 app.main 后，把这里改成 app.main:app
-APP_MODULE ?= app.record.main:app
+APP_MODULE ?= app.main:app
 PORT ?= 8001
 
 .PHONY: help setup db-up db-wait db-down test test-server test-client typecheck build dev-server e2e docker-test

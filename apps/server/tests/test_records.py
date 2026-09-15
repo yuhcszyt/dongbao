@@ -5,21 +5,10 @@ import wave
 import pytest
 import httpx
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
 
-from app.record.database import SessionLocal
-from app.record.main import app
-from app.record.models import Baby, BabyRecord, MediaAsset, RecordDraft, RecordMedia
+from app.main import app
 
 client = TestClient(app)
-
-@pytest.fixture(autouse=True)
-def clean_database():
-    with SessionLocal() as db:
-        for model in (RecordMedia, RecordDraft, BabyRecord, MediaAsset, Baby):
-            db.execute(delete(model))
-        db.commit()
-    yield
 
 def create_baby() -> str:
     response = client.post("/api/v1/babies", json={"nickname": "安安", "birth_date": "2026-01-01", "gender": "female"})
@@ -101,8 +90,8 @@ def test_voice_draft_requires_confirm_and_keeps_source(monkeypatch):
     async def fake_extract(**kwargs):
         return {"record_type": "feeding", "payload": {"kind": "feeding", "feeding_type": "formula", "amount_ml": 180}, "missing_fields": [], "recognition_warnings": []}
 
-    monkeypatch.setattr("app.main.transcribe_audio", fake_transcribe)
-    monkeypatch.setattr("app.main.extract_draft", fake_extract)
+    monkeypatch.setattr("app.record.routes.transcribe_audio", fake_transcribe)
+    monkeypatch.setattr("app.record.routes.extract_draft", fake_extract)
     draft = client.post("/api/v1/record-drafts/from-voice", json={"baby_id": baby_id, "media_id": media.json()["id"]})
     assert draft.status_code == 201, draft.text
     assert draft.json()["payload"]["amount_ml"] == 180
@@ -127,7 +116,7 @@ def test_provider_failure_returns_editable_draft_without_losing_media(monkeypatc
     async def unavailable(**kwargs):
         raise httpx.ConnectError("provider secret must not leak")
 
-    monkeypatch.setattr("app.main.extract_draft", unavailable)
+    monkeypatch.setattr("app.record.routes.extract_draft", unavailable)
     draft = client.post("/api/v1/record-drafts/from-photo", json={"baby_id": baby_id, "media_id": media.json()["id"]})
     assert draft.status_code == 201, draft.text
     assert draft.json()["status"] == "draft"
