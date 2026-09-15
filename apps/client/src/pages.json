@@ -1,15 +1,49 @@
 {
   "pages": [
     {
-      "path": "pages/index/index",
+      "path": "pages/home/index",
       "style": {
         "navigationBarTitleText": "懂宝",
         "navigationBarBackgroundColor": "#fbfaf7",
         "navigationBarTextStyle": "black",
         "backgroundColor": "#fbfaf7"
       }
+    },
+    {
+      "path": "pages/record/index",
+      "style": {
+        "navigationBarTitleText": "记录",
+        "navigationBarBackgroundColor": "#fbfaf7",
+        "navigationBarTextStyle": "black",
+        "backgroundColor": "#fbfaf7"
+      }
+    },
+    {
+      "path": "pages/profile/index",
+      "style": {
+        "navigationBarTitleText": "宝宝档案",
+        "navigationBarBackgroundColor": "#fbfaf7",
+        "navigationBarTextStyle": "black",
+        "backgroundColor": "#fbfaf7"
+      }
     }
   ],
+  "tabBar": {
+    "color": "#7a8c90",
+    "selectedColor": "#328da9",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/record/index",
+        "text": "记录"
+      }
+    ]
+  },
   "globalStyle": {
     "navigationBarBackgroundColor": "#fbfaf7",
     "navigationBarTextStyle": "black",
