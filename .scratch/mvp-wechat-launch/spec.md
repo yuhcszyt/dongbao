@@ -216,6 +216,7 @@ Seam 就是现有的 HTTP 边界：`TestClient(app)` + autouse 的数据库清�
   3. 测试 monkeypatch 目标 `app.main.transcribe_audio` / `app.main.extract_draft` 不存在，语音与 Provider 失败两个用例是坏的。
   4. `alembic/env.py` 未 import 鉴权模型，autogenerate 看不见 `users` / `families`。
   5. 测试清理 fixture 不含 `users` / `families`。
+  6. `providers.py` 的 `_secret()` 引用未定义变量（`if not value:` / `return value`），未配置凭证时抛 `NameError` 而非 `ProviderUnavailable`，识别降级契约整条坏掉；现有用例把 `transcribe_audio` / `extract_draft` 全 patch 掉，所以测试看不见（2026-09-16 验收票据 01 时发现，归入票据 09 一处修）。
 - **客户端现状**：`pages.json` 只注册了一个页面，`services/api.ts` 完全没有 token 概念，全仓搜不到 `wx.login`；登录模块与页面拆分是本次的主要前端工作量。
 - **媒体免 token 的取舍**：以 UUID 作能力凭证意味着 URL 泄露即文件泄露。MVP 接受该风险（文件不可枚举、传输层后续上 HTTPS）；若要更严，后续可改为短时效签名 URL，届时只需改下发 URL 一处。
 - **记录页客户端过滤的代价**：接口返回该家庭全部记录，页面按本地日期过滤。家长记录量到数千条时首屏会变慢，届时优先加 `from` / `to` 参数而不是引入分页 UI。

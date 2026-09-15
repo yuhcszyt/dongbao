@@ -18,6 +18,10 @@
 - [ ]＋按钮可新增十类记录（喂奶、辅食、睡眠、排便、尿布、哭闹、身高体重、疫苗、用药、自定义）
 - [ ] 语音或拍照生成的是待确认草稿，确认后才成为记录，不直接进时间线
 - [ ] 识别未配置或失败时仍给出可手动填写的草稿，且上传的语音 / 照片不丢失
+  - **必须先修的断链（2026-09-16 验收票据 01 时发现）**：`apps/server/app/record/providers.py:17` 的 `_secret()` 写错了变量——`if not value:` / `return value` 里的 `value` 从未定义，实测抛 `NameError: name 'value' is not defined`，应为 `value = os.environ.get(name, "")`。
+  - 后果：`transcribe_audio` / `extract_draft` 都先调 `_secret`，所以**未配置凭证时是 500 NameError，而不是降级为「保留媒体 + 可编辑草稿 + 转为手动填写」**。
+  - 盲区：现有用例把这两个函数整个 patch 掉了，这条路径**没有测试覆盖**（这就是 `make test` 全绿却仍然坏的原因）。本票必须补一个**不 patch provider、只缺凭证**的服务端用例：POST `from-voice` / `from-photo` 期望 201、`status == "draft"`、媒体未被删、响应里不泄露上游错误原文；断言错误信封时不准用 `NameError` 当预期。
+  - 本票只把这个 bug 与它的测试补齐，不顺手改 provider 其它行为（超时、签名、重试都不动）。
 - [ ] 删除一条记录后页面底部立刻可撤销
 - [ ] 记录里的语音可播放、照片可预览，且鉴权之后仍能正常打开
 - [ ] 加载中 / 加载失败 / 无数据三种状态都有明确中文提示
