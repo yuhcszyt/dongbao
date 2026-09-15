@@ -4,7 +4,8 @@ import { onShow } from '@dcloudio/uni-app'
 import CapturePanel from '@/components/CapturePanel.vue'
 import ProfileForm from '@/components/ProfileForm.vue'
 import RecordForm from '@/components/RecordForm.vue'
-import { ageText, describeRecord, genderText, RECORD_TYPES, type Baby, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
+import { ageText, describeRecord, genderText, RECORD_TYPES, recordTimeText, type Baby, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
+import { takeQuickAction } from '@/features/record/quickAction'
 import { recordStore } from '@/features/record/store'
 import { mediaUrl } from '@/services/api'
 
@@ -23,10 +24,6 @@ const formInitial = computed<Partial<RecordInput>>(() => editing.value ? {
 } : { record_type: selectedType.value })
 
 const sourceText = (source: RecordItem['source']) => ({ manual: '手动', voice: '语音', photo: '图片', system: '系统' })[source]
-const timeText = (value: string) => {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : `${date.getMonth() + 1}月${date.getDate()}日 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
-}
 
 const createProfile = (input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) => void recordStore.saveBaby(input)
 
@@ -83,7 +80,13 @@ const captureSaved = () => {
   void recordStore.load()
 }
 
-onShow(() => void recordStore.load())
+onShow(() => {
+  void recordStore.load()
+  // 首页的快速记录意图：取走即清空，只生效这一次。
+  const action = takeQuickAction()
+  if (action?.kind === 'capture') panel.value = 'capture'
+  else if (action) openManual(action.record_type)
+})
 </script>
 
 <template>
@@ -130,7 +133,7 @@ onShow(() => void recordStore.load())
       <view v-for="record in visibleRecords" :key="record.id" class="record-card">
         <view class="record-icon">{{ typeMeta(record.record_type).icon }}</view>
         <view class="record-body">
-          <view class="record-top"><text class="record-title">{{ typeMeta(record.record_type).label }}</text><text class="record-time">{{ timeText(record.occurred_at) }}</text></view>
+          <view class="record-top"><text class="record-title">{{ typeMeta(record.record_type).label }}</text><text class="record-time">{{ recordTimeText(record.occurred_at) }}</text></view>
           <text class="record-detail">{{ describeRecord(record) }}</text>
           <text v-if="record.note" class="record-note">{{ record.note }}</text>
           <button v-if="record.media?.length" class="source" @click="openMedia(record)">{{ sourceText(record.source) }}来源 · 点击{{ record.media[0]?.media_type === 'image' ? '查看' : '播放' }}</button>

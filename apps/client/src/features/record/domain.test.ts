@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeRecord, normalizeSummary, validateBabyProfile, validatePayload } from './domain'
+import { describeRecord, detectTimeZone, greetingFor, normalizeSummary, recordTimeText, timeZoneName, validateBabyProfile, validatePayload } from './domain'
 
 describe('记录领域契约', () => {
   it('与后端字段一致并允许不填奶量', () => {
@@ -29,5 +29,31 @@ describe('宝宝档案校验（建档与编辑共用同一套规则）', () => {
   it('建档与编辑走同一个函数，性别不参与必填（可暂不填）', () => {
     const profile = { nickname: '安安', birth_date: '2025-01-02', gender: 'unknown' as const }
     expect(validateBabyProfile(profile, today)).toBe(validateBabyProfile({ ...profile, gender: 'male' }, today))
+  })
+})
+
+describe('首页展示用的时间文案（票 08）', () => {
+  it('记录时间按本地时间显示成「M月D日 HH:MM」，解析不了就原样返回', () => {
+    expect(recordTimeText('2026-03-05T09:07:00')).toBe('3月5日 09:07')
+    expect(recordTimeText('2026-11-20T23:05:00')).toBe('11月20日 23:05')
+    expect(recordTimeText('不是时间')).toBe('不是时间')
+  })
+
+  it('问候语按时段给中文，覆盖整天', () => {
+    expect(greetingFor(5)).toBe('早上好，陪宝宝慢慢长大')
+    expect(greetingFor(10)).toBe('早上好，陪宝宝慢慢长大')
+    expect(greetingFor(12)).toBe('中午好，记得吃饭')
+    expect(greetingFor(15)).toBe('下午好，陪宝宝慢慢长大')
+    expect(greetingFor(20)).toBe('晚上好，今天也辛苦啦')
+    expect(greetingFor(23)).toBe('夜深了，早点休息')
+    expect(greetingFor(3)).toBe('夜深了，早点休息')
+  })
+
+  it('时区名用于 daily-summary 参数：拿不到就退回服务端默认时区', () => {
+    expect(timeZoneName('Asia/Shanghai')).toBe('Asia/Shanghai')
+    expect(timeZoneName(' America/New_York ')).toBe('America/New_York')
+    expect(timeZoneName(null)).toBe('Asia/Shanghai')
+    expect(timeZoneName('')).toBe('Asia/Shanghai')
+    expect(detectTimeZone()).toBeTruthy()
   })
 })

@@ -7,7 +7,7 @@ import type {
   RecordItem,
   RecordType,
 } from '@/features/record/domain'
-import { normalizeSummary } from '@/features/record/domain'
+import { detectTimeZone, normalizeSummary } from '@/features/record/domain'
 import { API_BASE, mediaUrl } from './config'
 import { isSuccess } from './http'
 import type { SessionResponse } from './session'
@@ -113,9 +113,10 @@ export const api = {
     return request<RecordItem>(`/babies/${babyId}/records/${recordId}/restore`, 'POST')
   },
 
-  async dailySummary(babyId: string, date: string) {
+  async dailySummary(babyId: string, date: string, timezone = detectTimeZone()) {
+    // 带上客户端本地时区：服务端按它把当天的记录归到正确的自然日（票 08 起固定带上）。
     const result = await request<Partial<DailySummary> & Record<string, unknown>>(
-      `/babies/${babyId}/daily-summary?date=${encodeURIComponent(date)}`,
+      `/babies/${babyId}/daily-summary?date=${encodeURIComponent(date)}&timezone=${encodeURIComponent(timezone)}`,
     )
     return normalizeSummary(result)
   },

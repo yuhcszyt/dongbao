@@ -60,15 +60,20 @@ async function loadSummary(date: string) {
   state.summaryDate = date
 }
 
-/** 页面进入时的取数：宝宝档案 + 全部记录 + 当前关注日期的指标。 */
-async function load() {
+/**
+ * 页面进入时的取数：宝宝档案 + 全部记录 + 当前关注日期的指标。
+ *
+ * `date` 缺省沿用上一次关注的那一天（记录页翻到的某天），首页则显式传「今天」，
+ * 因为「今日指标」必须是今天——记录页停在昨天时不能把首页也带到昨天。
+ */
+async function load(date = state.summaryDate) {
   state.loading = true
   clearError()
   try {
     state.baby = await api.getBaby()
     if (state.baby) {
       state.records = await api.records(state.baby.id)
-      await loadSummary(state.summaryDate)
+      await loadSummary(date)
     }
   } catch (reason) {
     fail(reason)

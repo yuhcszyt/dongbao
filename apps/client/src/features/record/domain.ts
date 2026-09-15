@@ -194,6 +194,37 @@ export function normalizeSummary(value: Partial<DailySummary> & Record<string, u
   }
 }
 
+/** 首页与记录页共用的时间文案：本地时区的「M月D日 HH:MM」，解析不了就原样返回。 */
+export const recordTimeText = (value: string) => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return `${date.getMonth() + 1}月${date.getDate()}日 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+/** 首页问候语：只看本地小时，覆盖 0-23。 */
+export function greetingFor(hour: number) {
+  if (hour < 5 || hour >= 23) return '夜深了，早点休息'
+  if (hour < 11) return '早上好，陪宝宝慢慢长大'
+  if (hour < 14) return '中午好，记得吃饭'
+  if (hour < 18) return '下午好，陪宝宝慢慢长大'
+  return '晚上好，今天也辛苦啦'
+}
+
+/**
+ * 给 `daily-summary` 的时区名。服务端默认就是 Asia/Shanghai，两边保持一致：
+ * 小程序逻辑层没有 Intl，取不到时区时退回同一个默认值，与不带参数时的行为相同。
+ */
+export const timeZoneName = (resolved?: string | null) =>
+  resolved && resolved.trim() ? resolved.trim() : 'Asia/Shanghai'
+
+export const detectTimeZone = () => {
+  try {
+    return timeZoneName(Intl.DateTimeFormat().resolvedOptions().timeZone)
+  } catch {
+    return timeZoneName(null)
+  }
+}
+
 export const ageText = (birthDate: string) => {
   const birth = new Date(`${birthDate}T00:00:00`)
   const now = new Date()
