@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import AccountGone from '@/components/AccountGone.vue'
+import CreateBabyGate from '@/components/CreateBabyGate.vue'
 import ProfileForm from '@/components/ProfileForm.vue'
 import { ageText, genderText, orPending, type Baby } from '@/features/record/domain'
 import { recordStore } from '@/features/record/store'
@@ -17,10 +18,10 @@ const confirmingDelete = ref(false)
  * 保存失败时这里什么都不做——中文提示由 store 给出，表单与输入都留在原地，可以直接重试。
  */
 async function save(input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) {
-  const creating = !state.baby
+  // 失败时什么都不做：中文提示与重试入口由 store 给出，输入留在表单里。
   if (!(await recordStore.saveBaby(input))) return
   formOpen.value = false
-  uni.showToast({ title: creating ? '建档完成' : '已保存', icon: 'success' })
+  uni.showToast({ title: '已保存', icon: 'success' })
 }
 
 onShow(() => void recordStore.load())
@@ -42,13 +43,7 @@ async function confirmDelete() {
 
     <AccountGone v-else-if="state.accountDeleted" />
 
-    <view v-else-if="!state.baby" class="onboarding">
-      <view class="baby-mark">👶🏻</view>
-      <text class="eyebrow">欢迎来到懂宝</text>
-      <text class="page-title">先认识一下宝宝</text>
-      <text class="muted">只需三项，之后就可以开始记录。</text>
-      <ProfileForm :submitting="state.saving" submit-text="创建宝宝档案" :error="state.error" :retryable="state.retryable" @submit="save" @retry="recordStore.retrySession" />
-    </view>
+    <CreateBabyGate v-else-if="!state.baby" />
 
     <template v-else>
       <view class="head">
@@ -64,7 +59,7 @@ async function confirmDelete() {
         <view class="row"><text class="row-key">性别</text><text class="row-value">{{ genderText(state.baby.gender) }}</text></view>
       </view>
 
-      <view v-if="state.error" class="error"><text>{{ state.error }}</text><button v-if="state.retryable" class="retry" @click="recordStore.retrySession">重试</button></view>
+      <view v-if="state.error" class="error"><text>{{ state.error }}</text><button v-if="state.retryable" class="retry" @click="() => recordStore.retrySession()">重试</button></view>
     </template>
 
     <view v-if="!state.loading && !state.accountDeleted" class="danger">
@@ -99,10 +94,7 @@ async function confirmDelete() {
 <style scoped>
 .page { min-height: 100vh; padding: 22px 18px 120px; background: #fbfaf7; color: #203f4a; }
 .state { padding: 80px 20px; text-align: center; color: #70858c; }
-.onboarding { max-width: 520px; margin: 0 auto; padding-top: 34px; }
-.baby-mark, .avatar { display: grid; place-items: center; background: #f2e8d8; border-radius: 50%; }
-.baby-mark { width: 82px; height: 82px; margin: 0 auto 22px; font-size: 45px; }
-.avatar { width: 76px; height: 76px; margin: 0 auto; font-size: 44px; }
+.avatar { display: grid; place-items: center; width: 76px; height: 76px; margin: 0 auto; border-radius: 50%; background: #f2e8d8; font-size: 44px; }
 .head { text-align: center; margin-bottom: 20px; }
 .eyebrow, .page-title, .muted { display: block; }
 .eyebrow { color: #328da9; font-size: 13px; font-weight: 750; letter-spacing: 1px; }

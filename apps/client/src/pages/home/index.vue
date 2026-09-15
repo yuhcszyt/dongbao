@@ -8,7 +8,8 @@
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import AccountGone from '@/components/AccountGone.vue'
-import { ageText, genderText, greetingFor, nowParts, orPending, RECORD_TYPES, recordTimeText, describeRecord, typeMeta } from '@/features/record/domain'
+import CreateBabyGate from '@/components/CreateBabyGate.vue'
+import { ageText, genderText, greetingFor, nowParts, orPending, QUICK_RECORD_TYPES, recordTimeText, describeRecord, typeMeta } from '@/features/record/domain'
 import { requestQuickAction, type QuickAction } from '@/features/record/quickAction'
 import { recordStore } from '@/features/record/store'
 
@@ -18,12 +19,14 @@ const { state } = recordStore
 const today = ref(nowParts().date)
 const greeting = ref(greetingFor(new Date().getHours()))
 const recent = computed(() => state.records.slice(0, 3))
-const metrics = computed(() => [
-  { label: '奶量', value: `${state.summary.feeding_ml} ml` },
-  { label: '睡眠', value: `${state.summary.sleep_minutes} 分钟` },
-  { label: '尿布', value: `${state.summary.diaper_count} 次` },
-  { label: '辅食', value: `${state.summary.complementary_food_count} 次` },
-])
+/** 只有拉到「今天」的指标才出数字；拉的是别的日期（或失败）时宁可不出。 */
+const summary = computed(() => recordStore.summaryFor(today.value))
+const metrics = computed(() => summary.value ? [
+  { label: '奶量', value: `${summary.value.feeding_ml} ml` },
+  { label: '睡眠', value: `${summary.value.sleep_minutes} 分钟` },
+  { label: '尿布', value: `${summary.value.diaper_count} 次` },
+  { label: '辅食', value: `${summary.value.complementary_food_count} 次` },
+] : [])
 
 /** 宝宝档案页不是 tab 页（tab 只有首页与记录），所以用 navigateTo。 */
 const openProfile = () => uni.navigateTo({ url: '/pages/profile/index' })
@@ -48,18 +51,12 @@ onShow(() => {
 
     <view v-if="state.error" class="error">
       <text>{{ state.error }}</text>
-      <button v-if="state.retryable" class="retry" @click="recordStore.retrySession">重试</button>
+      <button v-if="state.retryable" class="retry" @click="() => recordStore.retrySession()">重试</button>
     </view>
 
     <AccountGone v-if="!state.loading && state.accountDeleted" />
 
-    <view v-if="!state.loading && !state.baby && !state.accountDeleted" class="onboarding">
-      <view class="baby-mark">👶🏻</view>
-      <text class="eyebrow">欢迎来到懂宝</text>
-      <text class="page-title">先认识一下宝宝</text>
-      <text class="muted">填好昵称和生日，就可以开始记录每天吃睡拉撒。</text>
-      <button class="primary" @click="openProfile">去建档</button>
-    </view>
+    <CreateBabyGate v-if="!state.loading && !state.baby && !state.accountDeleted" />
 
     <template v-if="!state.loading && state.baby">
       <view class="baby-row" @click="openProfile">
@@ -78,12 +75,13 @@ onShow(() => {
           <text class="card-title">今日记录</text>
           <text class="muted">{{ today }}</text>
         </view>
-        <view class="metrics">
+        <view v-if="summary" class="metrics">
           <view v-for="item in metrics" :key="item.label" class="metric">
             <text class="metric-value">{{ item.value }}</text>
             <text class="metric-label">{{ item.label }}</text>
           </view>
         </view>
+        <text v-else class="note">正在取今天的指标…</text>
         <text class="note">仅统计已记录内容，没记录不代表没有发生。</text>
       </view>
 
@@ -94,7 +92,7 @@ onShow(() => {
         </view>
         <button class="primary" @click="openRecord({ kind: 'capture' })">🎙 语音或拍照记一条</button>
         <view class="quick-grid">
-          <button v-for="item in RECORD_TYPES.slice(0, 6)" :key="item.value" @click="openRecord({ kind: 'manual', record_type: item.value })">
+          <button v-for="item in QUICK_RECORD_TYPES" :key="item.value" @click="openRecord({ kind: 'manual', record_type: item.value })">
             <text>{{ item.icon }}</text>{{ item.label }}
           </button>
         </view>
@@ -121,8 +119,6 @@ onShow(() => {
 <style scoped>
 .page { min-height: 100vh; padding: 22px 18px 120px; background: #fbfaf7; color: #203f4a; }
 .state { padding: 80px 20px; text-align: center; color: #70858c; }
-.onboarding { max-width: 520px; margin: 0 auto; padding-top: 34px; text-align: center; }
-.baby-mark { display: grid; place-items: center; width: 82px; height: 82px; margin: 0 auto 22px; border-radius: 50%; background: #f2e8d8; font-size: 45px; }
 .eyebrow, .page-title, .muted { display: block; }
 .eyebrow { color: #328da9; font-size: 13px; font-weight: 750; letter-spacing: 1px; }
 .page-title { margin: 8px 0 6px; font-size: 27px; font-weight: 800; line-height: 1.25; }

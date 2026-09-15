@@ -79,7 +79,10 @@ export interface MediaAsset {
 }
 
 export const typeMeta = (type: RecordType) =>
-  RECORD_TYPES.find((item) => item.value === type) ?? RECORD_TYPES[9]
+  RECORD_TYPES.find((item) => item.value === type) ?? RECORD_TYPES[RECORD_TYPES.length - 1]!
+
+/** 快速记录里只放最常用的几类：首页与记录页取的是同一个切法，不各写一份 `slice(0, 6)`。 */
+export const QUICK_RECORD_TYPES = RECORD_TYPES.slice(0, 6)
 
 /** 只读展示用：未填的档案项统一显示「待完善」，不留空白。 */
 export const orPending = (value?: string | null) => (value && value.trim() ? value.trim() : '待完善')
@@ -189,7 +192,7 @@ export interface BabyProfileInput {
 export function validateBabyProfile(input: BabyProfileInput, today = nowParts().date): string | null {
   if (!input.nickname.trim()) return '请填写宝宝昵称'
   if (!input.birth_date) return '请填写宝宝生日'
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.birth_date) || Number.isNaN(Date.parse(`${input.birth_date}T00:00:00`))) return '生日格式不正确'
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.birth_date) || dateOf(`${input.birth_date}T00:00:00`) !== input.birth_date) return '生日格式不正确'
   if (input.birth_date > today) return '生日不能是未来的日期'
   return null
 }

@@ -58,17 +58,31 @@ const fail = (reason: unknown) => {
 }
 
 /** 只拉某一日的四项指标（首页看今天，记录页看选中的那一天）。 */
+let summaryRequest = 0
 async function loadSummary(date: string) {
   if (!state.baby) return
+  // 连点两个日期时，先发的请求可能后到：只认最后一次，否则页面会停在「正在取这一天的指标…」。
+  const request = ++summaryRequest
   try {
-    state.summary = await api.dailySummary(state.baby.id, date)
+    const summary = await api.dailySummary(state.baby.id, date)
+    if (request !== summaryRequest) return
+    state.summary = summary
     state.summaryDate = date
   } catch (reason) {
     // 指标拉不到不能默默过去：不然日期条已跳到新的一天，卡片上还是上一天的数。
     // `summaryDate` 保持旧值，页面据此不展示数字，只展示这条中文提示。
+    if (request !== summaryRequest) return
     fail(reason)
   }
 }
+
+/**
+ * 这一天的指标；不是这一天的就返回 `null`，页面据此不出现数字。
+ *
+ * 「数字属于哪一天」只在 store 里判这一次：首页与记录页各自再判一次，
+ * 迟早会出现一个页面守了、另一个页面把上一天的数字挂在「今日记录」下面。
+ */
+const summaryFor = (date: string) => (state.summaryDate === date ? state.summary : null)
 
 /**
  * 页面进入时的取数：宝宝档案 + 全部记录 + 当前关注日期的指标。
@@ -101,7 +115,7 @@ async function load(date = state.summaryDate) {
 }
 
 /** 会话进入「需要重试」后用户点的重试：先重登，再把手头这屏数据拉一遍。 */
-async function retrySession() {
+async function retrySession(date?: string) {
   clearError()
   try {
     await session.retry()
@@ -109,7 +123,8 @@ async function retrySession() {
     fail(reason)
     return
   }
-  await load()
+  // 记录页停在别的日期时，重试要拉回「正在看的那一天」，而不是上一次成功拉到的日期。
+  await load(date)
 }
 
 async function createBaby(input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) {
@@ -231,6 +246,7 @@ export const recordStore = {
   clearError,
   load,
   loadSummary,
+  summaryFor,
   retrySession,
   createBaby,
   saveBaby,

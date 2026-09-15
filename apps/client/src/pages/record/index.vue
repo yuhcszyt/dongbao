@@ -3,9 +3,9 @@ import { computed, reactive, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import AccountGone from '@/components/AccountGone.vue'
 import CapturePanel from '@/components/CapturePanel.vue'
-import ProfileForm from '@/components/ProfileForm.vue'
+import CreateBabyGate from '@/components/CreateBabyGate.vue'
 import RecordForm from '@/components/RecordForm.vue'
-import { ageText, buildDateStrip, dayLabel, describeRecord, genderText, nowParts, pickerValue, RECORD_TYPES, recordTimeText, recordsOnDay, type Baby, type MediaAsset, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
+import { ageText, buildDateStrip, dayLabel, describeRecord, genderText, nowParts, pickerValue, QUICK_RECORD_TYPES, RECORD_TYPES, recordTimeText, recordsOnDay, type MediaAsset, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
 import { takeQuickAction } from '@/features/record/quickAction'
 import { recordStore } from '@/features/record/store'
 import { mediaUrl } from '@/services/api'
@@ -28,7 +28,7 @@ const visibleRecords = computed(() => filter.value === 'all' ? dayRecords.value 
 const emptyText = computed(() => filter.value === 'all' ? '这一天还没有记录' : '还没有这类记录')
 const dayText = computed(() => dayLabel(day.value, today.value))
 /** 指标只能是「已经拉到的那一天」的：拉失败时 `summaryDate` 不跟手，宁可不出数字也不出错数字。 */
-const summaryReady = computed(() => state.summaryDate === day.value && !state.error)
+const summaryReady = computed(() => recordStore.summaryFor(day.value) !== null)
 const formInitial = computed<Partial<RecordInput>>(() => editing.value ? {
   record_type: editing.value.record_type,
   occurred_at: editing.value.occurred_at,
@@ -44,8 +44,6 @@ function selectDay(date: string) {
   // 指标跟着选中日走；记录本身已在内存里，不用重新拉列表。
   void recordStore.loadSummary(date)
 }
-
-const createProfile = (input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) => void recordStore.saveBaby(input)
 
 function openManual(type: RecordType) {
   selectedType.value = type
@@ -126,13 +124,7 @@ onShow(() => {
 
     <AccountGone v-else-if="state.accountDeleted" />
 
-    <view v-else-if="!state.baby" class="onboarding">
-      <view class="baby-mark">👶🏻</view>
-      <text class="eyebrow">欢迎来到懂宝</text>
-      <text class="page-title">先认识一下宝宝</text>
-      <text class="muted">只需三项，之后就可以开始记录。</text>
-      <ProfileForm :submitting="state.saving" submit-text="创建宝宝档案" :error="state.error" :retryable="state.retryable" @submit="createProfile" @retry="recordStore.retrySession" />
-    </view>
+    <CreateBabyGate v-else-if="!state.baby" />
 
     <template v-else>
       <view class="topbar">
@@ -169,12 +161,12 @@ onShow(() => {
         <text class="muted">说一句或拍一张，确认后再保存</text>
         <button class="capture-main" @click="panel = 'capture'">●　语音 / 拍照记录</button>
         <view class="quick-grid">
-          <button v-for="item in RECORD_TYPES.slice(0, 6)" :key="item.value" @click="openManual(item.value)"><text>{{ item.icon }}</text>{{ item.label }}</button>
+          <button v-for="item in QUICK_RECORD_TYPES" :key="item.value" @click="openManual(item.value)"><text>{{ item.icon }}</text>{{ item.label }}</button>
         </view>
         <button class="text-button" @click="openManual('custom')">查看全部记录类型 ›</button>
       </view>
 
-      <view v-if="state.error" class="error"><text>{{ state.error }}</text><button v-if="state.retryable" class="retry" @click="recordStore.retrySession">重试</button></view>
+      <view v-if="state.error" class="error"><text>{{ state.error }}</text><button v-if="state.retryable" class="retry" @click="recordStore.retrySession(day)">重试</button></view>
       <view class="timeline-head"><text class="card-title">{{ dayText }}的时间线</text><text>{{ dayRecords.length }} 条</text></view>
       <scroll-view class="filters" scroll-x><view class="filter-row"><button :class="{ selected: filter === 'all' }" @click="filter = 'all'">全部</button><button v-for="item in RECORD_TYPES" :key="item.value" :class="{ selected: filter === item.value }" @click="filter = item.value">{{ item.label }}</button></view></scroll-view>
 
@@ -205,7 +197,7 @@ onShow(() => {
         <template v-else>
           <view class="sheet-head"><text class="card-title">{{ editing ? '修改记录' : '手动记录' }}</text><button aria-label="关闭" @click="panel = null">×</button></view>
           <RecordForm :initial="formInitial" :lock-type="Boolean(editing)" :submitting="state.saving" :submit-text="editing ? '保存修改' : '保存记录'" @submit="saveRecord" />
-          <view v-if="state.error" class="error"><text>{{ state.error }}</text><button v-if="state.retryable" class="retry" @click="recordStore.retrySession">重试</button></view>
+          <view v-if="state.error" class="error"><text>{{ state.error }}</text><button v-if="state.retryable" class="retry" @click="recordStore.retrySession(day)">重试</button></view>
         </template>
       </view>
     </view>
@@ -215,10 +207,7 @@ onShow(() => {
 <style scoped>
 .page { min-height: 100vh; padding: 22px 18px 120px; background: #fbfaf7; color: #203f4a; }
 .state, .empty { padding: 80px 20px; text-align: center; color: #70858c; line-height: 1.8; }
-.onboarding { max-width: 520px; margin: 0 auto; padding-top: 34px; }
-.baby-mark, .avatar { display: grid; place-items: center; background: #f2e8d8; border-radius: 50%; }
-.baby-mark { width: 82px; height: 82px; margin: 0 auto 22px; font-size: 45px; }
-.avatar { flex: 0 0 58px; height: 58px; font-size: 32px; }
+.avatar { display: grid; place-items: center; flex: 0 0 58px; height: 58px; border-radius: 50%; background: #f2e8d8; font-size: 32px; }
 .eyebrow, .page-title, .muted, .summary-note, .record-detail, .record-note, .transcript { display: block; }
 .eyebrow { color: #328da9; font-size: 13px; font-weight: 750; letter-spacing: 1px; }
 .page-title { margin: 5px 0; font-size: 27px; font-weight: 800; line-height: 1.25; }

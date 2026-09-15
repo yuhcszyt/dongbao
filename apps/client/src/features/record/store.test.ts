@@ -149,6 +149,31 @@ describe('取数解耦：记录列表与当日指标各拉各的', () => {
   })
 })
 
+describe('某一天的指标归属于哪一天', () => {
+  it('`summaryFor` 只认已经拉到的那一天，别的日期不给数字', async () => {
+    await recordStore.load('2026-05-01')
+
+    expect(recordStore.summaryFor('2026-05-01')).not.toBeNull()
+    expect(recordStore.summaryFor('2026-05-02')).toBeNull()
+  })
+
+  it('连点两个日期时，先发的请求后到也不会把数字挂在后一天上', async () => {
+    await recordStore.load('2026-05-01')
+    let lateArrival: (value: typeof NO_SUMMARY) => void = () => {}
+    mocks.dailySummary
+      .mockImplementationOnce(() => new Promise((resolve) => { lateArrival = resolve }))
+      .mockResolvedValueOnce({ ...NO_SUMMARY, feeding_ml: 200 })
+
+    const slow = recordStore.loadSummary('2026-05-02')
+    await recordStore.loadSummary('2026-05-03')
+    lateArrival({ ...NO_SUMMARY, feeding_ml: 999 })
+    await slow
+
+    expect(recordStore.state.summaryDate).toBe('2026-05-03')
+    expect(recordStore.state.summary.feeding_ml).toBe(200)
+  })
+})
+
 describe('会话失败的面相', () => {
   it('已注销的会话不给「重试」入口，也不自动重登', async () => {
     mocks.getBaby.mockRejectedValue(new SessionError('signed_out', '已注销，请重新进入小程序'))
