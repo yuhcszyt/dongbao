@@ -20,6 +20,16 @@ def no_login_configuration(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 @pytest.fixture(autouse=True)
+def media_root_in_tmp(monkeypatch, tmp_path):
+    """媒体根目录固定到本次用例的临时目录。
+
+    `storage.media_root()` 的默认值 `/app/data/media` 只在容器里存在；这么钉住，用例不必依赖
+    Makefile 传的 `MEDIA_ROOT`，裸跑 `pytest tests/xxx.py` 也能过。
+    """
+    monkeypatch.setenv("MEDIA_ROOT", str(tmp_path / "media"))
+
+
+@pytest.fixture(autouse=True)
 def clean_database():
     """清空记录侧与鉴权侧全部表，保证用例之间互不残留（否则第二个用例会撞 unique openid）。"""
     with SessionLocal() as db:

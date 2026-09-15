@@ -70,3 +70,9 @@ Spec 轴（`del_mu3bllu8_omp6`）指出四处并已修，Standards 轴（`del_mu
 - **重试要重拉的是「这一天」**（Standards 轴）：`retrySession(day?: string)` 现在接收日期（`store.ts:57-63`），记录页两处重试按钮都传当前选中日（`record/index.vue:172` / `:216`），不再是「重登后拉今天」。
 - **建档引导去重**（Standards 轴）：记录页的 `onboarding` 块与 `createProfile` 删掉，换成共用的 `CreateBabyGate`（`record/index.vue:129`），`.onboarding` / `.baby-mark` 样式一并删（`.avatar` 独立成一条规则，记录页的头像在 flex 行里）。
 - **快速记录的类型清单写死了「前 6 类」**（Standards 轴）：改用 `domain.ts` 的 `QUICK_RECORD_TYPES`（`record/index.vue:172`）。
+
+**第二轮 Spec 轴（`del_mu3bub3w_9hye`）结论与处置**
+
+- **旧错误文案会挡住新一天已拉到的指标**（Spec 轴，低）→ 已随 `summaryFor` 一并解决：`summaryReady`（`record/index.vue:31`）不再看 `state.error`，新一天的数字照常上屏；错误横幅只描述它自己那次失败（记录列表或指标），请求重试才清。
+- **「某一天的时间线而非全部记录」只在 UI 层成立**（Spec 轴，中）→ **未采纳**：本票 What to build 原文写着「日期过滤按 spec 的决定走客户端本地日期（**不给记录列表接口加 `from` / `to` 参数**），这是明确接受的取舍」，服务端 `list_records`（`routes.py:200-206`）只有 `record_type` 一个参数是照着这条决定做的。客户端拉全量后按本地日期过滤（`record/index.vue:26`）是既定设计，不是漏做；记录量真到需要分页时另开票据（服务端加 `date` 参数等价于推翻本票的取舍，得先改 spec）。
+- **新用例依赖 Makefile 注入的 `MEDIA_ROOT`**（Spec 轴，低，测试环境一致性）→ 已修：`apps/server/tests/conftest.py` 新增 autouse 夹具 `media_root_in_tmp`（`tmp_path` 下的临时媒体根），裸跑 `pytest tests/test_draft_without_credentials.py -q` 也 2 passed，不再落到容器里的 `/app/data/media`。

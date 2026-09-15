@@ -47,3 +47,7 @@
 - **建档引导去重**（Standards 轴）：`onboarding` 块换成共用的 `CreateBabyGate`（`home/index.vue:47`），本页样式里那几行 `.onboarding` / `.baby-mark` 一并删掉。
 - **快速记录的类型清单写死了「前 6 类」**（Standards 轴）：改用 `domain.ts` 的 `QUICK_RECORD_TYPES`（`home/index.vue:79`），与记录页同一份来源，顺序或数量调整不会再两边不一致。
 - **`loadSummary` 失败只在 console 留痕**（Standards 轴）：现在 `fail(reason)`，首页会看到中文提示（`store.ts:67-70`）。
+
+**第二轮 Spec 轴（`del_mu3bub3w_9hye`）唯一缺口，已在 `ecd2e71` 补上**
+
+- **今日指标缺「必须是今天」的守门**（Spec 轴，高）：首页直接从 `state.summary` 算四个数，而 `store.loadSummary` 拉失败时 `summaryDate` 保持旧值（`store.ts:73`），于是上一天的旧数字会挂在今天的标题下——与本页注释（`home/index.vue:37`「今日指标只算今天」）自相矛盾。现在首页与记录页同一套：`summary = computed(() => recordStore.summaryFor(today.value))`（`home/index.vue:23`），只有真属于今天的数字才上屏，取不到就显示「正在取今天的指标…」。`recordStore.summaryFor` 的归属语义有用例（`store.test.ts`）。
