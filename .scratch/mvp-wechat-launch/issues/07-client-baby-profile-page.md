@@ -48,3 +48,10 @@ Standards `del_mu3bli1y_qlqz` / Spec `del_mu3bllu8_omp6` 对本票的发现与�
 - **「未填」有两套文案，互相看不出关系**（Standards 轴）：性别按钮上的「暂不填」是**选项名**（本票原文要求），只读展示里的「待完善」是**未填字段的占位**（`domain.ts:87` 的 `genderText`）。已在 `ProfileForm.vue:51-53` 写明两套文案各自的归属，不合并。
 - **未采纳：把 `ageText` 的空生日文案从「生日待完善」改成「待完善」**（Spec 轴）：它出现在月龄槽位（`profile/index.vue:42` 的 `{{ ageText(birth_date) }} · {{ genderText(gender) }}`），单独一个「待完善」会读不出缺的是哪一项；本票要求的「未填项显示待完善」由三个字段行（`profile/index.vue:47-49`）满足。
 - **已知取舍：编辑浮层的表单值靠 `:key` 重挂**（Standards 轴）：`profile/index.vue:58` 用 `:key="state.baby.updated_at ?? state.baby.id"`；服务端若从不返回 `updated_at`，key 恒为 id，表单不会因为 props 变化刷新。当前「保存成功 → 关浮层 → 下次打开重挂」的路径下成立，但如果以后把浮层改成常驻渲染会静默失效，届时改用 `watch` 或显式 `reset`。
+
+**第二轮两轴复审（Standards `del_mu3bu415_tibi` / Spec `del_mu3bub3w_9hye`）后并入 `ecd2e71`**
+
+- **建档引导在三个页面各写了一份**（Standards 轴必修）：文案、`ProfileForm` 引用、成功后的 toast 各三份，改文案要改三处。抽出 `apps/client/src/components/CreateBabyGate.vue`，档案页（`profile/index.vue:41`）、首页（`home/index.vue:47`）、记录页（`record/index.vue:129`）只说「没有宝宝就显示这个」；`save()` 里的 `creating` 分支与「建档完成」toast 随之删掉（`profile/index.vue:16-21`，那里只剩「已保存」）。
+- **「生日格式」校验漏 `2025-02-30`**（Standards 轴）：原来只判 `\d{4}-\d{2}-\d{2}` 正则。现在 `validateBabyProfile`（`domain.ts:146-152`）改用 `dateOf()` 回读比对，格式非法与「回读不等」都拒。
+- **`typeMeta` 越界回落成第一类**（Standards 轴）：`?? RECORD_TYPES[0]` 会让未知类型冒充「喂奶」。改为回落最后一个自定义类（`domain.ts:238`），不再凭空产生业务含义。
+- **重试按钮直接把带参函数当处理器**（Standards 轴，类型层）：`recordStore.retrySession` 现在首参是日期（见票据 09），模板里改成 `@click="() => recordStore.retrySession()"`（`profile/index.vue:62` / `home/index.vue:54`），避免把点击事件对象当作日期传进去。

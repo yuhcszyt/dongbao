@@ -63,3 +63,10 @@ Spec 轴（`del_mu3bllu8_omp6`）指出四处并已修，Standards 轴（`del_mu
 - **一条记录多份媒体时只有第一份能点**（Spec 轴）：`openMedia` 原来写死 `record.media?.[0]`。现在逐份渲染按钮（`record/index.vue:180-182`，`mediaLabel` 负责多份时编号「第 N 份」、单份时沿用「语音来源」），`openMedia(record, media)`（`:84-98`）把整条记录的图片一起交给 `uni.previewImage`（横滑看完），语音播点中的那一份。
 - **`today` / `greeting` 跨零点失效**（Spec 轴）：`home/index.vue:15-16` 与 `record/index.vue:18` 原来只在 setup 求值一次。现在都是 `ref`，并在 `onShow` 里重算、顺带把「今天」交给 `load()`；记录页的 `dayText` 也直接复用 `dayLabel(day, today)`，不再自己再判一次「今天」。
 - **记录列表失败会跳过指标拉取**（Spec 轴）：见票据 10 的同一处处置（`store.ts:75-84` 两趟并行 + `store.test.ts:112-133` 两条用例）。本票「保存后列表与首页指标同步更新」的可恢复性依赖它。
+
+**第二轮两轴复审（Standards `del_mu3bu415_tibi` / Spec `del_mu3bub3w_9hye`）后并入 `ecd2e71`**
+
+- **`summaryReady` 是从 store 内部状态反推的**（Standards 轴必修）：原来 `state.summaryDate === day && !state.error`，等于把「这段数字是不是这一天的」交给页面自己猜。现在 `summaryReady = recordStore.summaryFor(day.value) !== null`（`record/index.vue:28`），数字只在它真属于这一天时上屏；`loadSummary` 加竞态守卫（`store.ts:60-71`）——连点两个日期、先发的请求后到也不会把数字挂到后一天，用例见 `store.test.ts`。
+- **重试要重拉的是「这一天」**（Standards 轴）：`retrySession(day?: string)` 现在接收日期（`store.ts:57-63`），记录页两处重试按钮都传当前选中日（`record/index.vue:172` / `:216`），不再是「重登后拉今天」。
+- **建档引导去重**（Standards 轴）：记录页的 `onboarding` 块与 `createProfile` 删掉，换成共用的 `CreateBabyGate`（`record/index.vue:129`），`.onboarding` / `.baby-mark` 样式一并删（`.avatar` 独立成一条规则，记录页的头像在 flex 行里）。
+- **快速记录的类型清单写死了「前 6 类」**（Standards 轴）：改用 `domain.ts` 的 `QUICK_RECORD_TYPES`（`record/index.vue:172`）。

@@ -39,3 +39,11 @@
 
 - 真实微信环境未验，证据来自主机闭环（typecheck / vitest / build:h5），真机验收留给人工。
 - 首页与记录页都会调 `load()`：底部 tab 来回切会各拉一次（没有缓存失效层）。MVP 接受，等有实测的卡顿再加缓存。
+
+**第二轮两轴复审（Standards `del_mu3bu415_tibi` / Spec `del_mu3bub3w_9hye`）后并入 `ecd2e71`**
+
+- **「今日」是 setup 期快照**（Standards 轴必修）：`today` / `greeting` 原来是普通 `const`，凌晨一直开着小程序时首页会拿着昨天的日期要指标、显示昨天的问候。现在都是 `ref`，`onShow` 每次重算并把「今天」交给 `load()`（`home/index.vue:15-18`）。
+- **金额指标没有「属于哪一天」的标记**（Standards 轴必修）：原来靠 `state.summaryDate === today && !state.error` 反推，两个日期并发时先发的请求后到会把后一天的数写进前一天的标签。新增 `recordStore.summaryFor(date)`（`store.ts:64`），首页 `summary = computed(() => recordStore.summaryFor(today.value))`（`home/index.vue:27`），取不到就显示「正在取今天的指标…」而不是别的日子的数字；`loadSummary` 同时加竞态守卫（`store.ts:60-71`）。
+- **建档引导去重**（Standards 轴）：`onboarding` 块换成共用的 `CreateBabyGate`（`home/index.vue:47`），本页样式里那几行 `.onboarding` / `.baby-mark` 一并删掉。
+- **快速记录的类型清单写死了「前 6 类」**（Standards 轴）：改用 `domain.ts` 的 `QUICK_RECORD_TYPES`（`home/index.vue:79`），与记录页同一份来源，顺序或数量调整不会再两边不一致。
+- **`loadSummary` 失败只在 console 留痕**（Standards 轴）：现在 `fail(reason)`，首页会看到中文提示（`store.ts:67-70`）。
