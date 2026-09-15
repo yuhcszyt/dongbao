@@ -1,4 +1,4 @@
-每次完成任务，commit and push 到github上
+o每次完成任务，commit and push 到github上
 
 ## 硬性约束：禁止控制本机验证前端界面
 
@@ -106,27 +106,31 @@ cp .env.example .env
 
 Key variables: `DATABASE_URL`, `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `MODEL_API_KEY`.
 
-### Running with Docker (recommended)
+### 本地快速验证（默认路径）
+
+日常开发与测试都在主机上跑，不要为了验证而重建镜像。见下方《Testing》。
+
+### 只用于端到端验收的 Docker
+
+`docker compose up` 启动 server + client + postgres，用于人工验收（以及里程碑时的容器一致性检查）。它**不是**日常测试手段。
 
 ```bash
-# Start server + client + postgres
-docker compose up
-
-# Run tests (server + client)
-docker compose --profile tools run --rm server-test
-docker compose --profile tools run --rm client-test
-
-# Build client
+make e2e          # 等价于 docker compose up --build
 docker compose --profile tools run --rm client-build
 ```
 
 ### Server (local)
 
 ```bash
+make dev-server   # 起测试库 + alembic upgrade head + uvicorn --reload（端口 8001）
+```
+
+手动等价写法（测试库端口 55432）：
+
+```bash
 cd apps/server
-pip install -r requirements.txt
 alembic upgrade head
-uvicorn app.main:app --reload --port 8000
+DATABASE_URL=postgresql+psycopg://dongbao:change-me@localhost:55432/dongbao_test uvicorn app.main:app --reload --port 8000
 ```
 
 ### Client (local)
@@ -140,16 +144,37 @@ npm run dev:mp-weixin  # WeChat Mini Program dev
 
 ### Testing
 
+默认在**主机上跑**，不要为了跑测试而重建 docker 镜像：
+
 ```bash
-# Server tests
-cd apps/server && pytest
-
-# Client tests
-cd apps/client && npm test
-
-# Client typecheck
-cd apps/client && npm run typecheck
+make setup        # 一次性：建 apps/server/.venv、装 python 与 npm 依赖
+make test         # 服务端 pytest + 客户端 typecheck/vitest（自动起测试库）
+make test-server  # 仅服务端
+make test-client  # 仅客户端
+make build        # 客户端 h5 + mp-weixin 构建校验
+make help         # 全部目标
 ```
+
+本地闭环的构成：
+
+- 测试库是 `docker compose` 的 `postgres-test`（`tools` profile，tmpfs，跑了就丢），端口发布到主机 `55432`；
+- 服务端用 `apps/server/.venv`（已 gitignore）在主机跑 `alembic upgrade head && pytest`；
+- 客户端用主机 `node_modules` 跑 `vue-tsc` / `vitest` / `uni build`。
+
+**只有当以下两种情况才用容器**，避免每改一行就重建镜像：
+
+```bash
+make e2e          # docker compose up --build，端到端人工验收
+make docker-test  # 里程碑一致性：容器内带 --build 跑一遍全部测试
+```
+
+### Docker (端到端验收)
+
+```bash
+make e2e   # 等价于 docker compose up --build
+```
+
+H5 在 5173，服务端在 8000。
 
 ### 前端验证（受限）
 

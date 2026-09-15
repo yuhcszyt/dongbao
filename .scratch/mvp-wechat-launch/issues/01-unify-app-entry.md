@@ -9,6 +9,7 @@
 **Status:** ready-for-agent
 
 - [ ] 容器与本地启动命令、Dockerfile、本地启动说明统一到同一个应用入口，容器起来后 `health` 可用
+- [ ] `Makefile` 里 `make dev-server` 的 `APP_MODULE` 默认值一并切到新入口（本地闭环见 AGENTS.md《Testing》）
 - [ ] 记录侧路由成为可挂载的独立路由器，行为与拆分前完全一致（现有记录测试除下述 patch 修正外不改断言即可通过）
 - [ ] 鉴权路由被真正挂载：未配置微信凭证时调用登录接口得到 502 `wechat_login_failed`，而不是 404
 - [ ] 语音草稿与 Provider 失败两个用例 patch 到真正解析 `transcribe_audio` / `extract_draft` 的模块后转绿，且不再依赖不存在的属性

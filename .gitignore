@@ -6,6 +6,7 @@ __pycache__/
 .mypy_cache/
 *.py[cod]
 node_modules/
+.venv/
 apps/client/dist/
 apps/client/.vite/
 apps/client/project.private.config.json

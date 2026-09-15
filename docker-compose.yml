@@ -52,6 +52,9 @@ services:
       interval: 2s
       timeout: 2s
       retries: 20
+    # 发布到主机，让主机上的 venv 能直接跑 pytest（tools profile，up 不会启动它）
+    ports:
+      - "55432:5432"
     tmpfs:
       - /var/lib/postgresql/data
 
