@@ -81,6 +81,11 @@ export interface MediaAsset {
 export const typeMeta = (type: RecordType) =>
   RECORD_TYPES.find((item) => item.value === type) ?? RECORD_TYPES[9]
 
+/** 只读展示用：未填的档案项统一显示「待完善」，不留空白。 */
+export const orPending = (value?: string | null) => (value && value.trim() ? value.trim() : '待完善')
+
+export const genderText = (gender: Baby['gender']) => ({ male: '男宝', female: '女宝', unknown: '待完善' })[gender]
+
 export const nowParts = () => {
   const now = new Date()
   const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString()
@@ -124,6 +129,26 @@ export function validatePayload(type: RecordType, payload: Record<string, unknow
     case 'custom':
       return present(payload.title) ? null : '请填写标题'
   }
+}
+
+export interface BabyProfileInput {
+  nickname: string
+  birth_date: string
+  gender: Baby['gender']
+}
+
+/**
+ * 建档与编辑共用同一套校验。
+ *
+ * 两处都调这一个函数，就不会出现「建档要求填生日、编辑却允许清空」这类两边规则漂移。
+ * `today` 可注入，好让用例把「今天」钉死；不注入就是设备本地日期。
+ */
+export function validateBabyProfile(input: BabyProfileInput, today = nowParts().date): string | null {
+  if (!input.nickname.trim()) return '请填写宝宝昵称'
+  if (!input.birth_date) return '请填写宝宝生日'
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.birth_date) || Number.isNaN(Date.parse(`${input.birth_date}T00:00:00`))) return '生日格式不正确'
+  if (input.birth_date > today) return '生日不能是未来的日期'
+  return null
 }
 
 const numberText = (value: unknown) => {

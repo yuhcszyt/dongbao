@@ -4,7 +4,7 @@ import { onShow } from '@dcloudio/uni-app'
 import CapturePanel from '@/components/CapturePanel.vue'
 import ProfileForm from '@/components/ProfileForm.vue'
 import RecordForm from '@/components/RecordForm.vue'
-import { ageText, describeRecord, RECORD_TYPES, type Baby, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
+import { ageText, describeRecord, genderText, RECORD_TYPES, type Baby, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
 import { recordStore } from '@/features/record/store'
 import { mediaUrl } from '@/services/api'
 
@@ -22,14 +22,13 @@ const formInitial = computed<Partial<RecordInput>>(() => editing.value ? {
   note: editing.value.note ?? null,
 } : { record_type: selectedType.value })
 
-const genderText = (gender: Baby['gender']) => ({ male: '男宝', female: '女宝', unknown: '暂不填写' })[gender]
 const sourceText = (source: RecordItem['source']) => ({ manual: '手动', voice: '语音', photo: '图片', system: '系统' })[source]
 const timeText = (value: string) => {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : `${date.getMonth() + 1}月${date.getDate()}日 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
-const createProfile = (input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) => void recordStore.createBaby(input)
+const createProfile = (input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) => void recordStore.saveBaby(input)
 
 function openManual(type: RecordType) {
   selectedType.value = type

@@ -4,7 +4,7 @@
  * 校验先在本地挡住并给中文提示，不把「必填项缺失」当成一次失败的提交。
  */
 import { reactive, ref } from 'vue'
-import { nowParts, type Baby } from '@/features/record/domain'
+import { nowParts, validateBabyProfile, type Baby } from '@/features/record/domain'
 
 const props = withDefaults(
   defineProps<{
@@ -33,8 +33,10 @@ const today = nowParts().date
 const pickerValue = (event: unknown) => String((event as { detail?: { value?: string } })?.detail?.value ?? '')
 
 function submit() {
-  if (!profile.nickname.trim() || !profile.birth_date) {
-    localError.value = '请填写宝宝昵称和生日'
+  // 建档与编辑共用 domain 里那一条校验，本地先挡住，不让「必填项缺失」走成一趟失败请求。
+  const problem = validateBabyProfile(profile)
+  if (problem) {
+    localError.value = problem
     return
   }
   localError.value = ''

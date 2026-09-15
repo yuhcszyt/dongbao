@@ -104,6 +104,23 @@ async function createBaby(input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'
   }
 }
 
+/** 建档与编辑共用同一套字段，所以共用一个入口。 */
+async function saveBaby(input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) {
+  if (!state.baby) return createBaby(input)
+  state.saving = true
+  clearError()
+  try {
+    state.baby = await api.updateBaby(state.baby.id, input)
+    await load()
+    return true
+  } catch (reason) {
+    fail(reason)
+    return false
+  } finally {
+    state.saving = false
+  }
+}
+
 /** 新增（`existing` 为空）或保存修改（`existing` 是被改的那条）。 */
 async function saveRecord(input: RecordInput, existing: RecordItem | null) {
   if (!state.baby) return false
@@ -170,6 +187,7 @@ export const recordStore = {
   loadSummary,
   retrySession,
   createBaby,
+  saveBaby,
   saveRecord,
   removeRecord,
   restoreRecord,
