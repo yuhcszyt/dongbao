@@ -1,9 +1,7 @@
 from datetime import date, datetime, time, timezone
 from io import BytesIO
-from pathlib import Path
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-import os
 import wave
 
 import httpx
@@ -21,10 +19,10 @@ from .database import get_db
 from .models import Baby, BabyRecord, MediaAsset, RecordDraft, RecordMedia, now
 from .providers import ProviderUnavailable, extract_draft, transcribe_audio
 from .schemas import BabyCreate, BabyOut, BabyUpdate, DailySummary, DraftConfirm, DraftOut, DraftRequest, MediaOut, RecordCreate, RecordOut, RecordUpdate, RecordType
+from .storage import media_path, media_root
 
 router = APIRouter()
 
-MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/app/data/media"))
 MAX_AUDIO_BYTES = 10 * 1024 * 1024
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 MAX_AUDIO_SECONDS = 60
@@ -126,8 +124,7 @@ async def upload_media(baby_id: UUID = Form(...), reported_duration_ms: int | No
             raise error(422, "audio_too_long", f"录音不能超过 {MAX_AUDIO_SECONDS} 秒")
     media_id = uuid4()
     key = f"{media_id.hex[:2]}/{media_id.hex}{EXTENSIONS[mime]}"
-    root = MEDIA_ROOT
-    target = root / key
+    target = media_path(key)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(data)
     media = MediaAsset(id=media_id, family_id=user.family_id, baby_id=baby_id, media_type="image" if mime.startswith("image/") else "audio", mime_type=mime, object_key=key, size_bytes=len(data), duration_ms=duration_ms)
@@ -145,8 +142,8 @@ def read_media(media_id: UUID, db: Session = Depends(get_db)):
     # URL 只在已鉴权的列表 / 详情响应里下发，所以不可枚举。
     media = db.scalar(select(MediaAsset).where(MediaAsset.id == media_id))
     if not media: raise error(404, "media_not_found", "没有找到这个媒体文件")
-    root = MEDIA_ROOT.resolve()
-    path = (root / media.object_key).resolve()
+    root = media_root().resolve()
+    path = media_path(media.object_key).resolve()
     if root not in path.parents or not path.is_file(): raise error(404, "media_not_found", "媒体文件不可用")
     return FileResponse(path, media_type=media.mime_type, headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
 
@@ -155,7 +152,7 @@ async def make_draft(body: DraftRequest, source: str, expected_media: str, db: S
     media = db.scalar(select(MediaAsset).where(MediaAsset.id == body.media_id, MediaAsset.baby_id == body.baby_id, MediaAsset.family_id == family_id))
     if not media or media.media_type != expected_media:
         raise error(404, "media_not_found", "没有找到可用的来源文件")
-    path = MEDIA_ROOT / media.object_key
+    path = media_path(media.object_key)
     transcript = None
     warnings: list[str] = []
     extracted: dict = {}

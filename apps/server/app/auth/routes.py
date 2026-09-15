@@ -1,23 +1,19 @@
 import logging
-import os
-from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..erasure import erase_family
 from ..record.database import get_db
-from ..record.models import Baby, BabyRecord, MediaAsset, RecordDraft, RecordMedia
 from .dependencies import api_error, current_user
 from .models import Family, User
 from .security import issue_token
 from .wechat import LOGIN_FAILED_MESSAGE, WeChatLoginError, code_to_openid
 
 logger = logging.getLogger(__name__)
-
-MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/app/data/media"))
 
 router = APIRouter(prefix="/api/v1", tags=["auth"])
 
@@ -47,18 +43,5 @@ async def login_wechat(body: WeChatLoginIn, db: Session = Depends(get_db)):
 
 @router.delete("/me", status_code=204)
 def delete_me(user: User = Depends(current_user), db: Session = Depends(get_db)):
-    fid = user.family_id
-    media_rows = db.scalars(select(MediaAsset).where(MediaAsset.family_id == fid)).all()
-    db.execute(delete(RecordMedia).where(RecordMedia.record_id.in_(select(BabyRecord.id).where(BabyRecord.family_id == fid))))
-    db.execute(delete(BabyRecord).where(BabyRecord.family_id == fid))
-    db.execute(delete(RecordDraft).where(RecordDraft.family_id == fid))
-    db.execute(delete(MediaAsset).where(MediaAsset.family_id == fid))
-    db.execute(delete(Baby).where(Baby.family_id == fid))
-    db.delete(user)
-    db.execute(delete(Family).where(Family.id == fid))
-    db.commit()
-    for media in media_rows:  # 文件留在事务提交后删，失败也不丢数据一致性
-        try:
-            (MEDIA_ROOT / media.object_key).unlink(missing_ok=True)
-        except OSError:
-            pass
+    """注销账号：该用户与整个家庭的数据一并消失（旧 token 随即 401，见 dependencies）。"""
+    erase_family(db, user.family_id)
