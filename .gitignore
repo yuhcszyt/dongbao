@@ -1,0 +1,13 @@
+.DS_Store
+.idea/
+.env
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+*.py[cod]
+node_modules/
+apps/client/dist/
+apps/client/.vite/
+apps/client/project.private.config.json
+data/media/*
+!data/media/.gitkeep

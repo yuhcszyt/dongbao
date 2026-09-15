@@ -1,0 +1,18 @@
+[large_model]
+provider = "openai_compatible"
+enabled = false
+base_url = ""
+model = ""
+supports_vision = true
+timeout_seconds = 30
+api_key_env = "MODEL_API_KEY"
+
+[tencent_asr]
+enabled = true
+endpoint = "https://asr.tencentcloudapi.com"
+region = "ap-guangzhou"
+engine_model_type = "16k_zh"
+voice_format = "mp3"
+timeout_seconds = 20
+secret_id_env = "TENCENT_SECRET_ID"
+secret_key_env = "TENCENT_SECRET_KEY"

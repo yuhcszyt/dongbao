@@ -1,0 +1,102 @@
+name: dongbao
+
+x-server-environment: &server-environment
+  PYTHONPATH: /app
+  DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://dongbao:change-me@postgres:5432/dongbao}
+  APP_CONFIG: /app/config/providers.toml
+  TEST_FAMILY_ID: ${TEST_FAMILY_ID:-00000000-0000-0000-0000-000000000001}
+  TEST_USER_ID: ${TEST_USER_ID:-00000000-0000-0000-0000-000000000002}
+  TENCENT_SECRET_ID: ${TENCENT_SECRET_ID:-}
+  TENCENT_SECRET_KEY: ${TENCENT_SECRET_KEY:-}
+  MODEL_API_KEY: ${MODEL_API_KEY:-}
+
+x-server: &server
+  build: ./apps/server
+  environment: *server-environment
+  volumes:
+    - ./config:/app/config:ro
+    - ./data/media:/app/data/media
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+x-client: &client
+  build: ./apps/client
+  environment:
+    VITE_API_BASE_URL: ${CLIENT_API_BASE_URL:-http://localhost:8000/api/v1}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dongbao}
+      POSTGRES_USER: ${POSTGRES_USER:-dongbao}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  postgres-test:
+    image: postgres:16-alpine
+    profiles: ["tools"]
+    environment:
+      POSTGRES_DB: dongbao_test
+      POSTGRES_USER: dongbao
+      POSTGRES_PASSWORD: change-me
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dongbao -d dongbao_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  server:
+    <<: *server
+    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    ports:
+      - "8000:8000"
+
+  client-h5:
+    <<: *client
+    command: ["npm", "run", "dev:h5", "--", "--host", "0.0.0.0"]
+    ports:
+      - "5173:5173"
+    depends_on:
+      - server
+
+  client-weixin:
+    <<: *client
+    command: ["npm", "run", "dev:mp-weixin"]
+    volumes:
+      - ./apps/client/dist:/app/dist
+
+  server-test:
+    <<: *server
+    profiles: ["tools"]
+    environment:
+      <<: *server-environment
+      DATABASE_URL: postgresql+psycopg://dongbao:change-me@postgres-test:5432/dongbao_test
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    command: ["sh", "-c", "alembic upgrade head && pytest -q"]
+
+  client-test:
+    <<: *client
+    profiles: ["tools"]
+    command: ["sh", "-c", "npm run typecheck && npm test"]
+
+  client-build:
+    <<: *client
+    profiles: ["tools"]
+    command: ["sh", "-c", "npm run build:h5 && npm run build:mp-weixin"]
+    volumes:
+      - ./apps/client/dist:/app/dist
+
+volumes:
+  postgres_data:
