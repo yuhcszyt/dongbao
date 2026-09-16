@@ -139,14 +139,32 @@ export const dayLabel = (date: string, today = nowParts().date) => {
 export const pickerValue = (event: unknown) =>
   String((event as { detail?: { value?: string } })?.detail?.value ?? '')
 
+/** 原型记录页日期条：只标周几（日一二…），不写成「今天/昨天」。 */
+export const weekdayChar = (date: string) => {
+  const [year, month, day] = date.split('-').map(Number)
+  if (!year || !month || !day) return ''
+  return '日一二三四五六'[new Date(year, month - 1, day).getDay()] ?? ''
+}
+
 /** 记录页顶部日期条：`days` 天，最后一天就是 `anchor`（默认今天）。 */
 export function buildDateStrip(days: number, anchor = nowParts().date) {
   const today = nowParts().date
   return Array.from({ length: days }, (_, index) => {
     const date = shiftDate(anchor, index - days + 1)
-    return { date, day: String(Number(date.split('-')[2])), label: dayLabel(date, today) }
+    return { date, day: String(Number(date.split('-')[2])), label: dayLabel(date, today), weekday: weekdayChar(date) }
   })
 }
+
+/** 完整记录页筛选：对齐原型 全部/喂奶/辅食/维生素AD/睡眠/排便/尿布。 */
+export const RECORD_FILTERS: { value: RecordType | 'all'; label: string }[] = [
+  { value: 'all', label: '全部' },
+  { value: 'feeding', label: '喂奶' },
+  { value: 'complementary_food', label: '辅食' },
+  { value: 'medication', label: '维生素AD' },
+  { value: 'sleep', label: '睡眠' },
+  { value: 'stool', label: '排便' },
+  { value: 'diaper', label: '尿布' },
+]
 
 /** 时间线只显示选中的那一天：记录接口没有 from/to，按客户端本地日期过滤。 */
 export const recordsOnDay = <T extends { occurred_at: string }>(records: T[], date: string) =>

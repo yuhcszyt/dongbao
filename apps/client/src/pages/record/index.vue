@@ -4,7 +4,7 @@ import { onShow } from '@dcloudio/uni-app'
 import AccountGone from '@/components/AccountGone.vue'
 import CapturePanel from '@/components/CapturePanel.vue'
 import RecordForm from '@/components/RecordForm.vue'
-import { ageText, babyDisplayName, buildDateStrip, dayLabel, describeRecord, nowParts, pickerValue, HOME_QUICK_TYPES, RECORD_TYPES, recordTimeText, recordsOnDay, type MediaAsset, type Payload, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
+import { buildDateStrip, dateTimeParts, dayLabel, describeRecord, nowParts, pickerValue, RECORD_FILTERS, recordsOnDay, type MediaAsset, type Payload, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
 import { takeQuickAction } from '@/features/record/quickAction'
 import { recordStore } from '@/features/record/store'
 import { mediaUrl } from '@/services/api'
@@ -21,10 +21,7 @@ const day = ref(today.value)
 const strip = computed(() => buildDateStrip(7, today.value))
 const dayRecords = computed(() => recordsOnDay(state.records, day.value))
 const visibleRecords = computed(() => filter.value === 'all' ? dayRecords.value : dayRecords.value.filter((item) => item.record_type === filter.value))
-const emptyText = computed(() => filter.value === 'all' ? '这一天还没有记录' : '还没有这类记录')
 const dayText = computed(() => dayLabel(day.value, today.value))
-const summaryReady = computed(() => recordStore.summaryFor(day.value) !== null)
-const babyName = computed(() => babyDisplayName(state.baby?.nickname))
 const formInitial = computed<Partial<RecordInput>>(() => editing.value ? {
   record_type: editing.value.record_type,
   occurred_at: editing.value.occurred_at,
@@ -104,13 +101,6 @@ const captureSaved = () => {
   void recordStore.load()
 }
 
-function openHomeQuick(item: (typeof HOME_QUICK_TYPES)[number]) {
-  const payload = 'presetName' in item && item.presetName
-    ? { kind: item.value, name: item.presetName }
-    : undefined
-  openManual(item.value, payload)
-}
-
 function openStats() {
   uni.navigateTo({ url: '/pages/stats/index' })
 }
@@ -133,83 +123,61 @@ onShow(() => {
     <template v-else>
       <view v-if="state.error" class="error"><text>{{ state.error }}</text><button v-if="state.retryable" class="retry" @click="recordStore.retrySession(day)">重试</button></view>
       <view class="topbar">
-        <view>
-          <text class="page-title">记录</text>
-          <text class="muted">用记录，留住每一个小变化 · {{ babyName }} · {{ ageText(state.baby?.birth_date) }}</text>
-        </view>
+        <text class="page-title">记录</text>
         <button class="tag" @click="panel = 'capture'">＋ 添加</button>
       </view>
-      <view class="row-links">
+      <view class="intro-row">
+        <text class="muted">用记录，留住每一个小变化</text>
         <button class="link" @click="openStats">数据统计 ›</button>
       </view>
 
-      <view class="capture-card">
+      <view class="capture-entry">
         <text class="card-title">给宝宝记一笔</text>
-        <text class="muted">说一句或拍一张，确认后再保存</text>
-        <view class="capture-row">
-          <button class="voice" @click="panel = 'capture'"><text>♩</text>语音记录</button>
-          <button class="photo" @click="panel = 'capture'"><text>▣</text>拍照记录</button>
-        </view>
-        <button class="text-button" @click="openManual('feeding')">也可以手动填写 ›</button>
-        <view class="quick-grid">
-          <button v-for="item in HOME_QUICK_TYPES" :key="item.label" @click="openHomeQuick(item)">
-            <text>{{ item.icon }}</text>{{ item.label }}
-          </button>
-        </view>
-        <button class="text-button" @click="openManual('custom')">查看全部记录类型 ›</button>
+        <text class="lead">说一句，或拍张照，就能开始记录</text>
+        <button class="voice" @click="panel = 'capture'">
+          <text class="cap-icon">♩</text>
+          <text class="cap-title">语音记录</text>
+          <text class="cap-note">点一下，直接说</text>
+        </button>
+        <button class="photo" @click="panel = 'capture'">
+          <text class="cap-icon">▣</text>
+          <text class="cap-title">拍照记录</text>
+          <text class="cap-note">拍食物、奶瓶等</text>
+        </button>
+        <button class="manual-link" @click="openManual('feeding')">也可以手动填写 ›</button>
       </view>
 
-      <view class="day-bar">
-        <scroll-view class="day-strip" scroll-x>
-          <view class="day-row">
-            <button v-for="item in strip" :key="item.date" :class="{ selected: day === item.date }" @click="selectDay(item.date)">
-              <text class="day-label">{{ item.label }}</text><text class="day-number">{{ item.day }}</text>
-            </button>
-          </view>
-        </scroll-view>
-        <picker mode="date" :value="day" :end="today" @change="selectDay(pickerValue($event))">
-          <button class="day-jump">📅 选日期</button>
-        </picker>
+      <view class="dates">
+        <button v-for="item in strip" :key="item.date" :class="{ active: day === item.date }" @click="selectDay(item.date)">
+          <text class="dates-week">{{ item.weekday }}</text>
+          <text class="dates-day">{{ item.day }}</text>
+        </button>
       </view>
+      <picker mode="date" :value="day" :end="today" @change="selectDay(pickerValue($event))">
+        <text class="date-pick">{{ day }}</text>
+      </picker>
 
-      <view class="summary">
-        <template v-if="summaryReady">
-          <view><text>{{ state.summary.feeding_ml }}</text><small>奶量 ml</small></view>
-          <view><text>{{ state.summary.sleep_minutes }}</text><small>睡眠 分钟</small></view>
-          <view><text>{{ state.summary.diaper_count }}</text><small>尿布 次</small></view>
-          <view><text>{{ state.summary.complementary_food_count }}</text><small>辅食 次</small></view>
-        </template>
-        <text v-else class="summary-waiting">{{ state.error || '正在取这一天的指标…' }}</text>
+      <view class="chips">
+        <button v-for="item in RECORD_FILTERS" :key="item.value" :class="{ active: filter === item.value }" @click="filter = item.value">{{ item.label }}</button>
       </view>
-      <text class="summary-note">{{ dayText }}指标仅统计已记录内容，没记录不代表没有发生。</text>
+      <text class="day-heading">{{ dayText }}</text>
 
-      <view class="timeline-head"><text class="card-title">{{ dayText }}的时间线</text><text>{{ dayRecords.length }} 条</text></view>
-      <scroll-view class="filters" scroll-x>
-        <view class="filter-row">
-          <button :class="{ selected: filter === 'all' }" @click="filter = 'all'">全部</button>
-          <button v-for="item in RECORD_TYPES" :key="item.value" :class="{ selected: filter === item.value }" @click="filter = item.value">{{ item.label }}</button>
-        </view>
-      </scroll-view>
-
-      <view v-if="!visibleRecords.length" class="empty">{{ emptyText }}<br><small>换个日期或类型看看，或点上面按钮记一条</small></view>
-      <view v-for="record in visibleRecords" :key="record.id" class="record-card" @click="openEdit(record)">
-        <view class="record-icon">{{ typeMeta(record.record_type).icon }}</view>
-        <view class="record-body">
-          <view class="record-top"><text class="record-title">{{ typeMeta(record.record_type).label }}</text><text class="record-time">{{ recordTimeText(record.occurred_at) }}</text></view>
-          <text class="record-detail">{{ describeRecord(record) }}</text>
-          <text v-if="record.note" class="record-note">{{ record.note }}</text>
+      <view v-if="!visibleRecords.length" class="empty">这一天还没有相关记录<br>点击「添加」记下宝宝的一刻</view>
+      <button v-for="record in visibleRecords" :key="record.id" class="event" @click="openEdit(record)">
+        <text class="event-time">{{ dateTimeParts(record.occurred_at).time }}</text>
+        <text class="bubble">{{ typeMeta(record.record_type).icon }}</text>
+        <view class="event-data">
+          <text class="event-title">{{ typeMeta(record.record_type).label }} · {{ describeRecord(record) }}</text>
+          <text class="event-note">{{ record.note || '点击修改记录' }}</text>
           <view v-if="record.media?.length" class="media-row">
-            <button v-for="(item, index) in record.media" :key="item.id" class="source" @click.stop="openMedia(record, item)">{{ mediaLabel(record, index) }}</button>
+            <text v-for="(item, index) in record.media" :key="item.id" class="source" @click.stop="openMedia(record, item)">{{ mediaLabel(record, index) }}</text>
           </view>
-          <text v-if="record.transcript" class="transcript">“{{ record.transcript }}”</text>
-          <view class="record-actions"><button @click.stop="openEdit(record)">修改</button><button class="danger" @click.stop="remove(record)">删除</button></view>
         </view>
-      </view>
+        <text class="chev">›</text>
+      </button>
     </template>
 
     <view v-if="state.deleted" class="undo"><text>已删除“{{ typeMeta(state.deleted.record_type).label }}”</text><button @click="restore">撤销</button></view>
-
-    <button v-if="state.baby" class="fab" @click="openManual(filter === 'all' ? selectedType : filter)">＋</button>
 
     <view v-if="panel && state.baby" class="overlay" @click.self="panel = null">
       <view class="sheet">
@@ -225,69 +193,52 @@ onShow(() => {
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 22px 18px 120px; background: #fbfaf7; color: #203f4a; }
-.state, .empty { padding: 80px 20px; text-align: center; color: #70858c; line-height: 1.8; }
-.avatar { display: grid; place-items: center; flex: 0 0 58px; height: 58px; border-radius: 50%; background: #f2e8d8; font-size: 32px; }
-.eyebrow, .page-title, .muted, .summary-note, .record-detail, .record-note, .transcript { display: block; }
-.eyebrow { color: #328da9; font-size: 13px; font-weight: 750; letter-spacing: 1px; }
-.page-title { margin: 5px 0; font-size: 27px; font-weight: 800; line-height: 1.25; }
-.muted, .summary-note { color: #71858b; font-size: 14px; line-height: 1.55; }
-.topbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; max-width: 760px; margin: 0 auto; }
-.summary { display: grid; grid-template-columns: repeat(4, 1fr); max-width: 760px; margin: 22px auto 7px; border-radius: 18px; background: #eaf4f5; padding: 16px 7px; }
-.summary view { text-align: center; border-right: 1px solid #cfe0e1; }
-.summary view:last-child { border: 0; }
-.summary text { display: block; font-size: 22px; font-weight: 800; color: #25778f; }
-.summary small { display: block; margin-top: 4px; color: #607980; font-size: 11px; }
-.summary-note { max-width: 760px; margin: 0 auto; text-align: center; }
-.capture-card, .record-card { max-width: 760px; margin: 18px auto; border: 1px solid #e6eceb; border-radius: 19px; background: white; box-shadow: 0 7px 24px rgba(43, 75, 83, .06); }
-.capture-card { padding: 18px; }
+.page { min-height: 100vh; padding: 14px 19px 120px; background: #fbfaf7; color: #203f4a; }
+.state { padding: 80px 20px; text-align: center; color: #70858c; }
+.empty { padding: 45px 10px; text-align: center; color: #94a5ab; line-height: 1.8; }
+.page-title { font-size: 23px; font-weight: 800; }
+.muted { color: #71858b; font-size: 13px; }
+.topbar, .intro-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.intro-row { margin-top: 6px; }
+.tag { min-height: 32px; padding: 5px 10px; border-radius: 20px; background: #edf6f8; color: #328da9; font-size: 11px; letter-spacing: 1px; }
+.link { min-height: 36px; padding: 0; background: transparent; color: #2d8098; font-size: 12px; }
+.capture-entry { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 22px 0 12px; }
+.card-title, .lead, .manual-link { grid-column: 1 / -1; }
 .card-title { font-size: 20px; font-weight: 800; }
-.capture-main { width: 100%; min-height: 54px; margin-top: 15px; border-radius: 15px; background: #328da9; color: white; font-size: 17px; font-weight: 750; }
-.capture-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
-.capture-row button { min-height: 72px; border-radius: 16px; font-size: 16px; font-weight: 650; color: white; }
-.capture-row text { display: block; font-size: 24px; margin-bottom: 4px; }
-.voice { background: #318ba5; }
-.photo { background: #f6e9d8; color: #6c5137 !important; }
-.tag { min-height: 40px; padding: 0 12px; border-radius: 20px; background: #edf6f8; color: #328da9; font-size: 13px; }
-.row-links { max-width: 760px; margin: 8px auto 0; text-align: right; }
-.link { min-height: 40px; padding: 0 6px; background: transparent; color: #2d8098; font-size: 14px; }
-.quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 12px; }
-.quick-grid button { min-height: 61px; padding: 6px 2px; border: 1px solid #e3e9e8; border-radius: 12px; background: #fff; color: #49646d; font-size: 12px; }
-.quick-grid text { display: block; font-size: 20px; }
-.text-button { width: 100%; min-height: 48px; margin-top: 5px; background: transparent; color: #2d8098; font-size: 14px; }
-.error { max-width: 760px; margin: 12px auto; border-radius: 12px; background: #fff0ec; padding: 12px; color: #9a4c3e; }
+.lead { font-size: 14px; color: #617b85; }
+.voice, .photo { min-height: 78px; border-radius: 16px; padding: 14px; text-align: left; }
+.voice { background: #318ba5; color: white; }
+.photo { background: #f6e9d8; color: #6c5137; }
+.cap-icon, .cap-title, .cap-note { display: block; }
+.cap-icon { font-size: 29px; }
+.cap-title { font-size: 18px; font-weight: 650; }
+.cap-note { margin-top: 4px; font-size: 13px; font-weight: 400; }
+.manual-link { min-height: 48px; background: transparent; color: #377c94; font-size: 16px; }
+.dates { display: flex; gap: 5px; margin: 15px 0 6px; }
+.dates button { flex: 1; padding: 8px 0; border-radius: 18px; background: transparent; color: #203f4a; font-size: 12px; }
+.dates .active { background: #328da9; color: white; }
+.dates-week { display: block; opacity: .7; }
+.dates-day { display: block; font-size: 14px; font-weight: 700; }
+.date-pick { display: block; color: #81949a; font-size: 13px; margin-bottom: 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 7px; margin: 14px 0; }
+.chips button { background: #edf4f6; border-radius: 19px; padding: 7px 14px; font-size: 12px; color: #203f4a; }
+.chips .active { background: #328da9; color: white; }
+.day-heading { display: block; font-size: 16px; font-weight: 800; margin: 8px 0; }
+.event { display: flex; gap: 11px; width: 100%; padding: 14px 0; border-bottom: 1px solid #eff2f1; background: transparent; text-align: left; color: inherit; }
+.event-time { width: 43px; padding-top: 5px; font-size: 14px; color: #79939a; }
+.bubble { width: 37px; height: 37px; border-radius: 50%; background: #ecf6f8; text-align: center; line-height: 37px; font-size: 18px; }
+.event-data { flex: 1; min-width: 0; }
+.event-title { display: block; font-size: 15px; font-weight: 700; }
+.event-note { display: block; color: #91a1a6; font-size: 12px; }
+.chev { color: #91a1a6; }
+.media-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.source { color: #27788f; font-size: 12px; }
+.error { margin: 12px 0; border-radius: 12px; background: #fff0ec; padding: 12px; color: #9a4c3e; }
 .error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: #fff; color: #9a4c3e; font-weight: 700; }
-.timeline-head { display: flex; justify-content: space-between; max-width: 760px; margin: 28px auto 8px; color: #71858b; }
-.filters { max-width: 760px; margin: 0 auto; white-space: nowrap; }
-.filter-row { display: inline-flex; gap: 8px; padding: 4px 0 8px; }
-.filter-row button { min-width: 76px; min-height: 52px; padding: 0 16px; border: 1px solid #dde7e8; border-radius: 13px; background: white; color: #49646d; font-size: 16px; }
-.day-bar { display: flex; align-items: center; gap: 10px; max-width: 760px; margin: 18px auto 0; }
-.day-strip { flex: 1; min-width: 0; white-space: nowrap; }
-.day-row { display: inline-flex; gap: 8px; }
-.day-row button { display: grid; place-items: center; gap: 2px; min-width: 62px; min-height: 62px; padding: 6px 10px; border: 1px solid #dde7e8; border-radius: 14px; background: white; color: #49646d; }
-.day-row .selected { border-color: #328da9 !important; background: #edf6f8 !important; color: #236f87 !important; }
-.day-label { font-size: 14px; }
-.day-number { font-size: 19px; font-weight: 800; }
-.day-jump { min-height: 52px; padding: 0 14px; border: 1px solid #dde7e8; border-radius: 13px; background: white; color: #2d8098; font-size: 15px; }
-.record-card { display: flex; gap: 12px; padding: 16px; }
-.record-icon { display: grid; flex: 0 0 48px; height: 48px; place-items: center; border-radius: 14px; background: #f2e8d8; font-size: 23px; }
-.record-body { min-width: 0; flex: 1; }
-.record-top { display: flex; justify-content: space-between; gap: 8px; }
-.record-title { font-size: 18px; font-weight: 750; }
-.record-time { color: #7a8c90; font-size: 12px; }
-.record-detail { margin-top: 5px; font-size: 16px; }
-.record-note, .transcript { margin-top: 7px; color: #637a81; font-size: 13px; line-height: 1.5; }
-.source { min-height: 48px; margin-top: 8px; padding: 0 12px; border-radius: 10px; background: #edf6f8; color: #27788f; font-size: 13px; }
-.media-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.record-actions { display: flex; gap: 8px; margin-top: 10px; }
-.record-actions button { min-width: 70px; min-height: 48px; border-radius: 10px; background: #f3f6f5; color: #46626a; font-size: 14px; }
-.record-actions .danger { color: #a04e3d; }
 .overlay { position: fixed; z-index: 20; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: rgba(25, 47, 52, .46); }
 .sheet { width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; background: #fbfaf7; padding: 21px 18px calc(22px + env(safe-area-inset-bottom)); }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; }
 .sheet-head button { width: 48px; height: 48px; border-radius: 50%; background: #eef2f1; font-size: 27px; }
-.undo { position: fixed; z-index: 30; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom)); left: 16px; display: flex; align-items: center; justify-content: space-between; max-width: 680px; min-height: 54px; margin: auto; border-radius: 14px; background: #244a56; padding: 8px 10px 8px 16px; color: white; }
+.undo { position: fixed; z-index: 30; right: 16px; bottom: calc(70px + env(safe-area-inset-bottom)); left: 16px; display: flex; align-items: center; justify-content: space-between; min-height: 54px; border-radius: 14px; background: #244a56; padding: 8px 10px 8px 16px; color: white; }
 .undo button { min-width: 72px; min-height: 48px; border-radius: 11px; background: #fff; color: #267b93; font-weight: 700; }
-.fab { position: fixed; z-index: 15; right: 18px; bottom: calc(96px + env(safe-area-inset-bottom)); width: 62px; height: 62px; border-radius: 50%; background: #328da9; color: white; font-size: 30px; font-weight: 700; line-height: 1; box-shadow: 0 9px 22px rgba(38, 110, 132, .34); }
-@media (max-width: 520px) { .quick-grid { grid-template-columns: repeat(3, 1fr); } .summary { grid-template-columns: repeat(2, 1fr); gap: 15px 0; } .summary view:nth-child(2) { border: 0; } .page-title { font-size: 24px; } }
 </style>

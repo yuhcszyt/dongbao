@@ -114,8 +114,16 @@ onShow(() => {
           <button class="link" @click="openRecord()">更多 ＋</button>
         </view>
         <view class="capture-row">
-          <button class="voice" @click="openRecord({ kind: 'capture' })"><text>♩</text>语音记录</button>
-          <button class="photo" @click="openRecord({ kind: 'capture' })"><text>▣</text>拍照记录</button>
+          <button class="voice" @click="openRecord({ kind: 'capture' })">
+            <text class="cap-icon">♩</text>
+            <text class="cap-title">语音记录</text>
+            <text class="cap-note">点一下，直接说</text>
+          </button>
+          <button class="photo" @click="openRecord({ kind: 'capture' })">
+            <text class="cap-icon">▣</text>
+            <text class="cap-title">拍照记录</text>
+            <text class="cap-note">拍食物、奶瓶等</text>
+          </button>
         </view>
         <button class="manual-link" @click="openRecord({ kind: 'manual', record_type: 'feeding' })">也可以手动填写 ›</button>
         <view class="card-head sub">
@@ -188,10 +196,13 @@ onShow(() => {
 .listen { width: 100%; margin-top: 10px; text-align: left; color: #328da9; font-size: 13px; background: transparent; }
 .listen text { float: right; }
 .capture-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.capture-row button { min-height: 72px; border-radius: 16px; font-size: 16px; font-weight: 650; color: white; }
-.capture-row text { display: block; font-size: 24px; margin-bottom: 4px; }
-.voice { background: #318ba5; }
-.photo { background: #f6e9d8; color: #6c5137 !important; }
+.capture-row button { min-height: 78px; border-radius: 16px; padding: 14px; text-align: left; }
+.cap-icon, .cap-title, .cap-note { display: block; }
+.cap-icon { font-size: 26px; }
+.cap-title { font-size: 18px; font-weight: 650; }
+.cap-note { margin-top: 4px; font-size: 13px; font-weight: 400; }
+.voice { background: #318ba5; color: white; }
+.photo { background: #f6e9d8; color: #6c5137; }
 .manual-link { width: 100%; margin-top: 8px; min-height: 44px; background: transparent; color: #377c94; font-size: 15px; }
 .quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .quick-grid button { padding: 0; font-size: 12px; background: transparent; color: #203f4a; }

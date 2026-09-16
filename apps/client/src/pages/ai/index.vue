@@ -88,15 +88,16 @@ onShow(() => void recordStore.load(today.value))
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 18px 18px 100px; background: #fbfaf7; color: #203f4a; }
+.page { min-height: 100vh; padding: 14px 19px calc(120px + env(safe-area-inset-bottom)); background: #fbfaf7; color: #203f4a; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .brand { display: flex; gap: 10px; align-items: center; }
-.cloud { font-size: 28px; color: #25516a; }
+.cloud { width: 40px; height: 32px; border-radius: 50%; background: #b7e4f5; color: #25516a; font-size: 16px; letter-spacing: 3px; text-align: center; line-height: 32px; }
 .title { display: block; font-size: 18px; font-weight: 800; }
 .muted { display: block; color: #71858b; font-size: 13px; line-height: 1.5; margin-top: 4px; }
-.link { background: transparent; color: #2d8098; font-size: 13px; }
+.link { background: transparent; color: #2d8098; font-size: 12px; }
 .warn { margin: 14px 0; border-radius: 12px; background: #fff0df; color: #b88346; padding: 10px 12px; font-size: 12px; }
 .welcome { margin-top: 18px; }
+.welcome .title { font-size: 23px; }
 .card { margin-top: 16px; border-radius: 19px; background: white; border: 1px solid #eef1ef; padding: 16px; }
 .card-title { display: block; font-size: 16px; font-weight: 800; margin-bottom: 8px; }
 .outline { display: block; width: 100%; margin-top: 10px; min-height: 48px; border-radius: 14px; border: 1px solid #bedbe4; background: white; color: #328da9; font-size: 14px; }
@@ -104,7 +105,7 @@ onShow(() => void recordStore.load(today.value))
 .answer { margin: 12px 0; padding: 16px; border-radius: 4px 18px 18px 18px; background: white; border: 1px solid #eef1ef; }
 .evidence { margin: 10px 0; padding: 12px; border-radius: 12px; background: #edf6f8; font-size: 13px; line-height: 1.7; }
 .notice { display: block; margin-top: 10px; color: #8b9c9f; font-size: 11px; }
-.composer { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: 8px; padding: 10px 15px calc(10px + env(safe-area-inset-bottom)); background: white; border-top: 1px solid #e9eff0; }
-.input { flex: 1; min-width: 0; border-radius: 22px; background: #f3f7f8; padding: 11px 14px; font-size: 15px; }
-.send { width: 40px; height: 40px; border-radius: 50%; background: #328da9; color: white; font-size: 18px; }
+.composer { position: fixed; left: 0; right: 0; bottom: calc(50px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; padding: 10px 15px; background: white; border-top: 1px solid #e9eff0; }
+.input { flex: 1; min-width: 0; height: 44px; line-height: 44px; border-radius: 22px; background: #f3f7f8; padding: 0 15px; font-size: 15px; }
+.send { width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; background: #328da9; color: white; font-size: 18px; line-height: 40px; }
 </style>
