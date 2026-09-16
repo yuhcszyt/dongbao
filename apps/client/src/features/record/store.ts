@@ -108,6 +108,9 @@ async function load(date = state.summaryDate) {
         }),
         loadSummary(date),
       ])
+      // 档案已拉到说明会话可用；指标失败只留在 loadSummary 的提示里，
+      // 不要让启动时一次失败的「登录失败」横幅继续盖住已成功的首页。
+      if (state.baby && state.error === '登录失败，请检查网络后重试') clearError()
     }
   } catch (reason) {
     fail(reason)
