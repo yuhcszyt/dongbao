@@ -30,14 +30,15 @@ describe('记录领域契约', () => {
 describe('宝宝档案校验（建档与编辑共用同一套规则）', () => {
   const today = '2026-09-16'
 
-  it('昵称与生日齐全且生日不是未来时通过', () => {
+  it('昵称齐全即可；生日可稍后补充', () => {
     expect(validateBabyProfile({ nickname: '安安', birth_date: '2024-03-05', gender: 'female' }, today)).toBeNull()
     expect(validateBabyProfile({ nickname: '安安', birth_date: today, gender: 'unknown' }, today)).toBeNull()
+    expect(validateBabyProfile({ nickname: '宝宝', birth_date: '', gender: 'unknown' }, today)).toBeNull()
   })
 
-  it('缺昵称、缺生日、生日在未来时都给中文提示', () => {
+  it('缺昵称、生日格式错、生日在未来时给中文提示', () => {
     expect(validateBabyProfile({ nickname: '  ', birth_date: '2024-03-05', gender: 'male' }, today)).toBe('请填写宝宝昵称')
-    expect(validateBabyProfile({ nickname: '安安', birth_date: '', gender: 'male' }, today)).toBe('请填写宝宝生日')
+    expect(validateBabyProfile({ nickname: '安安', birth_date: '不是日期', gender: 'male' }, today)).toBe('生日格式不正确')
     expect(validateBabyProfile({ nickname: '安安', birth_date: '2026-09-17', gender: 'male' }, today)).toBe('生日不能是未来的日期')
   })
 

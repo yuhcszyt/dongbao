@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import AccountGone from '@/components/AccountGone.vue'
 import CapturePanel from '@/components/CapturePanel.vue'
-import CreateBabyGate from '@/components/CreateBabyGate.vue'
 import RecordForm from '@/components/RecordForm.vue'
-import { ageText, buildDateStrip, dayLabel, describeRecord, genderText, nowParts, pickerValue, QUICK_RECORD_TYPES, RECORD_TYPES, recordTimeText, recordsOnDay, type MediaAsset, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
+import { ageText, babyDisplayName, buildDateStrip, dayLabel, describeRecord, nowParts, pickerValue, HOME_QUICK_TYPES, RECORD_TYPES, recordTimeText, recordsOnDay, type MediaAsset, type Payload, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
 import { takeQuickAction } from '@/features/record/quickAction'
 import { recordStore } from '@/features/record/store'
 import { mediaUrl } from '@/services/api'
@@ -14,39 +13,39 @@ const { state } = recordStore
 const panel = ref<'capture' | 'form' | null>(null)
 const editing = ref<RecordItem | null>(null)
 const selectedType = ref<RecordType>('feeding')
+const draftPayload = ref<Partial<Payload> | undefined>()
 const filter = ref<RecordType | 'all'>('all')
 
 const today = ref(nowParts().date)
-/** 记录页盯着的那一天：切日期就看到那一天的时间线，补记昨天的事才顺手。 */
 const day = ref(today.value)
-/** 日期条固定锚在今天：条上永远有「今天」这一格，跳到过去某天后想回来是一下。
- * 选中日可能是条外的一天（用右边的日期选择器跳过去），这时条上不高亮任何一格，
- * 但日期选择器与标题都指着那一天。（验收：7 天日期条 + 可跳任意一天的日期选择器） */
 const strip = computed(() => buildDateStrip(7, today.value))
 const dayRecords = computed(() => recordsOnDay(state.records, day.value))
 const visibleRecords = computed(() => filter.value === 'all' ? dayRecords.value : dayRecords.value.filter((item) => item.record_type === filter.value))
 const emptyText = computed(() => filter.value === 'all' ? '这一天还没有记录' : '还没有这类记录')
 const dayText = computed(() => dayLabel(day.value, today.value))
-/** 指标只能是「已经拉到的那一天」的：拉失败时 `summaryDate` 不跟手，宁可不出数字也不出错数字。 */
 const summaryReady = computed(() => recordStore.summaryFor(day.value) !== null)
+const babyName = computed(() => babyDisplayName(state.baby?.nickname))
 const formInitial = computed<Partial<RecordInput>>(() => editing.value ? {
   record_type: editing.value.record_type,
   occurred_at: editing.value.occurred_at,
   payload: editing.value.payload,
   note: editing.value.note ?? null,
-} : { record_type: selectedType.value })
+} : {
+  record_type: selectedType.value,
+  payload: draftPayload.value as Payload | undefined,
+})
 
 const sourceText = (source: RecordItem['source']) => ({ manual: '手动', voice: '语音', photo: '图片', system: '系统' })[source]
 
 function selectDay(date: string) {
   if (!date || date === day.value) return
   day.value = date
-  // 指标跟着选中日走；记录本身已在内存里，不用重新拉列表。
   void recordStore.loadSummary(date)
 }
 
-function openManual(type: RecordType) {
+function openManual(type: RecordType, payload?: Partial<Payload>) {
   selectedType.value = type
+  draftPayload.value = payload
   editing.value = null
   panel.value = 'form'
 }
@@ -54,6 +53,7 @@ function openManual(type: RecordType) {
 function openEdit(record: RecordItem) {
   editing.value = record
   selectedType.value = record.record_type
+  draftPayload.value = undefined
   panel.value = 'form'
 }
 
@@ -62,6 +62,7 @@ async function saveRecord(input: RecordInput) {
   if (!saved) return
   panel.value = null
   editing.value = null
+  draftPayload.value = undefined
   uni.showToast({ title: '记好了', icon: 'success' })
 }
 
@@ -79,8 +80,6 @@ function restore() {
   void recordStore.restoreRecord()
 }
 
-/** 一条记录可能带多份媒体（连拍、多段语音）：每一份都能单独点开。
- * 图片把整条记录的图片一起交给预览器，横滑就能看完；语音就播这一份。 */
 function openMedia(record: RecordItem, media: MediaAsset) {
   const url = mediaUrl(media.url)
   if (media.media_type === 'image') {
@@ -95,7 +94,6 @@ function openMedia(record: RecordItem, media: MediaAsset) {
   audio.play()
 }
 
-/** 多份媒体时按份编号，单份时直接说来源（「语音来源」），家长一眼知道点开的是什么。 */
 const mediaLabel = (record: RecordItem, index: number) => {
   const head = (record.media?.length ?? 0) > 1 ? `第 ${index + 1} 份` : `${sourceText(record.source)}来源`
   return `${head} · 点击${record.media?.[index]?.media_type === 'image' ? '查看' : '播放'}`
@@ -106,15 +104,23 @@ const captureSaved = () => {
   void recordStore.load()
 }
 
+function openHomeQuick(item: (typeof HOME_QUICK_TYPES)[number]) {
+  const payload = 'presetName' in item && item.presetName
+    ? { kind: item.value, name: item.presetName }
+    : undefined
+  openManual(item.value, payload)
+}
+
+function openStats() {
+  uni.navigateTo({ url: '/pages/stats/index' })
+}
+
 onShow(() => {
-  // tab 页常驻，跨夜后「今天」会变：先把它翻新，日期条与「今天」标签才不会停在昨天。
   today.value = nowParts().date
-  // 记录页可能停在别的日期：进来时按当前选中日重新对齐指标。
   void recordStore.load(day.value)
-  // 首页的快速记录意图：取走即清空，只生效这一次。
   const action = takeQuickAction()
   if (action?.kind === 'capture') panel.value = 'capture'
-  else if (action) openManual(action.record_type)
+  else if (action) openManual(action.record_type, action.payload)
 })
 </script>
 
@@ -124,12 +130,32 @@ onShow(() => {
 
     <AccountGone v-else-if="state.accountDeleted" />
 
-    <CreateBabyGate v-else-if="!state.baby" />
-
-    <template v-else>
+    <template v-else-if="state.baby">
       <view class="topbar">
-        <view><text class="eyebrow">懂宝 · 日常记录</text><text class="page-title">{{ day === today ? `${state.baby.nickname}，今天怎么样？` : `${state.baby.nickname}，${dayText}的记录` }}</text><text class="muted">{{ ageText(state.baby.birth_date) }} · {{ genderText(state.baby.gender) }}</text></view>
-        <view class="avatar">👶🏻</view>
+        <view>
+          <text class="page-title">记录</text>
+          <text class="muted">用记录，留住每一个小变化 · {{ babyName }} · {{ ageText(state.baby.birth_date) }}</text>
+        </view>
+        <button class="tag" @click="panel = 'capture'">＋ 添加</button>
+      </view>
+      <view class="row-links">
+        <button class="link" @click="openStats">数据统计 ›</button>
+      </view>
+
+      <view class="capture-card">
+        <text class="card-title">给宝宝记一笔</text>
+        <text class="muted">说一句或拍一张，确认后再保存</text>
+        <view class="capture-row">
+          <button class="voice" @click="panel = 'capture'"><text>♩</text>语音记录</button>
+          <button class="photo" @click="panel = 'capture'"><text>▣</text>拍照记录</button>
+        </view>
+        <button class="text-button" @click="openManual('feeding')">也可以手动填写 ›</button>
+        <view class="quick-grid">
+          <button v-for="item in HOME_QUICK_TYPES" :key="item.label" @click="openHomeQuick(item)">
+            <text>{{ item.icon }}</text>{{ item.label }}
+          </button>
+        </view>
+        <button class="text-button" @click="openManual('custom')">查看全部记录类型 ›</button>
       </view>
 
       <view class="day-bar">
@@ -140,7 +166,7 @@ onShow(() => {
             </button>
           </view>
         </scroll-view>
-          <picker mode="date" :value="day" :end="today" @change="selectDay(pickerValue($event))">
+        <picker mode="date" :value="day" :end="today" @change="selectDay(pickerValue($event))">
           <button class="day-jump">📅 选日期</button>
         </picker>
       </view>
@@ -156,19 +182,14 @@ onShow(() => {
       </view>
       <text class="summary-note">{{ dayText }}指标仅统计已记录内容，没记录不代表没有发生。</text>
 
-      <view class="capture-card">
-        <text class="card-title">给宝宝记一笔</text>
-        <text class="muted">说一句或拍一张，确认后再保存</text>
-        <button class="capture-main" @click="panel = 'capture'">●　语音 / 拍照记录</button>
-        <view class="quick-grid">
-          <button v-for="item in QUICK_RECORD_TYPES" :key="item.value" @click="openManual(item.value)"><text>{{ item.icon }}</text>{{ item.label }}</button>
-        </view>
-        <button class="text-button" @click="openManual('custom')">查看全部记录类型 ›</button>
-      </view>
-
       <view v-if="state.error" class="error"><text>{{ state.error }}</text><button v-if="state.retryable" class="retry" @click="recordStore.retrySession(day)">重试</button></view>
       <view class="timeline-head"><text class="card-title">{{ dayText }}的时间线</text><text>{{ dayRecords.length }} 条</text></view>
-      <scroll-view class="filters" scroll-x><view class="filter-row"><button :class="{ selected: filter === 'all' }" @click="filter = 'all'">全部</button><button v-for="item in RECORD_TYPES" :key="item.value" :class="{ selected: filter === item.value }" @click="filter = item.value">{{ item.label }}</button></view></scroll-view>
+      <scroll-view class="filters" scroll-x>
+        <view class="filter-row">
+          <button :class="{ selected: filter === 'all' }" @click="filter = 'all'">全部</button>
+          <button v-for="item in RECORD_TYPES" :key="item.value" :class="{ selected: filter === item.value }" @click="filter = item.value">{{ item.label }}</button>
+        </view>
+      </scroll-view>
 
       <view v-if="!visibleRecords.length" class="empty">{{ emptyText }}<br><small>换个日期或类型看看，或点上面按钮记一条</small></view>
       <view v-for="record in visibleRecords" :key="record.id" class="record-card" @click="openEdit(record)">
@@ -188,7 +209,6 @@ onShow(() => {
 
     <view v-if="state.deleted" class="undo"><text>已删除“{{ typeMeta(state.deleted.record_type).label }}”</text><button @click="restore">撤销</button></view>
 
-    <!-- 原型 03 的 ＋：按当前筛选的类型直接新增，类型仍可在表单里改。 -->
     <button v-if="state.baby" class="fab" @click="openManual(filter === 'all' ? selectedType : filter)">＋</button>
 
     <view v-if="panel && state.baby" class="overlay" @click.self="panel = null">
@@ -223,7 +243,15 @@ onShow(() => {
 .capture-card { padding: 18px; }
 .card-title { font-size: 20px; font-weight: 800; }
 .capture-main { width: 100%; min-height: 54px; margin-top: 15px; border-radius: 15px; background: #328da9; color: white; font-size: 17px; font-weight: 750; }
-.quick-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px; margin-top: 12px; }
+.capture-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.capture-row button { min-height: 72px; border-radius: 16px; font-size: 16px; font-weight: 650; color: white; }
+.capture-row text { display: block; font-size: 24px; margin-bottom: 4px; }
+.voice { background: #318ba5; }
+.photo { background: #f6e9d8; color: #6c5137 !important; }
+.tag { min-height: 40px; padding: 0 12px; border-radius: 20px; background: #edf6f8; color: #328da9; font-size: 13px; }
+.row-links { max-width: 760px; margin: 8px auto 0; text-align: right; }
+.link { min-height: 40px; padding: 0 6px; background: transparent; color: #2d8098; font-size: 14px; }
+.quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 12px; }
 .quick-grid button { min-height: 61px; padding: 6px 2px; border: 1px solid #e3e9e8; border-radius: 12px; background: #fff; color: #49646d; font-size: 12px; }
 .quick-grid text { display: block; font-size: 20px; }
 .text-button { width: 100%; min-height: 48px; margin-top: 5px; background: transparent; color: #2d8098; font-size: 14px; }

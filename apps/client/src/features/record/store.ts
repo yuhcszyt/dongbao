@@ -97,9 +97,11 @@ async function load(date = state.summaryDate) {
   clearError()
   try {
     state.baby = await api.getBaby()
+    // 软建档：无宝宝时静默创建默认档案，登录后直接进首页，资料可稍后补。
+    if (!state.baby) {
+      state.baby = await api.createBaby({ nickname: '宝宝', birth_date: null, gender: 'unknown' })
+    }
     if (state.baby) {
-      // 记录与指标分开取：其中一趟失败不该让另一趟也停在旧值上
-      //（旧写法里记录列表失败会让「今日指标」继续显示上一天的数字）。
       await Promise.all([
         api.records(state.baby.id).then((records) => {
           state.records = records
@@ -131,7 +133,11 @@ async function createBaby(input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'
   state.saving = true
   clearError()
   try {
-    state.baby = await api.createBaby(input)
+    state.baby = await api.createBaby({
+      nickname: input.nickname,
+      birth_date: input.birth_date || null,
+      gender: input.gender,
+    })
     await load()
     return true
   } catch (reason) {
@@ -144,11 +150,16 @@ async function createBaby(input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'
 
 /** 建档与编辑共用同一套字段，所以共用一个入口。 */
 async function saveBaby(input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) {
-  if (!state.baby) return createBaby(input)
+  const body = {
+    nickname: input.nickname,
+    birth_date: input.birth_date || null,
+    gender: input.gender,
+  }
+  if (!state.baby) return createBaby(body)
   state.saving = true
   clearError()
   try {
-    state.baby = await api.updateBaby(state.baby.id, input)
+    state.baby = await api.updateBaby(state.baby.id, body)
     await load()
     return true
   } catch (reason) {
@@ -240,6 +251,12 @@ async function deleteAccount() {
   return true
 }
 
+/** 退出登录：清本地会话，不删云端数据；下次进入可重新登录。 */
+function logoutSession() {
+  reset()
+  session.clearCredentials()
+}
+
 export const recordStore = {
   state,
   errorText,
@@ -254,5 +271,6 @@ export const recordStore = {
   restoreRecord,
   dismissUndo,
   deleteAccount,
+  logoutSession,
   reset,
 }

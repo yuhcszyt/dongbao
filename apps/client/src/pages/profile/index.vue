@@ -1,94 +1,144 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import AccountGone from '@/components/AccountGone.vue'
-import CreateBabyGate from '@/components/CreateBabyGate.vue'
 import ProfileForm from '@/components/ProfileForm.vue'
-import { ageText, genderText, orPending, type Baby } from '@/features/record/domain'
+import { ageText, babyDisplayName, genderText, orPending, type Baby } from '@/features/record/domain'
 import { recordStore } from '@/features/record/store'
 
 const { state } = recordStore
 const formOpen = ref(false)
-/** 注销的二次确认：误触只会关掉这个浮层，不会碰到服务端。 */
-const confirmingDelete = ref(false)
+const logoutOpen = ref(false)
+const deleteStep = ref<0 | 1 | 2>(0)
+const deleteWord = ref('')
+const babyName = computed(() => babyDisplayName(state.baby?.nickname))
 
-/**
- * 建档与编辑是同一条路：`recordStore.saveBaby` 按「家里有没有宝宝」决定调哪个接口，
- * 校验与字段来自同一个 `ProfileForm`，所以两边的规则不会漂移。
- * 保存失败时这里什么都不做——中文提示由 store 给出，表单与输入都留在原地，可以直接重试。
- */
 async function save(input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) {
-  // 失败时什么都不做：中文提示与重试入口由 store 给出，输入留在表单里。
   if (!(await recordStore.saveBaby(input))) return
   formOpen.value = false
   uni.showToast({ title: '已保存', icon: 'success' })
 }
 
-onShow(() => void recordStore.load())
+function openStats() {
+  uni.navigateTo({ url: '/pages/stats/index' })
+}
 
-/**
- * 二次确认之后才真正调注销接口；失败时只关浮层——中文提示由 store 给出，
- * 本地状态与登录态都原样留着，可以直接再试。
- */
+function openRecords() {
+  uni.switchTab({ url: '/pages/record/index' })
+}
+
+function openFavorites() {
+  uni.navigateTo({ url: '/pages/favorites/index' })
+}
+
+function confirmLogout() {
+  logoutOpen.value = false
+  recordStore.logoutSession()
+  uni.showToast({ title: '已退出登录', icon: 'none' })
+  // 清凭证后重新拉会话：会静默重登（开发码 / 微信码）
+  void recordStore.load()
+}
+
 async function confirmDelete() {
+  if (deleteWord.value.trim() !== '注销') {
+    uni.showToast({ title: '请输入「注销」', icon: 'none' })
+    return
+  }
   const done = await recordStore.deleteAccount()
-  confirmingDelete.value = false
+  deleteStep.value = 0
+  deleteWord.value = ''
   if (done) uni.showToast({ title: '账号已注销', icon: 'success' })
 }
+
+onShow(() => void recordStore.load())
 </script>
 
 <template>
   <view class="page">
     <view v-if="state.loading" class="state">正在加载…</view>
-
     <AccountGone v-else-if="state.accountDeleted" />
 
-    <CreateBabyGate v-else-if="!state.baby" />
-
-    <template v-else>
+    <template v-else-if="state.baby">
       <view class="head">
         <view class="avatar">👶🏻</view>
-        <text class="page-title">{{ orPending(state.baby.nickname) }}</text>
+        <text class="page-title">{{ babyName }}</text>
         <text class="muted">{{ ageText(state.baby.birth_date) }} · {{ genderText(state.baby.gender) }}</text>
       </view>
 
       <view class="card">
-        <view class="card-head"><text class="card-title">基础信息</text><button class="link" @click="formOpen = true">编辑</button></view>
+        <view class="card-head">
+          <text class="card-title">宝宝档案</text>
+          <button class="link" @click="formOpen = true">编辑</button>
+        </view>
         <view class="row"><text class="row-key">昵称</text><text class="row-value">{{ orPending(state.baby.nickname) }}</text></view>
         <view class="row"><text class="row-key">生日</text><text class="row-value">{{ orPending(state.baby.birth_date) }}</text></view>
         <view class="row"><text class="row-key">性别</text><text class="row-value">{{ genderText(state.baby.gender) }}</text></view>
       </view>
 
-      <view v-if="state.error" class="error"><text>{{ state.error }}</text><button v-if="state.retryable" class="retry" @click="() => recordStore.retrySession()">重试</button></view>
+      <view class="card">
+        <button class="menu-row" @click="openStats"><text>数据统计</text><text class="chev">›</text></button>
+        <button class="menu-row" @click="openRecords"><text>成长时间线</text><text class="chev">›</text></button>
+        <button class="menu-row" @click="openFavorites"><text>我的收藏</text><text class="chev">›</text></button>
+      </view>
+
+      <view class="card account">
+        <text class="card-title">账号</text>
+        <button class="menu-row" @click="logoutOpen = true"><text>退出登录</text><text class="chev">›</text></button>
+        <button class="menu-row danger" @click="deleteStep = 1"><text>注销账号</text><text class="chev">›</text></button>
+        <text class="account-note">退出登录不会删除宝宝档案和数据；注销账号属于不可逆操作。</text>
+      </view>
+
+      <view v-if="state.error" class="error">
+        <text>{{ state.error }}</text>
+        <button v-if="state.retryable" class="retry" @click="() => recordStore.retrySession()">重试</button>
+      </view>
     </template>
 
-    <view v-if="!state.loading && !state.accountDeleted" class="danger">
-      <text class="danger-title">注销账号</text>
-      <text class="muted">注销后宝宝档案、全部记录、语音和照片会被永久删除，且不可恢复。</text>
-      <button class="danger-button" @click="confirmingDelete = true">注销账号</button>
+    <view v-if="logoutOpen" class="overlay" @click.self="logoutOpen = false">
+      <view class="sheet">
+        <view class="sheet-head"><text class="card-title">退出登录</text><button @click="logoutOpen = false">×</button></view>
+        <text class="muted">退出后将结束当前账号在本机的登录状态。</text>
+        <view class="warn">宝宝档案和云端数据不会因为退出登录而删除。</view>
+        <button class="primary" @click="confirmLogout">确认退出</button>
+        <button class="cancel" @click="logoutOpen = false">取消</button>
+      </view>
     </view>
 
-    <view v-if="confirmingDelete" class="overlay" @click.self="confirmingDelete = false">
+    <view v-if="deleteStep === 1" class="overlay" @click.self="deleteStep = 0">
       <view class="sheet">
-        <text class="card-title">确认注销账号？</text>
-        <text class="muted">确认后会立即删除，且不可恢复：</text>
-        <view class="danger-list">
-          <text>· 宝宝档案（昵称、生日、性别）</text>
-          <text>· 全部记录（喂奶、辅食、睡眠、排便、尿布等十类，含手动补记）</text>
-          <text>· 已上传的语音和照片</text>
-        </view>
-        <button class="primary delete" :disabled="state.saving" @click="confirmDelete">{{ state.saving ? '正在注销…' : '确认注销，永久删除' }}</button>
-        <button class="cancel" :disabled="state.saving" @click="confirmingDelete = false">取消</button>
+        <view class="sheet-head"><text class="card-title">注销账号</text><button @click="deleteStep = 0">×</button></view>
+        <text class="muted">注销后将无法继续使用当前账号。</text>
+        <view class="warn">会永久删除宝宝档案、全部记录、语音和照片，且不可恢复。</view>
+        <button class="outline danger-btn" @click="deleteStep = 2">继续注销</button>
+        <button class="cancel" @click="deleteStep = 0">暂不注销</button>
+      </view>
+    </view>
+
+    <view v-if="deleteStep === 2" class="overlay" @click.self="deleteStep = 0">
+      <view class="sheet">
+        <view class="sheet-head"><text class="card-title">最后确认</text><button @click="deleteStep = 0">×</button></view>
+        <text class="muted">请输入「注销」确认你理解此操作会终止当前账号。</text>
+        <input v-model="deleteWord" class="confirm-word" maxlength="2" placeholder="请输入：注销" />
+        <button class="outline danger-btn" :disabled="state.saving" @click="confirmDelete">
+          {{ state.saving ? '正在注销…' : '确认申请注销' }}
+        </button>
+        <button class="cancel" :disabled="state.saving" @click="deleteStep = 0">取消</button>
       </view>
     </view>
 
     <view v-if="formOpen && state.baby" class="overlay" @click.self="formOpen = false">
       <view class="sheet">
-        <view class="sheet-head"><text class="card-title">编辑宝宝档案</text><button aria-label="关闭" @click="formOpen = false">×</button></view>
-        <!-- `:key` 是这块表单唯一会被外部改动到的东西：表单只在挂载时读一次 `initial`，
-             而「重试」会重新拉一次档案，所以让档案变一次就换一个实例，值才是最新的。
-             平时开关浮层靠 `v-if` 卸载就够，`key` 不是等效的装饰。 -->
-        <ProfileForm :key="state.baby.updated_at ?? state.baby.id" :initial="state.baby" :submitting="state.saving" submit-text="保存修改" :error="state.error" :retryable="state.retryable" @submit="save" @retry="recordStore.retrySession" />
+        <view class="sheet-head"><text class="card-title">编辑宝宝档案</text><button @click="formOpen = false">×</button></view>
+        <ProfileForm
+          :key="state.baby.updated_at ?? state.baby.id"
+          :initial="state.baby"
+          :submitting="state.saving"
+          submit-text="保存档案"
+          :error="state.error"
+          :retryable="state.retryable"
+          @submit="save"
+          @retry="recordStore.retrySession"
+        />
       </view>
     </view>
   </view>
@@ -99,31 +149,30 @@ async function confirmDelete() {
 .state { padding: 80px 20px; text-align: center; color: #70858c; }
 .avatar { display: grid; place-items: center; width: 76px; height: 76px; margin: 0 auto; border-radius: 50%; background: #f2e8d8; font-size: 44px; }
 .head { text-align: center; margin-bottom: 20px; }
-.eyebrow, .page-title, .muted { display: block; }
-.eyebrow { color: #328da9; font-size: 13px; font-weight: 750; letter-spacing: 1px; }
-.head .page-title { margin: 10px 0 4px; }
-.page-title { margin: 5px 0; font-size: 27px; font-weight: 800; line-height: 1.25; }
-.muted { color: #71858b; font-size: 14px; line-height: 1.55; }
-.card { max-width: 760px; margin: 18px auto; border: 1px solid #e6eceb; border-radius: 19px; background: white; box-shadow: 0 7px 24px rgba(43, 75, 83, .06); padding: 18px; }
+.page-title { display: block; margin: 10px 0 4px; font-size: 27px; font-weight: 800; }
+.muted { display: block; color: #71858b; font-size: 14px; line-height: 1.55; }
+.card { margin: 14px 0; border: 1px solid #e6eceb; border-radius: 19px; background: white; box-shadow: 0 7px 24px rgba(43, 75, 83, .06); padding: 16px; }
 .card-head { display: flex; align-items: center; justify-content: space-between; }
-.card-title { font-size: 20px; font-weight: 800; }
-.link { min-height: 48px; padding: 0 8px; background: transparent; color: #2d8098; font-size: 16px; }
-.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px; border-bottom: 1px solid #eef2f1; }
-.row:last-child { border-bottom: 0; }
-.row-key { color: #71858b; font-size: 16px; }
-.row-value { font-size: 17px; font-weight: 700; }
-.error { max-width: 760px; margin: 12px auto; border-radius: 12px; background: #fff0ec; padding: 12px; color: #9a4c3e; }
+.card-title { font-size: 18px; font-weight: 800; }
+.link { min-height: 44px; padding: 0 8px; background: transparent; color: #2d8098; font-size: 15px; }
+.row, .menu-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px; border-bottom: 1px solid #eef2f1; width: 100%; background: transparent; text-align: left; color: inherit; font-size: 15px; padding: 0; }
+.row:last-child, .menu-row:last-child { border-bottom: 0; }
+.row-key { color: #71858b; }
+.row-value { font-weight: 700; }
+.chev { color: #91a1a6; }
+.account .card-title { display: block; margin-bottom: 4px; }
+.account-note { display: block; margin-top: 12px; color: #8b9c9f; font-size: 11px; line-height: 1.7; }
+.danger { color: #b86e62; }
+.error { margin: 12px 0; border-radius: 12px; background: #fff0ec; padding: 12px; color: #9a4c3e; }
 .error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: #fff; color: #9a4c3e; font-weight: 700; }
 .overlay { position: fixed; z-index: 20; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: rgba(25, 47, 52, .46); }
 .sheet { width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; background: #fbfaf7; padding: 21px 18px calc(22px + env(safe-area-inset-bottom)); }
-.sheet-head { display: flex; align-items: center; justify-content: space-between; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .sheet-head button { width: 48px; height: 48px; border-radius: 50%; background: #eef2f1; font-size: 27px; }
-.danger { max-width: 760px; margin: 26px auto 0; border: 1px solid #f0dcd6; border-radius: 19px; background: #fff8f6; padding: 17px; }
-.danger-title { display: block; font-size: 17px; font-weight: 800; }
-.danger .muted { margin-top: 5px; }
-.danger-button { width: 100%; min-height: 52px; margin-top: 12px; border-radius: 14px; background: #fff; color: #b04a35; font-size: 16px; font-weight: 700; border: 1px solid #eccfc7; }
-.danger-list { display: block; margin: 12px 0 4px; color: #7c5b53; font-size: 15px; line-height: 1.7; }
-.danger-list text { display: block; }
-.sheet .delete { margin-top: 16px; background: #c0503a; }
-.sheet .cancel { width: 100%; min-height: 50px; margin-top: 10px; border-radius: 14px; background: white; color: #566d75; }
+.warn { margin: 12px 0; border-radius: 12px; background: #fff0df; color: #b88346; padding: 10px 12px; font-size: 13px; line-height: 1.6; }
+.primary { width: 100%; min-height: 52px; margin-top: 14px; border-radius: 14px; background: #328da9; color: white; font-weight: 700; }
+.outline { width: 100%; min-height: 50px; margin-top: 12px; border-radius: 14px; border: 1px solid #bedbe4; background: white; color: #328da9; }
+.danger-btn { color: #b86e62; border-color: #eccfc7; }
+.cancel { width: 100%; min-height: 50px; margin-top: 10px; border-radius: 14px; background: white; color: #566d75; }
+.confirm-word { width: 100%; margin-top: 12px; padding: 12px; border: 1px solid #e0eaed; border-radius: 10px; background: white; font-size: 16px; }
 </style>

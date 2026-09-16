@@ -17,7 +17,7 @@ class Baby(Base):
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     family_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     nickname: Mapped[str] = mapped_column(String(30))
-    birth_date: Mapped[date] = mapped_column(Date)
+    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     gender: Mapped[str] = mapped_column(String(16))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)

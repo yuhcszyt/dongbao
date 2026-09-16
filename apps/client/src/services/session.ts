@@ -77,7 +77,9 @@ export interface Session {
   ensureSession(): Promise<void>
   /** 用户在「需要重试」提示上点重试时调用。 */
   retry(): Promise<void>
-  /** 注销：清空本地状态，且不再自动重登。 */
+  /** 退出登录：清本地凭证，下次进入可静默重登。 */
+  clearCredentials(): void
+  /** 注销账号后：清空本地状态，且不再自动重登。 */
   logout(): void
   run(operation: AuthorizedOperation): Promise<SessionResponse>
 }
@@ -164,6 +166,13 @@ export const createSession = (ports: SessionPorts): Session => {
     await signInOnce()
   }
 
+  const clearCredentials = (): void => {
+    forget()
+    lastError = null
+    status = 'anonymous'
+    restored = true
+  }
+
   const logout = (): void => {
     forget()
     lastError = null
@@ -205,6 +214,7 @@ export const createSession = (ports: SessionPorts): Session => {
     },
     ensureSession,
     retry,
+    clearCredentials,
     logout,
     run,
   }

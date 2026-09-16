@@ -84,11 +84,19 @@ export const api = {
   },
 
   createBaby(input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) {
-    return request<Baby>('/babies', 'POST', { ...input })
+    return request<Baby>('/babies', 'POST', {
+      nickname: input.nickname,
+      gender: input.gender,
+      birth_date: input.birth_date || null,
+    })
   },
 
   updateBaby(id: string, input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) {
-    return request<Baby>(`/babies/${id}`, 'PUT', { ...input })
+    return request<Baby>(`/babies/${id}`, 'PUT', {
+      nickname: input.nickname,
+      gender: input.gender,
+      birth_date: input.birth_date || null,
+    })
   },
 
   async records(babyId: string) {

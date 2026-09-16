@@ -34,20 +34,34 @@ const today = computed(() => nowParts().date)
 
 function submit() {
   // 建档与编辑共用 domain 里那一条校验，本地先挡住，不让「必填项缺失」走成一趟失败请求。
-  const problem = validateBabyProfile(profile)
+  const problem = validateBabyProfile({
+    nickname: profile.nickname,
+    birth_date: profile.birth_date,
+    gender: profile.gender,
+  })
   if (problem) {
     localError.value = problem
     return
   }
   localError.value = ''
-  emit('submit', { nickname: profile.nickname.trim(), birth_date: profile.birth_date, gender: profile.gender })
+  emit('submit', {
+    nickname: profile.nickname.trim() || '宝宝',
+    birth_date: profile.birth_date,
+    gender: profile.gender,
+  })
 }
 </script>
 
 <template>
   <view class="profile-form">
     <label><text class="label">宝宝昵称</text><input v-model="profile.nickname" class="input" maxlength="30" placeholder="例如 安安" /></label>
-    <label><text class="label">生日</text><picker mode="date" :end="today" @change="profile.birth_date = pickerValue($event)"><view class="input">{{ profile.birth_date || '请选择生日' }}</view></picker></label>
+    <label>
+      <text class="label">生日（可稍后补充）</text>
+      <picker mode="date" :end="today" @change="profile.birth_date = pickerValue($event)">
+        <view class="input">{{ profile.birth_date || '待完善 · 点击选择' }}</view>
+      </picker>
+      <button v-if="profile.birth_date" class="clear-birth" type="button" @click="profile.birth_date = ''">清除生日</button>
+    </label>
     <text class="label">性别</text>
     <!-- 「暂不填」是选项本身的名字（票据 07：性别可选男宝 / 女宝 / 暂不填）；
          只读展示里同一份数据是「未填成的字段」，由 `genderText()` 显示为「待完善」。 -->
@@ -72,4 +86,5 @@ function submit() {
 .error { margin: 12px 0; border-radius: 12px; background: #fff0ec; padding: 12px; color: #9a4c3e; }
 .error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: #fff; color: #9a4c3e; font-weight: 700; }
 .primary { width: 100%; min-height: 54px; margin-top: 24px; border-radius: 15px; background: #328da9; color: white; font-size: 17px; font-weight: 750; }
+.clear-birth { margin-top: 8px; min-height: 44px; padding: 0 8px; background: transparent; color: #2d8098; font-size: 14px; text-align: left; }
 </style>

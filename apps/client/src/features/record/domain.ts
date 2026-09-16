@@ -18,7 +18,7 @@ export type Payload = Record<string, unknown> & { kind: RecordType }
 export interface Baby {
   id: string
   nickname: string
-  birth_date: string
+  birth_date: string | null
   gender: 'male' | 'female' | 'unknown'
   created_at?: string
   updated_at?: string
@@ -81,11 +81,25 @@ export interface MediaAsset {
 export const typeMeta = (type: RecordType) =>
   RECORD_TYPES.find((item) => item.value === type) ?? RECORD_TYPES[RECORD_TYPES.length - 1]!
 
-/** 快速记录里只放最常用的几类：首页与记录页取的是同一个切法，不各写一份 `slice(0, 6)`。 */
-export const QUICK_RECORD_TYPES = RECORD_TYPES.slice(0, 6)
+/** 首页主记录入口固定四项（原型 V1.4）；完整类型仍在记录页。 */
+export const HOME_QUICK_TYPES = [
+  { value: 'feeding' as const, label: '喝奶', icon: '🍼' },
+  { value: 'complementary_food' as const, label: '辅食', icon: '🥣' },
+  { value: 'medication' as const, label: '维生素AD', icon: '💧', presetName: '维生素AD' },
+  { value: 'stool' as const, label: '排便', icon: '💩' },
+]
+
+/** @deprecated 用 HOME_QUICK_TYPES；保留别名避免旧引用短暂报错。 */
+export const QUICK_RECORD_TYPES = HOME_QUICK_TYPES
 
 /** 只读展示用：未填的档案项统一显示「待完善」，不留空白。 */
 export const orPending = (value?: string | null) => (value && value.trim() ? value.trim() : '待完善')
+
+/** 首页等处的宝宝称呼：空昵称按原型显示「宝宝」。 */
+export const babyDisplayName = (nickname?: string | null) => {
+  const name = nickname?.trim()
+  return name || '宝宝'
+}
 
 export const genderText = (gender: Baby['gender']) => ({ male: '男宝', female: '女宝', unknown: '待完善' })[gender]
 
@@ -186,12 +200,12 @@ export interface BabyProfileInput {
 /**
  * 建档与编辑共用同一套校验。
  *
- * 两处都调这一个函数，就不会出现「建档要求填生日、编辑却允许清空」这类两边规则漂移。
+ * 生日允许稍后补充（空串通过）；填了则校验格式且不能是未来。
  * `today` 可注入，好让用例把「今天」钉死；不注入就是设备本地日期。
  */
 export function validateBabyProfile(input: BabyProfileInput, today = nowParts().date): string | null {
   if (!input.nickname.trim()) return '请填写宝宝昵称'
-  if (!input.birth_date) return '请填写宝宝生日'
+  if (!input.birth_date) return null
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.birth_date) || dateOf(`${input.birth_date}T00:00:00`) !== input.birth_date) return '生日格式不正确'
   if (input.birth_date > today) return '生日不能是未来的日期'
   return null
@@ -271,7 +285,8 @@ export const detectTimeZone = () => {
   }
 }
 
-export const ageText = (birthDate: string) => {
+export const ageText = (birthDate?: string | null) => {
+  if (!birthDate) return '生日待完善'
   const birth = new Date(`${birthDate}T00:00:00`)
   const now = new Date()
   if (Number.isNaN(birth.getTime()) || birth > now) return '生日待完善'

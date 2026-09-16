@@ -79,12 +79,12 @@ payload_adapter = TypeAdapter(Payload)
 
 class BabyCreate(StrictModel):
     nickname: str = Field(min_length=1, max_length=30)
-    birth_date: date
-    gender: Literal["male", "female", "unknown"]
+    birth_date: date | None = None
+    gender: Literal["male", "female", "unknown"] = "unknown"
 
     @model_validator(mode="after")
     def birthday_not_future(self):
-        if self.birth_date > date.today():
+        if self.birth_date is not None and self.birth_date > date.today():
             raise ValueError("生日不能晚于今天")
         return self
 

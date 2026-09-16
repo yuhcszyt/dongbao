@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   updateBaby: vi.fn(),
   deleteAccount: vi.fn(),
   logout: vi.fn(),
+  clearCredentials: vi.fn(),
   retry: vi.fn(),
 }))
 
@@ -40,7 +41,7 @@ vi.mock('@/services/api', () => {
     ApiError: FakeApiError,
     SessionError: FakeSessionError,
     mediaUrl: (path: string) => path,
-    session: { logout: mocks.logout, retry: mocks.retry },
+    session: { logout: mocks.logout, clearCredentials: mocks.clearCredentials, retry: mocks.retry },
     api: {
       getBaby: mocks.getBaby,
       records: mocks.records,
@@ -150,6 +151,20 @@ describe('取数解耦：记录列表与当日指标各拉各的', () => {
     expect(recordStore.state.records).toEqual([record])
     expect(recordStore.state.summaryDate).toBe(before)
     expect(recordStore.state.error).toBe('服务暂时不可用')
+  })
+})
+
+describe('软建档', () => {
+  it('无宝宝时静默创建默认档案，登录后可直接进首页', async () => {
+    const soft = { id: 'baby-soft', nickname: '宝宝', birth_date: null, gender: 'unknown' as const }
+    mocks.getBaby.mockResolvedValue(null)
+    mocks.createBaby.mockResolvedValue(soft)
+
+    await recordStore.load('2026-05-01')
+
+    expect(mocks.createBaby).toHaveBeenCalledWith({ nickname: '宝宝', birth_date: null, gender: 'unknown' })
+    expect(recordStore.state.baby).toEqual(soft)
+    expect(mocks.records).toHaveBeenCalledWith('baby-soft')
   })
 })
 

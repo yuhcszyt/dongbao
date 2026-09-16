@@ -200,6 +200,22 @@ describe('客户端会话契约', () => {
     expect(storage.peek()).toEqual({ token: 'token-dev-code', userId: 'user-dev-code' })
   })
 
+  it('退出登录清本地凭证，但允许下次静默重登', async () => {
+    const { session, storage, login } = harness()
+    await session.ensureSession()
+    login.mockClear()
+
+    session.clearCredentials()
+
+    expect(session.status).toBe('anonymous')
+    expect(session.token).toBeNull()
+    expect(storage.peek()).toBeNull()
+
+    await session.ensureSession()
+    expect(login).toHaveBeenCalledTimes(1)
+    expect(session.status).toBe('authenticated')
+  })
+
   it('注销会清空本地状态，且不会自动重登（要等下一次冷启动）', async () => {
     const { session, storage, login } = harness()
     await session.ensureSession()
