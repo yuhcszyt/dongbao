@@ -163,3 +163,37 @@ def test_rejects_mismatched_payload_and_invalid_upload(auth):
     assert invalid.status_code == 422
     assert invalid.json()["error"]["code"] == "invalid_media"
     assert invalid.json()["request_id"]
+
+
+def test_upload_sniffs_wav_when_content_type_is_opaque(auth):
+    """微信开发者工具常把录音标成 octet-stream；只要魔数是 WAV 就应收下。"""
+    headers = auth()
+    baby_id = create_baby(headers)
+    response = client.post(
+        "/api/v1/media",
+        data={"baby_id": baby_id, "duration_ms": "1000"},
+        files={"file": ("voice.wav", wav_file(), "application/octet-stream")},
+        headers=headers,
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["media_type"] == "audio"
+    assert body["mime_type"] in {"audio/wav", "audio/x-wav"}
+    assert body["duration_ms"] and body["duration_ms"] > 0
+
+
+def test_upload_mpeg_falls_back_to_reported_duration_when_mutagen_fails(auth, monkeypatch):
+    headers = auth()
+    baby_id = create_baby(headers)
+    # 合法 MPEG 帧同步头，但不是完整可解析文件
+    fake_mp3 = bytes([0xFF, 0xFB]) + b"\0" * 64
+    monkeypatch.setattr("app.record.routes.MutagenFile", lambda *_a, **_k: None)
+    response = client.post(
+        "/api/v1/media",
+        data={"baby_id": baby_id, "duration_ms": "1500"},
+        files={"file": ("voice.mp3", fake_mp3, "audio/mpeg")},
+        headers=headers,
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["duration_ms"] == 1500
+    assert response.json()["mime_type"] == "audio/mpeg"

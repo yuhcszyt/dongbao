@@ -1,6 +1,6 @@
 [large_model]
 provider = "openai_compatible"
-enabled = false
+enabled = true
 base_url = "https://api.deepseek.com"
 model = "deepseek-flash"
 supports_vision = true

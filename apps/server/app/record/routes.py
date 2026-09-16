@@ -90,36 +90,62 @@ MAGIC = {
     "audio/webm": lambda b: b.startswith(b"\x1aE\xdf\xa3"),
 }
 EXTENSIONS = {"image/jpeg": ".jpg", "image/png": ".png", "audio/wav": ".wav", "audio/x-wav": ".wav", "audio/mpeg": ".mp3", "audio/mp4": ".m4a", "audio/x-m4a": ".m4a", "audio/webm": ".webm"}
+# uni.uploadFile 在小程序/开发者工具里常把录音标成 octet-stream 或错误 MIME，以魔数为准。
+OPAQUE_TYPES = {"", "application/octet-stream", "binary/octet-stream"}
+
+
+def detect_mime(content_type: str | None, data: bytes) -> str | None:
+    declared = (content_type or "").lower().split(";")[0].strip()
+    sniffed = next((mime for mime, check in MAGIC.items() if check(data)), None)
+    if sniffed:
+        if declared in OPAQUE_TYPES or declared == sniffed:
+            return sniffed
+        # 声明与魔数冲突时仍信魔数（微信开发者工具「mp3」内容可能是别的封装）
+        if sniffed.startswith(("audio/", "image/")):
+            return sniffed
+    if declared in MAGIC and MAGIC[declared](data):
+        return declared
+    return None
+
+
+def audio_duration_ms(mime: str, data: bytes, reported_duration_ms: int | None) -> int:
+    if mime in {"audio/wav", "audio/x-wav"}:
+        try:
+            with wave.open(BytesIO(data)) as audio:
+                return round(audio.getnframes() / audio.getframerate() * 1000)
+        except (wave.Error, EOFError, ZeroDivisionError):
+            raise error(422, "invalid_audio", "无法读取录音，请重新录制") from None
+    if mime == "audio/webm":
+        if reported_duration_ms is None or reported_duration_ms <= 0:
+            raise error(422, "invalid_audio", "无法读取录音时长，请重新录制")
+        return reported_duration_ms
+    parsed = MutagenFile(BytesIO(data))
+    if parsed and getattr(parsed, "info", None) and getattr(parsed.info, "length", None):
+        return round(parsed.info.length * 1000)
+    # 开发者工具录音 mutagen 读不出时长时，退回客户端上报的录音时长。
+    if reported_duration_ms is not None and reported_duration_ms > 0:
+        return reported_duration_ms
+    raise error(422, "invalid_audio", "无法读取录音，请重新录制")
+
 
 @router.post("/api/v1/media", response_model=MediaOut, status_code=201)
 async def upload_media(baby_id: UUID = Form(...), reported_duration_ms: int | None = Form(default=None, alias="duration_ms"), file: UploadFile = File(...), user: User = Depends(current_user), db: Session = Depends(get_db)):
     baby_for(db, baby_id, user.family_id)
-    mime = (file.content_type or "").lower()
-    if mime not in MAGIC:
-        raise error(415, "unsupported_media", "仅支持 JPG、PNG、MP3、M4A 或 WAV")
-    limit = MAX_IMAGE_BYTES if mime.startswith("image/") else MAX_AUDIO_BYTES
+    declared = (file.content_type or "").lower().split(";")[0].strip()
+    # 未声明类型时按音频上限读，再用魔数收紧
+    limit = MAX_IMAGE_BYTES if declared.startswith("image/") else MAX_AUDIO_BYTES
     data = await file.read(limit + 1)
     if len(data) > limit:
         raise error(413, "media_too_large", "文件过大，请重新选择")
-    if not data or not MAGIC[mime](data):
+    mime = detect_mime(file.content_type, data)
+    if not mime:
         raise error(422, "invalid_media", "文件内容与格式不符，请重新选择")
+    typed_limit = MAX_IMAGE_BYTES if mime.startswith("image/") else MAX_AUDIO_BYTES
+    if len(data) > typed_limit:
+        raise error(413, "media_too_large", "文件过大，请重新选择")
     duration_ms = None
     if mime.startswith("audio/"):
-        if mime in {"audio/wav", "audio/x-wav"}:
-            try:
-                with wave.open(BytesIO(data)) as audio:
-                    duration_ms = round(audio.getnframes() / audio.getframerate() * 1000)
-            except (wave.Error, EOFError, ZeroDivisionError):
-                raise error(422, "invalid_audio", "无法读取录音，请重新录制")
-        elif mime == "audio/webm":
-            duration_ms = reported_duration_ms
-            if duration_ms is None or duration_ms <= 0:
-                raise error(422, "invalid_audio", "无法读取录音时长，请重新录制")
-        else:
-            parsed = MutagenFile(BytesIO(data))
-            if not parsed or not getattr(parsed, "info", None) or not getattr(parsed.info, "length", None):
-                raise error(422, "invalid_audio", "无法读取录音，请重新录制")
-            duration_ms = round(parsed.info.length * 1000)
+        duration_ms = audio_duration_ms(mime, data, reported_duration_ms)
         if duration_ms > MAX_AUDIO_SECONDS * 1000:
             raise error(422, "audio_too_long", f"录音不能超过 {MAX_AUDIO_SECONDS} 秒")
     media_id = uuid4()

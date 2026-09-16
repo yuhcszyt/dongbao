@@ -165,7 +165,7 @@ function submit() {
         v-for="item in RECORD_TYPES"
         :key="item.value"
         class="type-option"
-        :class="{ selected: recordType === item.value }"
+        :class="{ selected: recordType === item.value, 'is-disabled': lockType }"
         :disabled="lockType"
         @click="recordType = item.value"
       >
@@ -303,7 +303,7 @@ function submit() {
     </label>
 
     <view v-if="error" class="error" role="alert">{{ error }}</view>
-    <button class="submit" :disabled="submitting" @click="submit">
+    <button class="submit" :class="{ 'is-disabled': submitting }" :disabled="submitting" @click="submit">
       {{ submitting ? '正在保存…' : submitText }}
     </button>
   </view>
@@ -315,7 +315,7 @@ function submit() {
 .type-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; }
 .type-option { min-height: 65px; padding: 7px 2px; border: 1px solid #e0e9e9; border-radius: 12px; background: #fff; color: #526c74; font-size: 12px; line-height: 1.25; }
 .type-option.selected { border-color: #328da9; background: #edf6f8; color: #236f87; font-weight: 700; }
-.type-option[disabled]:not(.selected) { opacity: .42; }
+.type-option.is-disabled:not(.selected) { opacity: .42; }
 .type-icon { display: block; margin-bottom: 3px; font-size: 20px; }
 .fields { display: grid; grid-template-columns: 1fr; gap: 3px 12px; }
 .two-columns { grid-template-columns: 1fr 1fr; }
@@ -325,7 +325,7 @@ function submit() {
 .textarea.note { height: 78px; }
 .error { margin-top: 14px; border-radius: 10px; background: #fff0ec; padding: 10px 12px; color: #a04e3d; font-size: 14px; }
 .submit { width: 100%; min-height: 54px; margin-top: 20px; border-radius: 15px; background: #328da9; color: #fff; font-size: 18px; font-weight: 700; }
-.submit[disabled] { opacity: .55; }
+.submit.is-disabled { opacity: .55; }
 @media (max-width: 360px) {
   .type-grid { grid-template-columns: repeat(4, 1fr); }
 }

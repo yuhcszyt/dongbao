@@ -24,13 +24,23 @@ def _secret(name: str) -> str:
 def _sign(key: bytes, message: str) -> bytes:
     return hmac.new(key, message.encode(), hashlib.sha256).digest()
 
+# 腾讯一句话识别 VoiceFormat：按实际上传 MIME 映射，避免小程序录 wav / 工具录「伪 mp3」时被配置写死卡死。
+MIME_TO_VOICE_FORMAT = {
+    "audio/mpeg": "mp3",
+    "audio/wav": "wav",
+    "audio/x-wav": "wav",
+    "audio/mp4": "m4a",
+    "audio/x-m4a": "m4a",
+}
+
+
 async def transcribe_audio(path: Path, mime_type: str) -> str:
     cfg = get_config().tencent_asr
     if not cfg.enabled:
         raise ProviderUnavailable("语音识别尚未启用，已转为手动填写")
     secret_id, secret_key = _secret(cfg.secret_id_env), _secret(cfg.secret_key_env)
-    accepted_mimes = {"mp3": {"audio/mpeg"}, "m4a": {"audio/mp4", "audio/x-m4a"}, "wav": {"audio/wav", "audio/x-wav"}}
-    if mime_type not in accepted_mimes.get(cfg.voice_format, set()):
+    voice_format = MIME_TO_VOICE_FORMAT.get(mime_type)
+    if not voice_format:
         raise ProviderUnavailable("当前录音格式暂不支持识别，已保留录音并转为手动填写")
     raw = path.read_bytes()
     body = {
@@ -38,7 +48,7 @@ async def transcribe_audio(path: Path, mime_type: str) -> str:
         "SubServiceType": 2,
         "EngSerViceType": cfg.engine_model_type,
         "SourceType": 1,
-        "VoiceFormat": cfg.voice_format,
+        "VoiceFormat": voice_format,
         "DataLen": len(raw),
         "Data": base64.b64encode(raw).decode(),
     }

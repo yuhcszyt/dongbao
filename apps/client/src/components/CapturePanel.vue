@@ -127,7 +127,8 @@ async function startVoice() {
       error.value = '无法使用麦克风，请检查微信录音权限，或改用手动记录'
       phase.value = 'error'
     })
-    recorder.start({ duration: 60_000, format: 'mp3', sampleRate: 16_000, numberOfChannels: 1 })
+    // wav：开发者工具里的「mp3」经常不是真 MPEG，上传会被服务端 422；真机也支持 wav，且 ASR 可识别。
+    recorder.start({ duration: 60_000, format: 'wav', sampleRate: 16_000, numberOfChannels: 1 })
     phase.value = 'recording'
     startTicker()
   } catch {
@@ -216,12 +217,22 @@ onBeforeUnmount(() => {
       <image v-if="previewPath && lastKind === 'photo'" class="preview" :src="previewPath" mode="aspectFit" />
       <view v-if="statusText" class="status" :class="{ live: phase === 'recording' }">{{ statusText }}</view>
       <view class="capture-buttons">
-        <button class="voice" :disabled="phase === 'processing'" @click="phase === 'recording' ? stopVoice() : startVoice()">
+        <button
+          class="voice"
+          :class="{ 'is-disabled': phase === 'processing' }"
+          :disabled="phase === 'processing'"
+          @click="phase === 'recording' ? stopVoice() : startVoice()"
+        >
           <text class="capture-icon">{{ phase === 'recording' ? '■' : '●' }}</text>
           <text class="capture-title">{{ phase === 'recording' ? '结束录音' : '语音记录' }}</text>
           <text class="capture-note">{{ phase === 'recording' ? '最长 60 秒' : '点一下，直接说' }}</text>
         </button>
-        <button class="photo" :disabled="phase === 'recording' || phase === 'processing'" @click="choosePhoto">
+        <button
+          class="photo"
+          :class="{ 'is-disabled': phase === 'recording' || phase === 'processing' }"
+          :disabled="phase === 'recording' || phase === 'processing'"
+          @click="choosePhoto"
+        >
           <text class="capture-icon">▧</text>
           <text class="capture-title">拍照记录</text>
           <text class="capture-note">拍食物、奶瓶等</text>
@@ -274,7 +285,7 @@ onBeforeUnmount(() => {
 .capture-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .capture-buttons button { min-height: 116px; border-radius: 17px; padding: 14px 8px; }
 .voice { background: #328da9; color: white; }
-.voice[disabled], .photo[disabled] { opacity: .55; }
+.voice.is-disabled, .photo.is-disabled { opacity: .55; }
 .photo { background: #f6e9d8; color: #6c5137; }
 .capture-icon, .capture-title, .capture-note { display: block; }
 .capture-icon { font-size: 28px; }
