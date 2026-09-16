@@ -99,19 +99,27 @@
     "list": [
       {
         "pagePath": "pages/home/index",
-        "text": "首页"
+        "text": "首页",
+        "iconPath": "static/tab/home.png",
+        "selectedIconPath": "static/tab/home-active.png"
       },
       {
         "pagePath": "pages/record/index",
-        "text": "记录"
+        "text": "记录",
+        "iconPath": "static/tab/record.png",
+        "selectedIconPath": "static/tab/record-active.png"
       },
       {
         "pagePath": "pages/ai/index",
-        "text": "懂宝 AI"
+        "text": "懂宝 AI",
+        "iconPath": "static/tab/ai.png",
+        "selectedIconPath": "static/tab/ai-active.png"
       },
       {
         "pagePath": "pages/profile/index",
-        "text": "我的"
+        "text": "我的",
+        "iconPath": "static/tab/profile.png",
+        "selectedIconPath": "static/tab/profile-active.png"
       }
     ]
   },
