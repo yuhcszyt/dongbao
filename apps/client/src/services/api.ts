@@ -8,7 +8,7 @@ import type {
   RecordType,
 } from '@/features/record/domain'
 import { detectTimeZone, normalizeSummary } from '@/features/record/domain'
-import { API_BASE, mediaUrl } from './config'
+import { API_BASE, mediaUrl, tunnelHeaders } from './config'
 import { isSuccess } from './http'
 import type { SessionResponse } from './session'
 import { session } from './sessionHost'
@@ -48,7 +48,7 @@ const sendRequest = (options: { url: string; method: HttpMethod; data?: Record<s
       url: options.url,
       method: options.method,
       data: options.data,
-      header: options.headers,
+      header: { ...tunnelHeaders(), ...options.headers },
       timeout: 15_000,
       success: (response) => resolve({ statusCode: response.statusCode, data: response.data }),
       fail: (error) => reject(new ApiError(error.errMsg || '网络连接失败，请稍后重试')),
@@ -141,7 +141,7 @@ export const api = {
             url: `${API_BASE}/media`,
             filePath,
             name: 'file',
-            header: headers,
+            header: { ...tunnelHeaders(), ...headers },
             timeout: 30_000,
             formData: mediaFormData(babyId, mediaType, durationMs),
             success: (result) => {
@@ -165,7 +165,11 @@ export const api = {
       const form = new FormData()
       form.append('file', blob, mediaType === 'audio' ? 'recording.webm' : 'photo.jpg')
       for (const [key, value] of Object.entries(mediaFormData(babyId, mediaType, durationMs))) form.append(key, value)
-      const result = await fetch(`${API_BASE}/media`, { method: 'POST', headers, body: form })
+      const result = await fetch(`${API_BASE}/media`, {
+        method: 'POST',
+        headers: { ...tunnelHeaders(), ...headers },
+        body: form,
+      })
       const body = (await result.json().catch(() => null)) as unknown
       return { statusCode: result.status, data: body }
     })

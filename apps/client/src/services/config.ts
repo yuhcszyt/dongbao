@@ -10,5 +10,12 @@ const defaultApiBase =
 
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL || defaultApiBase).replace(/\/$/, '')
 
+/**
+ * localtunnel 会插一页防钓鱼确认；小程序请求必须带此头，否则拿到 HTML 而不是 JSON。
+ * 其它环境带上也无害。
+ */
+export const tunnelHeaders = (): Record<string, string> =>
+  API_BASE.includes('loca.lt') ? { 'bypass-tunnel-reminder': 'true' } : {}
+
 /** 媒体 URL 只在带 token 的响应里下发；预览 / 播放接口本身免 token（UUID 即能力凭证）。 */
 export const mediaUrl = (path: string) => (path.startsWith('http') ? path : `${API_BASE.replace(/\/api\/v1$/, '')}${path}`)

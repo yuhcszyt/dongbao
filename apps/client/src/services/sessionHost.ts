@@ -2,7 +2,7 @@
  * 会话模块的宿主接线：把 uni / wx 的存储、登录接口和 code 来源接到纯会话模块上。
  * 所有对 uni API 的访问都在函数体内（不发生在 import 时），因此纯模块仍可被单独单测。
  */
-import { API_BASE } from './config'
+import { API_BASE, tunnelHeaders } from './config'
 import { isSuccess } from './http'
 import { createLoginCode } from './loginCode'
 import { createSession, type LoginResult, type Session, type StoredSession } from './session'
@@ -90,6 +90,7 @@ const login = (code: string) =>
       url: `${API_BASE}/auth/wechat`,
       method: 'POST',
       data: { code },
+      header: tunnelHeaders(),
       timeout: 15_000,
       success: (response) => {
         const body = response.data as Partial<LoginResult> | null | undefined
