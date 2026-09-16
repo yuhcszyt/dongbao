@@ -1,0 +1,5 @@
+# DOMAIN 由 compose 环境变量注入，例如 api.example.com
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy server:8000
+}
