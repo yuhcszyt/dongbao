@@ -19,6 +19,8 @@ DEV_LOGIN ?=
 
 APP_MODULE ?= app.main:app
 PORT ?= 8001
+# 客户端构建 / 本地 uni 默认 API；与 docker-compose 的 CLIENT_API_BASE_URL 同名，便于一处改。
+CLIENT_API_BASE_URL ?= http://127.0.0.1:$(PORT)/api/v1
 
 .PHONY: help setup db-up db-wait db-down test test-server test-client typecheck build dev-server e2e docker-test
 
@@ -31,7 +33,7 @@ help:
 	@echo "make build         客户端 h5 + mp-weixin 构建校验"
 	@echo "make dev-server    本地 uvicorn --reload（$(APP_MODULE)，端口 $(PORT)）；无微信凭证时加 DEV_LOGIN=1"
 	@echo "make db-up         只起测试库（localhost:55432，tmpfs，跑了就丢）"
-	@echo "make e2e           docker compose up --build 端到端人工验收"
+	@echo "make e2e           DEV_LOGIN=1 + docker compose up --build（H5 验收用开发降级）"
 	@echo "make docker-test   里程碑一致性：容器内带 --build 跑一遍全部测试"
 
 setup:
@@ -60,7 +62,8 @@ typecheck:
 	cd $(CLIENT_DIR) && npm run typecheck
 
 build:
-	cd $(CLIENT_DIR) && npm run build:h5 && npm run build:mp-weixin
+	cd $(CLIENT_DIR) && VITE_API_BASE_URL=$(CLIENT_API_BASE_URL) npm run build:h5
+	cd $(CLIENT_DIR) && VITE_API_BASE_URL=$(CLIENT_API_BASE_URL) npm run build:mp-weixin
 
 dev-server: db-up db-wait
 	cd $(SERVER_DIR) && $(SERVER_ENV) .venv/bin/alembic upgrade head
@@ -68,8 +71,10 @@ dev-server: db-up db-wait
 
 test: test-server test-client
 
+# H5 人工验收必须开开发降级：compose 默认 DEV_LOGIN 为空时，缺微信凭证会 502 登录失败。
+# 真机 / 开发者工具验小程序时不要用这条——应设 WECHAT_APPID/SECRET，且不要开 DEV_LOGIN。
 e2e:
-	docker compose up --build
+	DEV_LOGIN=1 docker compose up --build
 
 docker-test:
 	docker compose --profile tools run --rm --build server-test

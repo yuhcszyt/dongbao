@@ -28,13 +28,30 @@ make setup               # 一次性：建 apps/server/.venv、装 python 与 np
 
 ## 本地开发
 
-登录走微信：客户端 `wx.login` 换 code，服务端用 `code` 换 openid。**没有微信凭证时**显式开开发降级才能登录（`code` 直接当 openid，仅本地与 CI，生产禁止）：
+### 微信小程序（上线路径，优先）
+
+1. 在微信公众平台拿到小程序 `AppID` / `AppSecret`，写入根目录 `.env` 的 `WECHAT_APPID` / `WECHAT_SECRET`（**不要**开 `DEV_LOGIN`）。
+2. 把同一 `AppID` 填进 `apps/client/src/manifest.json` → `mp-weixin.appid`，以及 `apps/client/project.config.json` 的 `appid`。
+3. 起服务端与小程序构建：
 
 ```bash
-DEV_LOGIN=1 make dev-server   # 起测试库 + alembic upgrade head + uvicorn --reload（8001）
-cd apps/client && npm run dev:h5        # H5 开发服务器（5173）
-cd apps/client && npm run dev:mp-weixin # 微信小程序开发构建
+make dev-server                 # 测试库 + alembic + uvicorn --reload（8001）；需已配微信凭证
+cd apps/client && npm run dev:mp-weixin
 ```
+
+4. 用微信开发者工具打开 `apps/client`（`miniprogramRoot` 指向 `dist/dev/mp-weixin/`），勾选「不校验合法域名」。
+5. 客户端默认请求 `http://127.0.0.1:8001/api/v1`（见 `apps/client/.env.development`）。真机预览请改成电脑局域网 IP，并保证手机能访问该端口。
+
+### H5（仅联调，不代替小程序）
+
+没有微信凭证时，显式开开发降级（`code` 直接当 openid，仅本地与 CI，生产禁止）：
+
+```bash
+DEV_LOGIN=1 make dev-server
+cd apps/client && npm run dev:h5   # 5173
+```
+
+`make e2e` 会自动带 `DEV_LOGIN=1` 起整套 docker（H5 5173 / 服务端 8000）。
 
 ## 测试
 
@@ -48,7 +65,7 @@ make build        # 客户端 h5 + mp-weixin 构建校验
 make help         # 全部目标
 ```
 
-不要为了跑测试而重建镜像（服务端镜像是 `COPY . .`，重建就是几十秒一轮）。容器只在两处用：`make e2e`（端到端人工验收）与 `make docker-test`（里程碑一致性检查）。
+不要为了跑测试而重建镜像（服务端镜像是 `COPY . .`，重建就是几十秒一轮）。容器只在两处用：`make e2e`（H5 人工验收）与 `make docker-test`（里程碑一致性检查）。
 
 ## 数据库迁移
 
@@ -56,10 +73,4 @@ make help         # 全部目标
 cd apps/server
 alembic revision --autogenerate -m "description"
 alembic upgrade head
-```
-
-## 部署（端到端验收）
-
-```bash
-make e2e          # docker compose up --build，H5 在 5173、服务端在 8000
 ```
