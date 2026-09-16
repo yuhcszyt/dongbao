@@ -146,7 +146,13 @@ export const createSession = (ports: SessionPorts): Session => {
 
   const ensureSession = async (): Promise<void> => {
     restore()
-    if (status === 'signed-out' || status === 'needs-retry') throw blockedError()
+    if (status === 'signed-out') throw blockedError()
+    // needs-retry 是可恢复态：服务端稍后起来 / 用户点「创建档案」时再试一次登录，
+    // 不要永远抛着上一次的失败（否则 H5 红字卡死，建档按钮像「没反应」）。
+    if (status === 'needs-retry') {
+      await signInOnce()
+      return
+    }
     if (token) return
     await signInOnce()
   }
@@ -154,6 +160,7 @@ export const createSession = (ports: SessionPorts): Session => {
   const retry = async (): Promise<void> => {
     if (status === 'signed-out') throw blockedError()
     lastError = null
+    status = 'anonymous'
     await signInOnce()
   }
 

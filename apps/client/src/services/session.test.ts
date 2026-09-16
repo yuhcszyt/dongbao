@@ -129,13 +129,31 @@ describe('客户端会话契约', () => {
     expect(session.lastError?.message).toBe(SESSION_MESSAGES.sessionExpired)
     expect(session.token).toBeNull()
 
-    // 恢复前的后续请求：立即以中文错误失败，不再打网络。
-    await expect(session.run(operation)).rejects.toMatchObject({ code: 'session_expired' })
-    await expect(session.ensureSession()).rejects.toMatchObject({ code: 'session_expired' })
-    expect(calls).toHaveLength(2)
-    expect(login).toHaveBeenCalledTimes(1)
+    // 可恢复：后续请求会再试一次登录，而不是永远卡在上一次错误上。
+    const response = await session.run(operation)
+    expect(response.statusCode).toBe(200)
+    expect(login).toHaveBeenCalledTimes(2)
+    expect(calls).toHaveLength(3)
+    expect(session.status).toBe('authenticated')
   })
 
+  it('登录失败进入 needs-retry 后，下一次 ensureSession / 建档请求会再试登录', async () => {
+    const storage = memoryStorage()
+    let failing = true
+    const login = vi.fn(async (code: string): Promise<LoginResult> => {
+      if (failing) throw new Error('request:fail timeout')
+      return { token: `token-${code}`, user_id: `user-${code}` }
+    })
+    const session = createSession({ storage, loginCode: async () => 'dev-code', login })
+
+    await expect(session.ensureSession()).rejects.toMatchObject({ code: 'login_failed' })
+    expect(session.status).toBe('needs-retry')
+
+    failing = false
+    await session.ensureSession()
+    expect(session.status).toBe('authenticated')
+    expect(session.token).toBe('token-dev-code')
+  })
   it('重登失败时对外给出可识别的失败状态与中文提示，不透出上游英文错误', async () => {
     const { session } = harness({ stored: { token: 'stale-token', userId: 'stored-user' }, loginFails: true })
     const { operation, calls } = scriptedTransport([401])

@@ -16,7 +16,12 @@ interface WeChatLoginApi {
 
 declare const wx: WeChatLoginApi | undefined
 
-const hasWeChatLogin = () => typeof wx !== 'undefined' && typeof wx.login === 'function'
+/**
+ * 只有真·微信小程序才走 `wx.login`。
+ * H5 上偶发挂着不可用的 `wx` 桩，走 `wx.login` 会直接 fail，表现为「登录失败，请检查网络后重试」。
+ */
+const hasWeChatLogin = () =>
+  import.meta.env.UNI_PLATFORM === 'mp-weixin' && typeof wx !== 'undefined' && typeof wx.login === 'function'
 
 const wechatLogin = () =>
   new Promise<string>((resolve, reject) => {
