@@ -53,8 +53,8 @@ const clearError = () => {
 
 const fail = (reason: unknown) => {
   state.error = errorText(reason)
-  // 「已注销」给重试入口也没有意义：重登被主动禁止，只能重新进入小程序。
-  state.retryable = reason instanceof SessionError && reason.code !== 'signed_out'
+  // 建档 422、接口挂掉都要能点重试；只有注销后的 signed-out 不再提供重登按钮。
+  state.retryable = !(reason instanceof SessionError && reason.code === 'signed_out')
 }
 
 /** 只拉某一日的四项指标（首页看今天，记录页看选中的那一天）。 */

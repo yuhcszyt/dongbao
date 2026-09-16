@@ -139,6 +139,17 @@ def test_provider_failure_returns_editable_draft_without_losing_media(monkeypatc
     assert confirmed.json()["source"] == "photo"
     assert confirmed.json()["media"][0]["id"] == media.json()["id"]
 
+def test_create_baby_without_birthday(auth):
+    headers = auth()
+    omitted = client.post("/api/v1/babies", json={"nickname": "宝宝", "gender": "unknown"}, headers=headers)
+    assert omitted.status_code == 201, omitted.text
+    assert omitted.json()["nickname"] == "宝宝"
+    assert omitted.json()["birth_date"] is None
+    explicit_null = client.post("/api/v1/babies", json={"nickname": "宝宝", "gender": "unknown", "birth_date": None}, headers=headers)
+    assert explicit_null.status_code == 201, explicit_null.text
+    assert explicit_null.json()["birth_date"] is None
+
+
 def test_rejects_mismatched_payload_and_invalid_upload(auth):
     headers = auth()
     baby_id = create_baby(headers)

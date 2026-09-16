@@ -79,7 +79,7 @@ payload_adapter = TypeAdapter(Payload)
 
 class BabyCreate(StrictModel):
     nickname: str = Field(min_length=1, max_length=30)
-    birth_date: date | None = None
+    birth_date: date | None = Field(default=None)
     gender: Literal["male", "female", "unknown"] = "unknown"
 
     @model_validator(mode="after")

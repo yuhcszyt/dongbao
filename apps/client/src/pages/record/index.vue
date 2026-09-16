@@ -130,11 +130,12 @@ onShow(() => {
 
     <AccountGone v-else-if="state.accountDeleted" />
 
-    <template v-else-if="state.baby">
+    <template v-else>
+      <view v-if="state.error" class="error"><text>{{ state.error }}</text><button v-if="state.retryable" class="retry" @click="recordStore.retrySession(day)">重试</button></view>
       <view class="topbar">
         <view>
           <text class="page-title">记录</text>
-          <text class="muted">用记录，留住每一个小变化 · {{ babyName }} · {{ ageText(state.baby.birth_date) }}</text>
+          <text class="muted">用记录，留住每一个小变化 · {{ babyName }} · {{ ageText(state.baby?.birth_date) }}</text>
         </view>
         <button class="tag" @click="panel = 'capture'">＋ 添加</button>
       </view>
@@ -182,7 +183,6 @@ onShow(() => {
       </view>
       <text class="summary-note">{{ dayText }}指标仅统计已记录内容，没记录不代表没有发生。</text>
 
-      <view v-if="state.error" class="error"><text>{{ state.error }}</text><button v-if="state.retryable" class="retry" @click="recordStore.retrySession(day)">重试</button></view>
       <view class="timeline-head"><text class="card-title">{{ dayText }}的时间线</text><text>{{ dayRecords.length }} 条</text></view>
       <scroll-view class="filters" scroll-x>
         <view class="filter-row">

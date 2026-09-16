@@ -77,6 +77,13 @@ const uploadResult = (response: SessionResponse, fallback: string): MediaAsset =
   throw new ApiError(errorMessage(body as ApiErrorBody | null, fallback), response.statusCode)
 }
 
+/** 未填生日不要传空串：H5 里 `""` 会被后端当成非法日期，整页只剩「请检查填写内容」。 */
+const babyBody = (input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) => ({
+  nickname: input.nickname,
+  gender: input.gender,
+  ...(input.birth_date ? { birth_date: input.birth_date } : { birth_date: null }),
+})
+
 export const api = {
   async getBaby() {
     const result = await request<Baby[] | { items: Baby[] }>('/babies')
@@ -84,19 +91,11 @@ export const api = {
   },
 
   createBaby(input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) {
-    return request<Baby>('/babies', 'POST', {
-      nickname: input.nickname,
-      gender: input.gender,
-      birth_date: input.birth_date || null,
-    })
+    return request<Baby>('/babies', 'POST', babyBody(input))
   },
 
   updateBaby(id: string, input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) {
-    return request<Baby>(`/babies/${id}`, 'PUT', {
-      nickname: input.nickname,
-      gender: input.gender,
-      birth_date: input.birth_date || null,
-    })
+    return request<Baby>(`/babies/${id}`, 'PUT', babyBody(input))
   },
 
   async records(babyId: string) {

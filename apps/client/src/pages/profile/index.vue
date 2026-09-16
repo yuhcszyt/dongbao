@@ -58,11 +58,11 @@ onShow(() => void recordStore.load())
     <view v-if="state.loading" class="state">正在加载…</view>
     <AccountGone v-else-if="state.accountDeleted" />
 
-    <template v-else-if="state.baby">
+    <template v-else>
       <view class="head">
         <view class="avatar">👶🏻</view>
         <text class="page-title">{{ babyName }}</text>
-        <text class="muted">{{ ageText(state.baby.birth_date) }} · {{ genderText(state.baby.gender) }}</text>
+        <text class="muted">{{ ageText(state.baby?.birth_date) }} · {{ genderText(state.baby?.gender ?? 'unknown') }}</text>
       </view>
 
       <view class="card">
@@ -70,9 +70,9 @@ onShow(() => void recordStore.load())
           <text class="card-title">宝宝档案</text>
           <button class="link" @click="formOpen = true">编辑</button>
         </view>
-        <view class="row"><text class="row-key">昵称</text><text class="row-value">{{ orPending(state.baby.nickname) }}</text></view>
-        <view class="row"><text class="row-key">生日</text><text class="row-value">{{ orPending(state.baby.birth_date) }}</text></view>
-        <view class="row"><text class="row-key">性别</text><text class="row-value">{{ genderText(state.baby.gender) }}</text></view>
+        <view class="row"><text class="row-key">昵称</text><text class="row-value">{{ orPending(state.baby?.nickname) }}</text></view>
+        <view class="row"><text class="row-key">生日</text><text class="row-value">{{ orPending(state.baby?.birth_date) }}</text></view>
+        <view class="row"><text class="row-key">性别</text><text class="row-value">{{ genderText(state.baby?.gender ?? 'unknown') }}</text></view>
       </view>
 
       <view class="card">
@@ -126,12 +126,12 @@ onShow(() => void recordStore.load())
       </view>
     </view>
 
-    <view v-if="formOpen && state.baby" class="overlay" @click.self="formOpen = false">
+    <view v-if="formOpen" class="overlay" @click.self="formOpen = false">
       <view class="sheet">
         <view class="sheet-head"><text class="card-title">编辑宝宝档案</text><button @click="formOpen = false">×</button></view>
         <ProfileForm
-          :key="state.baby.updated_at ?? state.baby.id"
-          :initial="state.baby"
+          :key="state.baby?.updated_at ?? state.baby?.id ?? 'new'"
+          :initial="state.baby ?? { nickname: '宝宝', birth_date: '', gender: 'unknown' }"
           :submitting="state.saving"
           submit-text="保存档案"
           :error="state.error"

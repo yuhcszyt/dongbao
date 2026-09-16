@@ -71,12 +71,12 @@ onShow(() => {
 
     <AccountGone v-if="!state.loading && state.accountDeleted" />
 
-    <template v-if="!state.loading && state.baby && !state.accountDeleted">
+    <template v-if="!state.loading && !state.accountDeleted">
       <view class="baby-row" @click="openProfile">
         <view class="avatar">👶🏻</view>
         <view class="baby-info">
           <text class="baby-name">{{ babyName }} ›</text>
-          <text class="muted">{{ ageText(state.baby.birth_date) }} · {{ genderText(state.baby.gender) }}</text>
+          <text class="muted">{{ ageText(state.baby?.birth_date) }} · {{ genderText(state.baby?.gender ?? 'unknown') }}</text>
         </view>
       </view>
 
