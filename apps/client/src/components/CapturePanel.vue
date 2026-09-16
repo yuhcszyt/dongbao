@@ -218,7 +218,7 @@ onBeforeUnmount(() => {
       <view v-if="statusText" class="status" :class="{ live: phase === 'recording' }">{{ statusText }}</view>
       <view class="capture-buttons">
         <button
-          class="voice"
+          class="capture-btn voice"
           :class="{ 'is-disabled': phase === 'processing' }"
           :disabled="phase === 'processing'"
           @click="phase === 'recording' ? stopVoice() : startVoice()"
@@ -228,7 +228,7 @@ onBeforeUnmount(() => {
           <text class="capture-note">{{ phase === 'recording' ? '最长 60 秒' : '点一下，直接说' }}</text>
         </button>
         <button
-          class="photo"
+          class="capture-btn photo"
           :class="{ 'is-disabled': phase === 'recording' || phase === 'processing' }"
           :disabled="phase === 'recording' || phase === 'processing'"
           @click="choosePhoto"
@@ -245,8 +245,8 @@ onBeforeUnmount(() => {
       <view class="manual-block">
         <text>也可以直接点选记录</text>
         <view class="manual-grid">
-          <button v-for="item in RECORD_TYPES" :key="item.value" @click="emit('manual', item.value)">
-            <text>{{ item.icon }}</text>{{ item.label }}
+          <button v-for="item in RECORD_TYPES" :key="item.value" class="manual-item" @click="emit('manual', item.value)">
+            <text class="manual-icon">{{ item.icon }}</text>{{ item.label }}
           </button>
         </view>
       </view>
@@ -283,7 +283,7 @@ onBeforeUnmount(() => {
 .close { width: 48px; height: 48px; border-radius: 50%; background: #f2f5f4; color: #536b72; font-size: 27px; line-height: 48px; }
 .lead { display: block; margin: 15px 0; color: #617b85; font-size: 16px; line-height: 1.6; }
 .capture-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.capture-buttons button { min-height: 116px; border-radius: 17px; padding: 14px 8px; }
+.capture-btn { min-height: 116px; border-radius: 17px; padding: 14px 8px; }
 .voice { background: #328da9; color: white; }
 .voice.is-disabled, .photo.is-disabled { opacity: .55; }
 .photo { background: #f6e9d8; color: #6c5137; }
@@ -298,8 +298,8 @@ onBeforeUnmount(() => {
 .retry { min-height: 48px; margin-top: 10px; border: 1px solid #328da9; border-radius: 13px; background: white; color: #26768e; font-size: 16px; }
 .manual-block { margin-top: 23px; border-top: 1px solid #e9eff0; padding-top: 18px; color: #617b85; font-size: 14px; }
 .manual-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; margin-top: 10px; }
-.manual-grid button { min-height: 56px; padding: 6px 1px; border: 1px solid #e4ebeb; border-radius: 11px; background: white; color: #385d6b; font-size: 11px; line-height: 1.3; }
-.manual-grid text { display: block; font-size: 17px; }
+.manual-item { min-height: 56px; padding: 6px 1px; border: 1px solid #e4ebeb; border-radius: 11px; background: white; color: #385d6b; font-size: 11px; line-height: 1.3; }
+.manual-icon { display: block; font-size: 17px; }
 .draft-state { margin: 15px 0 2px; }
 .draft-title { display: block; font-size: 18px; font-weight: 750; }
 .transcript { display: block; margin-top: 9px; border-left: 3px solid #b7dfe9; padding: 8px 11px; color: #536e77; line-height: 1.6; }
