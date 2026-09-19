@@ -17,6 +17,15 @@
 
 - `docs/adr/0001-pull-login-into-mvp.md` — 登录体系从 Phase 5 提前进 MVP，共享/多家长仍留 Phase 5
 - `docs/adr/0002-stateless-jwt-no-redis.md` — 无状态 JWT，不引 Redis，吊销靠鉴权查用户表
+- `docs/adr/0003-qdrant-for-rag.md` — Phase 2 向量库用 Qdrant（取代文档中的 pgvector 基线）
+
+## 领域术语（Phase 2 补充）
+
+| 术语 | 英文/代码 | 定义 |
+|---|---|---|
+| RAG 知识 | `RagDocument` / `RagChunk` | 跨家庭共享的已审核育儿知识条目；向量在 Qdrant |
+| AI 会话 | `AiConversation` / `AiMessage` | 某宝宝下的问答历史；清空=新开会话，不动 Record |
+| 育儿回答 | `ParentingAnswer` | 结构化答：结论/原因/宝宝情况/行动/观察/来源 |
 
 ## 上线决策（2025-09 定稿）
 

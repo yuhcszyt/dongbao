@@ -7,6 +7,16 @@ supports_vision = true
 timeout_seconds = 30
 api_key_env = "MODEL_API_KEY"
 
+# 向量检索：未配 key 时用本地 hash embed（与 seed 一致）；配上后走 OpenAI-compatible /embeddings
+[embedding]
+provider = "openai_compatible"
+enabled = false
+base_url = ""
+model = ""
+dimensions = 384
+timeout_seconds = 30
+api_key_env = "EMBEDDING_API_KEY"
+
 [tencent_asr]
 enabled = true
 endpoint = "https://asr.tencentcloudapi.com"

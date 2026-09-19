@@ -186,6 +186,24 @@ export const api = {
   confirmDraft(draftId: string, input: RecordInput) {
     return request<RecordItem>(`/record-drafts/${draftId}/confirm`, 'POST', { ...input })
   },
+
+  aiChat(babyId: string, message: string, conversationId?: string | null) {
+    return request<import('@/features/content/aiTypes').AiChatResponse>('/ai/chat', 'POST', {
+      baby_id: babyId,
+      message,
+      ...(conversationId ? { conversation_id: conversationId } : {}),
+    })
+  },
+
+  aiActiveConversation(babyId: string) {
+    return request<import('@/features/content/aiTypes').AiActiveConversation>(
+      `/ai/conversations/active?baby_id=${encodeURIComponent(babyId)}`,
+    )
+  },
+
+  aiNewConversation(babyId: string) {
+    return request<{ conversation_id: string }>(`/ai/conversations/new?baby_id=${encodeURIComponent(babyId)}`, 'POST')
+  },
 }
 
 export const recordTypeQuery = (type: RecordType | 'all') => (type === 'all' ? '' : type)

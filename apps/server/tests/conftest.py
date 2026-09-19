@@ -6,6 +6,8 @@ from app.auth.models import Family, User
 from app.main import app
 from app.record.database import SessionLocal
 from app.record.models import Baby, BabyRecord, MediaAsset, RecordDraft, RecordMedia
+from app.ai.models import AiConversation, AiMessage, RagChunk, RagDocument
+from app.ai.qdrant_store import reset_qdrant_client, wipe_collection
 
 DEFAULT_OPENID = "openid-of-parent-a"
 
@@ -33,9 +35,14 @@ def media_root_in_tmp(monkeypatch, tmp_path):
 def clean_database():
     """清空记录侧与鉴权侧全部表，保证用例之间互不残留（否则第二个用例会撞 unique openid）。"""
     with SessionLocal() as db:
-        for model in (RecordMedia, RecordDraft, BabyRecord, MediaAsset, Baby, User, Family):
+        for model in (AiMessage, AiConversation, RecordMedia, RecordDraft, BabyRecord, MediaAsset, Baby, User, Family, RagChunk, RagDocument):
             db.execute(delete(model))
         db.commit()
+    try:
+        reset_qdrant_client()
+        wipe_collection()
+    except Exception:
+        pass
     yield
 
 

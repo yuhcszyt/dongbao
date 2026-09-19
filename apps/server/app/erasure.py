@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from .auth.models import Family, User
 from .record.models import Baby, BabyRecord, MediaAsset, RecordDraft, RecordMedia
+from .ai.models import AiConversation, AiMessage
 from .record.storage import remove_media_files
 
 
@@ -33,6 +34,9 @@ def _purge_family_rows(db: Session, family_id: UUID) -> list[str]:
     文件 key 得在删行之前取——行没了就查不到了。
     """
     object_keys = list(db.scalars(select(MediaAsset.object_key).where(MediaAsset.family_id == family_id)))
+    conversation_ids = select(AiConversation.id).where(AiConversation.family_id == family_id)
+    db.execute(delete(AiMessage).where(AiMessage.conversation_id.in_(conversation_ids)))
+    db.execute(delete(AiConversation).where(AiConversation.family_id == family_id))
     record_ids = select(BabyRecord.id).where(BabyRecord.family_id == family_id)
     db.execute(delete(RecordMedia).where(RecordMedia.record_id.in_(record_ids)))
     db.execute(delete(BabyRecord).where(BabyRecord.family_id == family_id))

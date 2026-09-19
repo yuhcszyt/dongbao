@@ -31,9 +31,27 @@ class LargeModelConfig(BaseModel):
             raise ValueError("启用大模型时必须配置 base_url 和 model")
         return self
 
+
+class EmbeddingConfig(BaseModel):
+    provider: Literal["openai_compatible"] = "openai_compatible"
+    enabled: bool = False
+    base_url: str = ""
+    model: str = ""
+    dimensions: int = Field(default=384, gt=0, le=4096)
+    timeout_seconds: int = Field(default=30, gt=0, le=120)
+    api_key_env: str = "EMBEDDING_API_KEY"
+
+    @model_validator(mode="after")
+    def enabled_values(self):
+        if self.enabled and (not self.base_url or not self.model):
+            raise ValueError("启用 embedding 时必须配置 base_url 和 model")
+        return self
+
+
 class ProvidersConfig(BaseModel):
     tencent_asr: TencentASRConfig
     large_model: LargeModelConfig
+    embedding: EmbeddingConfig = Field(default_factory=lambda: EmbeddingConfig(api_key_env="EMBEDDING_API_KEY"))
 
 @lru_cache
 def get_config() -> ProvidersConfig:

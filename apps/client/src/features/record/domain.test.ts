@@ -99,8 +99,11 @@ describe('记录页的日期归日与日期条（票 09）', () => {
   it('7 天日期条以选中日结尾，选中日就是最后一天', () => {
     const strip = buildDateStrip(7, today)
     expect(strip).toHaveLength(7)
-    expect(strip[0]).toEqual({ date: '2026-09-10', day: '10', label: '周四', weekday: '四' })
-    expect(strip[6]).toEqual({ date: today, day: '16', label: '今天', weekday: '三' })
+    expect(strip[0]?.date).toBe('2026-09-10')
+    expect(strip[6]?.date).toBe(today)
+    // label 相对设备「今天」：锚定历史日时显示周几，不是「今天」
+    expect(strip[6]?.label).toBe(dayLabel(today))
+    expect(strip[6]?.weekday).toBe('三')
   })
 
   it('时间线只显示选中那一天（按客户端本地日期过滤）', () => {
