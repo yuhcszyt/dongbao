@@ -100,7 +100,7 @@ onShow(() => {
         <view class="hero-row">
           <view>
             <text class="card-title">关于{{ babyName }}，问问懂宝</text>
-            <text class="muted">结合宝宝记录，陪你一起找答案</text>
+            <text class="muted">结合档案、近期记录与专业知识库</text>
           </view>
           <text class="cloud">•ᴗ•</text>
         </view>

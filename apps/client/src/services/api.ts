@@ -42,14 +42,20 @@ const unwrapList = <T>(value: T[] | { items: T[] }) => (Array.isArray(value) ? v
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
-const sendRequest = (options: { url: string; method: HttpMethod; data?: Record<string, unknown>; headers: Record<string, string> }) =>
+const sendRequest = (options: {
+  url: string
+  method: HttpMethod
+  data?: Record<string, unknown>
+  headers: Record<string, string>
+  timeout?: number
+}) =>
   new Promise<SessionResponse>((resolve, reject) => {
     uni.request({
       url: options.url,
       method: options.method,
       data: options.data,
       header: { ...tunnelHeaders(), ...options.headers },
-      timeout: 15_000,
+      timeout: options.timeout ?? 15_000,
       success: (response) => resolve({ statusCode: response.statusCode, data: response.data }),
       fail: (error) => reject(new ApiError(error.errMsg || '网络连接失败，请稍后重试')),
     })
@@ -59,8 +65,15 @@ const sendRequest = (options: { url: string; method: HttpMethod; data?: Record<s
  * 统一网络层：所有请求的凭证都由会话模块附加，401 后的重登与重放也在 session.run 里，
  * 页面只表达「要什么」，不拼 header。
  */
-const request = async <T>(path: string, method: HttpMethod = 'GET', data?: Record<string, unknown>): Promise<T> => {
-  const response = await session.run((headers) => sendRequest({ url: `${API_BASE}${path}`, method, data, headers }))
+const request = async <T>(
+  path: string,
+  method: HttpMethod = 'GET',
+  data?: Record<string, unknown>,
+  timeout?: number,
+): Promise<T> => {
+  const response = await session.run((headers) =>
+    sendRequest({ url: `${API_BASE}${path}`, method, data, headers, timeout }),
+  )
   if (isSuccess(response.statusCode)) return response.data as T
   throw new ApiError(errorMessage(response.data as ApiErrorBody | null, '请求没有完成，请稍后重试'), response.statusCode)
 }
@@ -188,11 +201,16 @@ export const api = {
   },
 
   aiChat(babyId: string, message: string, conversationId?: string | null) {
-    return request<import('@/features/content/aiTypes').AiChatResponse>('/ai/chat', 'POST', {
-      baby_id: babyId,
-      message,
-      ...(conversationId ? { conversation_id: conversationId } : {}),
-    })
+    return request<import('@/features/content/aiTypes').AiChatResponse>(
+      '/ai/chat',
+      'POST',
+      {
+        baby_id: babyId,
+        message,
+        ...(conversationId ? { conversation_id: conversationId } : {}),
+      },
+      60_000,
+    )
   },
 
   aiActiveConversation(babyId: string) {
