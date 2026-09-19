@@ -9,9 +9,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .embedding import embed_texts
+from .embedding import EmbeddingUnavailable, embed_texts
 from .models import RagChunk, RagDocument, now
-from .qdrant_store import ensure_collection, upsert_chunk
+from .qdrant_store import ensure_collection, upsert_chunk, wipe_collection
 
 SEED_PATH = Path(__file__).resolve().parents[4] / "data" / "rag" / "parenting_seed.json"
 
@@ -22,7 +22,10 @@ def load_seed_file(path: Path | None = None) -> list[dict]:
 
 
 def seed_knowledge(db: Session, *, path: Path | None = None, force: bool = False) -> int:
-    """幂等写入：已存在同 id 文档则跳过（force=True 时先删后写）。返回写入的 chunk 数。"""
+    """幂等写入：已存在同 id 文档则跳过（force=True 时先删后写）。返回写入的 chunk 数。
+
+    需要可用的远程 embedding（或测试 EMBEDDING_ALLOW_HASH=1）。
+    """
     ensure_collection()
     docs = load_seed_file(path)
     written = 0
@@ -76,7 +79,22 @@ def seed_knowledge(db: Session, *, path: Path | None = None, force: bool = False
 
 
 def ensure_seeded(db: Session) -> None:
-    """若库中尚无 approved 文档则自动 seed（测试与首次启动）。"""
+    """若库中尚无 approved 文档则自动 seed。无 embedding 时跳过（聊天仍可用宝宝 tools）。"""
     has_any = db.scalar(select(RagDocument.id).where(RagDocument.review_status == "approved").limit(1))
-    if has_any is None:
+    if has_any is not None:
+        return
+    try:
         seed_knowledge(db)
+    except EmbeddingUnavailable:
+        return
+
+
+def reseed_all(db: Session) -> int:
+    """强制用当前 embedding 配置重建 PG + Qdrant 语料（换模型/维度后执行）。"""
+    from sqlalchemy import delete
+
+    wipe_collection()
+    db.execute(delete(RagChunk))
+    db.execute(delete(RagDocument))
+    db.commit()
+    return seed_knowledge(db, force=True)

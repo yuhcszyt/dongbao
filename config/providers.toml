@@ -7,13 +7,16 @@ supports_vision = true
 timeout_seconds = 30
 api_key_env = "MODEL_API_KEY"
 
-# 向量检索：未配 key 时用本地 hash embed（与 seed 一致）；配上后走 OpenAI-compatible /embeddings
+# 向量检索：腾讯云 TokenHub（OpenAI-compatible）
+# 文档：https://cloud.tencent.com/document/product/1823/133515
+# kinfra-text-embedding-4b = 2560 维；0.6b = 1024 维。不可自定义 dimensions。
+# API Key 在 TokenHub 控制台创建，写入 EMBEDDING_API_KEY（不要用 DeepSeek 聊天 key）。
 [embedding]
 provider = "openai_compatible"
-enabled = false
-base_url = ""
-model = ""
-dimensions = 384
+enabled = true
+base_url = "https://tokenhub.tencentmaas.com/v1"
+model = "kinfra-text-embedding-4b"
+dimensions = 2560
 timeout_seconds = 30
 api_key_env = "EMBEDDING_API_KEY"
 

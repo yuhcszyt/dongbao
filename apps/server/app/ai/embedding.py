@@ -1,4 +1,4 @@
-"""本地 hash embedding：无外部 key 时与 seed / 检索共用同一套向量。"""
+"""远程 embedding（OpenAI-compatible）。生产禁止静默用本地 hash。"""
 from __future__ import annotations
 
 import hashlib
@@ -12,12 +12,27 @@ from ..config import get_config
 COLLECTION = "parenting_knowledge"
 
 
+class EmbeddingUnavailable(Exception):
+    """未配置或调用失败：RAG 不得假装检索成功。"""
+
+
 def vector_dim() -> int:
     return get_config().embedding.dimensions
 
 
+def embedding_configured() -> bool:
+    cfg = get_config().embedding
+    key = os.environ.get(cfg.api_key_env, "").strip() if cfg.api_key_env else ""
+    return bool(cfg.enabled and cfg.base_url and cfg.model and key)
+
+
+def allow_hash_fallback() -> bool:
+    """仅 CI / 单测显式打开：EMBEDDING_ALLOW_HASH=1。"""
+    return os.environ.get("EMBEDDING_ALLOW_HASH", "").strip() in ("1", "true", "yes")
+
+
 def hash_embed(text: str, dim: int | None = None) -> list[float]:
-    """字符 / bigram 哈希向量，归一化后可用于 cosine。"""
+    """测试用伪向量，不得用于生产检索。"""
     size = dim or vector_dim()
     vec = [0.0] * size
     cleaned = (text or "").strip().lower()
@@ -37,12 +52,18 @@ def hash_embed(text: str, dim: int | None = None) -> list[float]:
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
-    """有配置则调 OpenAI-compatible /embeddings，否则走 hash_embed。"""
     cfg = get_config().embedding
-    key = os.environ.get(cfg.api_key_env, "").strip() if cfg.api_key_env else ""
-    if cfg.enabled and cfg.base_url and cfg.model and key:
-        return _remote_embed(texts, cfg.base_url.rstrip("/"), cfg.model, key, cfg.timeout_seconds, cfg.dimensions)
-    return [hash_embed(t, cfg.dimensions) for t in texts]
+    if embedding_configured():
+        key = os.environ[cfg.api_key_env].strip()
+        try:
+            return _remote_embed(texts, cfg.base_url.rstrip("/"), cfg.model, key, cfg.timeout_seconds, cfg.dimensions)
+        except Exception as exc:  # noqa: BLE001
+            raise EmbeddingUnavailable(f"向量化失败：{exc}") from exc
+    if allow_hash_fallback():
+        return [hash_embed(t, cfg.dimensions) for t in texts]
+    raise EmbeddingUnavailable(
+        "未配置向量模型：请设置 EMBEDDING_API_KEY，并在 providers.toml [embedding] 填 base_url / model"
+    )
 
 
 def embed_query(text: str) -> list[float]:
@@ -58,10 +79,10 @@ def _remote_embed(texts: list[str], base_url: str, model: str, api_key: str, tim
         timeout=timeout,
     )
     response.raise_for_status()
-    data = response.json()["data"]
-    data = sorted(data, key=lambda item: item["index"])
+    payload = response.json()
+    data = sorted(payload["data"], key=lambda item: item["index"])
     vectors = [item["embedding"] for item in data]
     for vec in vectors:
-        if len(vec) != dim:
-            raise ValueError(f"embedding 维度 {len(vec)} 与配置 dimensions={dim} 不一致")
+        if dim and len(vec) != dim:
+            raise ValueError(f"embedding 维度 {len(vec)} 与配置 dimensions={dim} 不一致（请改 providers.toml）")
     return vectors

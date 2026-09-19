@@ -14,6 +14,7 @@ SERVER_ENV = DATABASE_URL=$(TEST_DATABASE_URL) \
 	APP_CONFIG=$(CURDIR)/config/providers.toml \
 	MEDIA_ROOT=$(CURDIR)/data/media \
 	QDRANT_URL=$(QDRANT_URL) \
+	EMBEDDING_ALLOW_HASH=1 \
 	DEV_LOGIN=$(DEV_LOGIN)
 
 # 开发降级：仅本地/CI 显式 `make DEV_LOGIN=1 ...` 才开；默认空 = 真实微信。
@@ -24,7 +25,7 @@ PORT ?= 8001
 # 客户端构建 / 本地 uni 默认 API；与 docker-compose 的 CLIENT_API_BASE_URL 同名，便于一处改。
 CLIENT_API_BASE_URL ?= http://127.0.0.1:$(PORT)/api/v1
 
-.PHONY: help setup db-up db-wait db-down qdrant-up qdrant-wait test test-server test-client typecheck build dev-server e2e docker-test
+.PHONY: help setup db-up db-wait db-down qdrant-up qdrant-wait seed-rag test test-server test-client typecheck build dev-server e2e docker-test
 
 help:
 	@echo "make setup         一次性：建 venv、装 python 与 npm 依赖"
@@ -35,7 +36,7 @@ help:
 	@echo "make build         客户端 h5 + mp-weixin 构建校验"
 	@echo "make dev-server    本地 uvicorn --reload（$(APP_MODULE)，端口 $(PORT)）；无微信凭证时加 DEV_LOGIN=1"
 	@echo "make db-up         只起测试库（localhost:55432，tmpfs，跑了就丢）"
-	@echo "make qdrant-up     只起测试用 Qdrant（localhost:6334）"
+	@echo "make seed-rag      用真实 EMBEDDING_API_KEY 重建知识库向量（需 postgres + qdrant）"
 	@echo "make e2e           DEV_LOGIN=1 + docker compose up --build（H5 验收用开发降级）"
 	@echo "make docker-test   里程碑一致性：容器内带 --build 跑一遍全部测试"
 
@@ -57,6 +58,13 @@ qdrant-up:
 qdrant-wait:
 	@until curl -sf http://127.0.0.1:6334/readyz >/dev/null 2>&1; do sleep 0.5; done
 	@echo "qdrant-test ready on localhost:6334"
+
+# 生产/本地真向量：需要 .env 里 EMBEDDING_API_KEY（硅基流动等），不要开 EMBEDDING_ALLOW_HASH
+seed-rag: db-up db-wait qdrant-up qdrant-wait
+	cd $(SERVER_DIR) && set -a && [ -f $(CURDIR)/.env ] && . $(CURDIR)/.env; set +a; \
+		DATABASE_URL=$(TEST_DATABASE_URL) APP_CONFIG=$(CURDIR)/config/providers.toml QDRANT_URL=$(QDRANT_URL) \
+		.venv/bin/python -c "from app.record.database import SessionLocal; from app.ai.seed import reseed_all; \
+		db=SessionLocal(); n=reseed_all(db); print(f'reseeded {n} chunks')"
 
 db-down:
 	docker compose --profile tools stop postgres-test qdrant-test

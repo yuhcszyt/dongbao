@@ -4,12 +4,13 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 from zoneinfo import ZoneInfo
+import os
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..record.models import Baby, BabyRecord
-from .embedding import embed_query
+from .embedding import EmbeddingUnavailable, embed_query
 from .qdrant_store import search_approved
 from .schemas import ChunkWithSource, SourceRef
 
@@ -95,8 +96,14 @@ class BabyScope:
         return {"date": target.isoformat(), "feeding_count": len(rows), "feeding_ml": total_ml, "note": "仅统计已录入记录"}
 
     def search_parenting_knowledge(self, query: str, top_k: int = 5) -> list[dict]:
-        vector = embed_query(query)
-        hits = search_approved(vector, top_k=top_k)
+        try:
+            vector = embed_query(query)
+        except EmbeddingUnavailable as exc:
+            self._last_sources = []
+            return [{"error": str(exc)}]
+        # 测试 hash 向量分数偏低，允许略降阈值；生产 BGE 用默认 0.25
+        threshold = 0.08 if os.environ.get("EMBEDDING_ALLOW_HASH") else 0.25
+        hits = search_approved(vector, top_k=top_k, score_threshold=threshold)
         chunks: list[ChunkWithSource] = []
         sources: list[SourceRef] = []
         for hit in hits:

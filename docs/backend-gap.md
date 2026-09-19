@@ -11,7 +11,7 @@
 | 前端需要 | 已接 `POST /api/v1/ai/chat`；结构化 `ParentingAnswer`；语音→ASR→同一对话框 |
 | 当前是否已有接口 | **有**：`/api/v1/ai/chat`、`/conversations/active`、`/conversations/new` |
 | 当前是否临时数据 | 否（演示路径已替换）；无 `MODEL_API_KEY` 时走降级卡片仍可检索知识库 |
-| 还需要后端补什么 | 可选：真实 embedding 供应商、图片提问、长期 AI Memory、Langfuse |
+| 还需要后端补什么 | 配置 TokenHub `EMBEDDING_API_KEY` 后执行 `make seed-rag`；可选图片提问、AI Memory、Langfuse |
 
 ## 2. 哭声分析
 
