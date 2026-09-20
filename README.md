@@ -35,12 +35,12 @@ make setup               # 一次性：建 apps/server/.venv、装 python 与 np
 3. 起服务端与小程序构建：
 
 ```bash
-make dev-server                 # 测试库 + alembic + uvicorn --reload（8001）；需已配微信凭证
+make dev-server                 # 测试库 + alembic + uvicorn --reload --host 0.0.0.0（8001）；需已配微信凭证
 cd apps/client && npm run dev:mp-weixin
 ```
 
 4. 用微信开发者工具打开 `apps/client`（`miniprogramRoot` 指向 `dist/dev/mp-weixin/`），勾选「不校验合法域名」。
-5. 客户端默认请求 `http://127.0.0.1:8001/api/v1`（见 `apps/client/.env.development`）。真机预览请改成电脑局域网 IP，并保证手机能访问该端口。
+5. 小程序构建会写入电脑**局域网 IP**（`vite` 启动日志里有 `小程序 API → http://x.x.x.x:8001/api/v1`），不会用 localhost。真机与电脑同一 Wi-Fi，且保持「真机调试」为已连接。
 
 ### H5（仅联调，不代替小程序）
 

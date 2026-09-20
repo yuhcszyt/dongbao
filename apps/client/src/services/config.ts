@@ -1,12 +1,11 @@
 /**
  * 网络层的地址配置。会话模块与 api 都从这里取 base，避免互相 import 成环。
  *
- * - H5 开发默认走同源 `/api/v1`，由 Vite 代理到本机服务端（见 vite.config.ts），避免打错端口。
- * - 小程序没有页面源站，缺省必须是绝对地址，对齐 `make DEV_LOGIN=1 dev-server` 的 8001。
- * - docker / 生产用 `VITE_API_BASE_URL` 覆盖。
+ * - H5 开发默认走同源 `/api/v1`，由 Vite 代理到本机服务端（见 vite.config.ts）。
+ * - 小程序没有页面源站，必须是绝对地址；Vite 在构建时写入电脑局域网 IP，禁止 localhost
+ *   （手机上的 127.0.0.1 是手机自己）。生产用 `VITE_API_BASE_URL` 覆盖为 HTTPS 域名。
  */
-const defaultApiBase =
-  import.meta.env.UNI_PLATFORM === 'h5' ? '/api/v1' : 'http://127.0.0.1:8001/api/v1'
+const defaultApiBase = '/api/v1'
 
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL || defaultApiBase).replace(/\/$/, '')
 
