@@ -174,6 +174,20 @@ def test_configured_credentials_still_use_jscode2session(monkeypatch, wechat_cre
     assert [user.openid for user in users] == ["real-openid"]
 
 
+def test_dev_prefixed_code_does_not_call_wechat_when_dev_login_is_off(monkeypatch, wechat_credentials):
+    monkeypatch.delenv("DEV_LOGIN", raising=False)
+
+    def explode(*args, **kwargs):
+        raise AssertionError("开发 code 不得请求微信")
+
+    monkeypatch.setattr(httpx, "AsyncClient", explode)
+
+    response = _login("dev-mu47ag5n-mtgqnjp2")
+    assert response.status_code == 502, response.text
+    assert response.json()["error"]["code"] == "wechat_login_failed"
+    assert "dev-" not in response.text
+
+
 def test_dev_login_accepts_any_code_without_touching_wechat(monkeypatch, dev_login):
     def explode(*args, **kwargs):
         raise AssertionError("开发降级不得请求微信")

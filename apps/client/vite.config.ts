@@ -24,6 +24,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [uni()],
+    define: {
+      'import.meta.env.UNI_PLATFORM': JSON.stringify(process.env.UNI_PLATFORM || ''),
+    },
     server: {
       host: '0.0.0.0',
       port: 5173,

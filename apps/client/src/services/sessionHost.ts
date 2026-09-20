@@ -5,6 +5,7 @@
 import { API_BASE, tunnelHeaders } from './config'
 import { isSuccess } from './http'
 import { createLoginCode } from './loginCode'
+import { shouldUseWxLogin } from './mpWeixin'
 import { createSession, type LoginResult, type Session, type StoredSession } from './session'
 
 const SESSION_KEY = 'dongbao.session'
@@ -18,10 +19,18 @@ declare const wx: WeChatLoginApi | undefined
 
 /**
  * 只有真·微信小程序才走 `wx.login`。
- * H5 上偶发挂着不可用的 `wx` 桩，走 `wx.login` 会直接 fail，表现为「登录失败，请检查网络后重试」。
+ * 不能只读 `import.meta.env.UNI_PLATFORM`：Vite 常把它收成 `{}`，小程序会误走 H5 的 `dev-` code，
+ * 微信 jscode2session 回 40029。运行时以 `uni.getSystemInfoSync().uniPlatform` 为准。
  */
-const hasWeChatLogin = () =>
-  import.meta.env.UNI_PLATFORM === 'mp-weixin' && typeof wx !== 'undefined' && typeof wx.login === 'function'
+const uniPlatform = (): unknown => {
+  try {
+    return uni.getSystemInfoSync().uniPlatform
+  } catch {
+    return import.meta.env.UNI_PLATFORM
+  }
+}
+
+const hasWeChatLogin = () => shouldUseWxLogin(uniPlatform(), typeof wx !== 'undefined' ? wx.login : undefined)
 
 const wechatLogin = () =>
   new Promise<string>((resolve, reject) => {

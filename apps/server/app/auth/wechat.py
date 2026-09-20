@@ -32,6 +32,8 @@ def _dev_openid(code: str) -> str:
 async def code_to_openid(code: str) -> str:
     if dev_login_enabled():
         return _dev_openid(code)
+    if code.startswith("dev-"):
+        raise WeChatLoginError("收到开发 code（dev-…），但当前是真实微信模式：小程序应使用 wx.login，H5 需 DEV_LOGIN=1")
     appid = os.environ.get("WECHAT_APPID", "")
     secret = os.environ.get("WECHAT_SECRET", "")
     if not appid or not secret:
