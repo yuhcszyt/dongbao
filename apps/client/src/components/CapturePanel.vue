@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import RecordForm from '@/components/RecordForm.vue'
 import { api, ApiError, SessionError } from '@/services/api'
-import { RECORD_TYPES, type MediaAsset, type RecordDraft, type RecordInput, type RecordItem, type RecordType } from '@/features/record/domain'
+import { RECORD_TYPES, draftFormInitial, type MediaAsset, type RecordDraft, type RecordInput, type RecordItem, type RecordType } from '@/features/record/domain'
 
 const props = defineProps<{ babyId: string }>()
 const emit = defineEmits<{
@@ -138,8 +138,15 @@ async function startVoice() {
   // #endif
 }
 
+const MIN_VOICE_MS = 2000
+
 function stopVoice() {
   if (phase.value !== 'recording') return
+  if (Date.now() - startedAt < MIN_VOICE_MS) {
+    error.value = '请再说一会儿，说完再点结束'
+    return
+  }
+  error.value = ''
   cleanTimers()
   // #ifdef H5
   if (h5Recorder?.state === 'recording') h5Recorder.stop()
@@ -225,7 +232,7 @@ onBeforeUnmount(() => {
         >
           <text class="capture-icon">{{ phase === 'recording' ? '■' : '●' }}</text>
           <text class="capture-title">{{ phase === 'recording' ? '结束录音' : '语音记录' }}</text>
-          <text class="capture-note">{{ phase === 'recording' ? '最长 60 秒' : '点一下，直接说' }}</text>
+          <text class="capture-note">{{ phase === 'recording' ? '说完再点结束，至少 2 秒' : '点一下开始，说完再点结束' }}</text>
         </button>
         <button
           class="capture-btn photo"
@@ -260,12 +267,7 @@ onBeforeUnmount(() => {
         <view v-if="draft.missing_fields.length" class="hint">还有信息需要你补充，空着的内容不会自动猜测。</view>
       </view>
       <RecordForm
-        :initial="{
-          record_type: draft.record_type || 'custom',
-          occurred_at: draft.occurred_at || undefined,
-          payload: { kind: draft.record_type || 'custom', ...draft.payload },
-          note: draft.note,
-        }"
+        :initial="draftFormInitial(draft)"
         :submitting="submitting"
         submit-text="确认并保存"
         @submit="confirm"

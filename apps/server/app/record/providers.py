@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,6 +11,8 @@ from typing import Any
 import httpx
 
 from ..config import get_config
+
+logger = logging.getLogger(__name__)
 
 class ProviderUnavailable(Exception):
     pass
@@ -82,9 +85,20 @@ async def transcribe_audio(path: Path, mime_type: str) -> str:
         response = await client.post(cfg.endpoint, content=payload.encode(), headers=headers)
         response.raise_for_status()
         data = response.json().get("Response", {})
-    if data.get("Error") or not data.get("Result"):
+    return transcript_from_tencent_response(data)
+
+
+def transcript_from_tencent_response(data: dict[str, Any]) -> str:
+    """腾讯一句话识别 Response → 转写。空 Result 是没听清，不是配置故障。"""
+    error = data.get("Error")
+    if error:
+        logger.warning("腾讯 ASR 失败：%s", error)
         raise ProviderUnavailable("语音识别暂时失败，已保留录音并转为手动填写")
-    return str(data["Result"]).strip()
+    result = str(data.get("Result") or "").strip()
+    if not result:
+        logger.info("腾讯 ASR 空结果 duration_ms=%s", data.get("AudioDuration"))
+        raise ProviderUnavailable("没有听清说话，请靠近手机大声说完后再点结束")
+    return result
 
 def _json_content(text: str) -> dict[str, Any]:
     clean = text.strip()

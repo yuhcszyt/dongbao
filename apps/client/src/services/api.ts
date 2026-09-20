@@ -193,14 +193,19 @@ export const api = {
     return request<RecordDraft>(`/record-drafts/from-${kind}`, 'POST', {
       baby_id: babyId,
       media_id: mediaId,
-    })
+    }, 60_000)
   },
 
   confirmDraft(draftId: string, input: RecordInput) {
     return request<RecordItem>(`/record-drafts/${draftId}/confirm`, 'POST', { ...input })
   },
 
-  aiChat(babyId: string, message: string, conversationId?: string | null) {
+  aiChat(
+    babyId: string,
+    message: string,
+    conversationId?: string | null,
+    mediaId?: string | null,
+  ) {
     return request<import('@/features/content/aiTypes').AiChatResponse>(
       '/ai/chat',
       'POST',
@@ -208,6 +213,7 @@ export const api = {
         baby_id: babyId,
         message,
         ...(conversationId ? { conversation_id: conversationId } : {}),
+        ...(mediaId ? { media_id: mediaId } : {}),
       },
       60_000,
     )

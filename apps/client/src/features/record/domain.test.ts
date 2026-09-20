@@ -5,6 +5,7 @@ import {
   dayLabel,
   describeRecord,
   detectTimeZone,
+  draftFormInitial,
   greetingFor,
   normalizeSummary,
   pickerValue,
@@ -24,6 +25,50 @@ describe('记录领域契约', () => {
     expect(describeRecord({ record_type: 'diaper', payload: { kind: 'diaper', content: '更换尿布' } })).toBe('更换尿布')
     expect(describeRecord({ record_type: 'vaccine', payload: { kind: 'vaccine', name: '乙肝疫苗' } })).toBe('乙肝疫苗')
     expect(normalizeSummary({ feeding_ml: 180 })).toEqual({ feeding_ml: 180, sleep_minutes: 0, diaper_count: 0, complementary_food_count: 0 })
+  })
+
+  it('识别没出类型时给自定义标题，确认表单不会卡在空标题', () => {
+    const voice = draftFormInitial({
+      id: 'd1',
+      status: 'draft',
+      baby_id: 'b1',
+      record_type: null,
+      occurred_at: null,
+      payload: {},
+      source: 'voice',
+      transcript: null,
+      missing_fields: ['record_type'],
+      recognition_warnings: ['没有听清说话，请靠近手机大声说完后再点结束'],
+    })
+    expect(voice.record_type).toBe('custom')
+    expect(voice.payload).toMatchObject({ kind: 'custom', title: '语音记录' })
+    const photo = draftFormInitial({
+      id: 'd2',
+      status: 'draft',
+      baby_id: 'b1',
+      record_type: null,
+      occurred_at: null,
+      payload: {},
+      source: 'photo',
+      transcript: null,
+      missing_fields: ['record_type'],
+      recognition_warnings: ['图片里没有奶瓶'],
+    })
+    expect(photo.payload).toMatchObject({ kind: 'custom', title: '拍照记录', details: '图片里没有奶瓶' })
+    const feeding = draftFormInitial({
+      id: 'd3',
+      status: 'draft',
+      baby_id: 'b1',
+      record_type: 'feeding',
+      occurred_at: '2026-09-20T03:00:00Z',
+      payload: { kind: 'feeding', amount_ml: 120 },
+      source: 'voice',
+      transcript: '喝了120毫升',
+      missing_fields: [],
+      recognition_warnings: [],
+    })
+    expect(feeding.record_type).toBe('feeding')
+    expect(feeding.payload).toMatchObject({ kind: 'feeding', amount_ml: 120 })
   })
 })
 

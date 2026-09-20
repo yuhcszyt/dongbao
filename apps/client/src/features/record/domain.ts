@@ -68,6 +68,25 @@ export interface RecordInput {
   note: string | null
 }
 
+/** 识别没给出类型时，草稿仍要能确认保存：自定义标题兜底，避免表单卡在空标题。 */
+export const draftFormInitial = (draft: RecordDraft): Partial<RecordInput> => {
+  const recordType = draft.record_type || 'custom'
+  const payload: Payload = { kind: recordType, ...draft.payload }
+  if (recordType === 'custom' && !String(payload.title ?? '').trim()) {
+    payload.title = draft.source === 'photo' ? '拍照记录' : '语音记录'
+    if (!payload.details) {
+      const details = (draft.transcript || draft.recognition_warnings[0] || '').trim()
+      payload.details = details || null
+    }
+  }
+  return {
+    record_type: recordType,
+    occurred_at: draft.occurred_at || undefined,
+    payload,
+    note: draft.note,
+  }
+}
+
 export interface MediaAsset {
   id: string
   baby_id: string
