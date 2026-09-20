@@ -94,8 +94,8 @@ onShow(() => void recordStore.load())
       </view>
     </template>
 
-    <view v-if="logoutOpen" class="overlay" @click.self="logoutOpen = false">
-      <view class="sheet">
+    <view v-if="logoutOpen" class="overlay" @click="logoutOpen = false">
+      <view class="sheet" @click.stop>
         <view class="sheet-head"><text class="card-title">退出登录</text><button @click="logoutOpen = false">×</button></view>
         <text class="muted">退出后将结束当前账号在本机的登录状态。</text>
         <view class="warn">宝宝档案和云端数据不会因为退出登录而删除。</view>
@@ -104,8 +104,8 @@ onShow(() => void recordStore.load())
       </view>
     </view>
 
-    <view v-if="deleteStep === 1" class="overlay" @click.self="deleteStep = 0">
-      <view class="sheet">
+    <view v-if="deleteStep === 1" class="overlay" @click="deleteStep = 0">
+      <view class="sheet" @click.stop>
         <view class="sheet-head"><text class="card-title">注销账号</text><button @click="deleteStep = 0">×</button></view>
         <text class="muted">注销后将无法继续使用当前账号。</text>
         <view class="warn">会永久删除宝宝档案、全部记录、语音和照片，且不可恢复。</view>
@@ -114,8 +114,8 @@ onShow(() => void recordStore.load())
       </view>
     </view>
 
-    <view v-if="deleteStep === 2" class="overlay" @click.self="deleteStep = 0">
-      <view class="sheet">
+    <view v-if="deleteStep === 2" class="overlay" @click="deleteStep = 0">
+      <view class="sheet" @click.stop>
         <view class="sheet-head"><text class="card-title">最后确认</text><button @click="deleteStep = 0">×</button></view>
         <text class="muted">请输入「注销」确认你理解此操作会终止当前账号。</text>
         <input v-model="deleteWord" class="confirm-word" maxlength="2" placeholder="请输入：注销" />
@@ -126,8 +126,8 @@ onShow(() => void recordStore.load())
       </view>
     </view>
 
-    <view v-if="formOpen" class="overlay" @click.self="formOpen = false">
-      <view class="sheet">
+    <view v-if="formOpen" class="overlay" @click="formOpen = false">
+      <view class="sheet" @click.stop>
         <view class="sheet-head"><text class="card-title">编辑宝宝档案</text><button @click="formOpen = false">×</button></view>
         <ProfileForm
           :key="state.baby?.updated_at ?? state.baby?.id ?? 'new'"

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import RecordForm from '@/components/RecordForm.vue'
 import { api, ApiError, SessionError } from '@/services/api'
+import { bindRecorderOnce, runCapture, type CaptureMode } from '@/features/record/captureFlow'
 import { RECORD_TYPES, draftFormInitial, type MediaAsset, type RecordDraft, type RecordInput, type RecordItem, type RecordType } from '@/features/record/domain'
 
 const props = defineProps<{ babyId: string }>()
@@ -28,6 +29,8 @@ let h5Recorder: MediaRecorder | null = null
 let h5Stream: MediaStream | null = null
 let h5Chunks: Blob[] = []
 let mpRecorder: ReturnType<typeof uni.getRecorderManager> | null = null
+const recorderBound = { current: false }
+let aborted = false
 
 const statusText = computed(() => {
   if (phase.value === 'recording') return `正在录音 ${String(Math.floor(elapsed.value / 60)).padStart(2, '0')}:${String(elapsed.value % 60).padStart(2, '0')}`
@@ -77,6 +80,7 @@ function startTicker() {
 }
 
 async function startVoice() {
+  aborted = false
   error.value = ''
   // #ifdef H5
   try {
@@ -90,9 +94,10 @@ async function startVoice() {
       cleanTimers()
       h5Stream?.getTracks().forEach((track) => track.stop())
       h5Stream = null
-      const durationMs = Math.min(60_000, Date.now() - startedAt)
-      const blob = new Blob(h5Chunks, { type: h5Recorder?.mimeType || 'audio/webm' })
       h5Recorder = null
+      if (aborted) return
+      const durationMs = Math.min(60_000, Date.now() - startedAt)
+      const blob = new Blob(h5Chunks, { type: mimeType })
       void handleH5Recording(blob, durationMs)
     }
     h5Recorder.start()
@@ -110,22 +115,26 @@ async function startVoice() {
   try {
     const recorder = uni.getRecorderManager()
     mpRecorder = recorder
-    recorder.onStop((result) => {
-      cleanTimers()
-      phase.value = 'processing'
-      const durationMs = Math.min(60_000, Date.now() - startedAt)
-      previewPath.value = result.tempFilePath
-      void api.uploadPath(result.tempFilePath, props.babyId, 'audio', durationMs)
-        .then((media) => recognize(media, 'voice'))
-        .catch((reason) => {
-          error.value = friendlyError(reason)
-          phase.value = 'error'
-        })
-    })
-    recorder.onError(() => {
-      cleanTimers()
-      error.value = '无法使用麦克风，请检查微信录音权限，或改用手动记录'
-      phase.value = 'error'
+    bindRecorderOnce(recorder, recorderBound, {
+      onStop(result) {
+        if (aborted) return
+        cleanTimers()
+        phase.value = 'processing'
+        const durationMs = Math.min(60_000, Date.now() - startedAt)
+        previewPath.value = result.tempFilePath
+        void api.uploadPath(result.tempFilePath, props.babyId, 'audio', durationMs)
+          .then((media) => recognize(media, 'voice'))
+          .catch((reason) => {
+            error.value = friendlyError(reason)
+            phase.value = 'error'
+          })
+      },
+      onError() {
+        if (aborted) return
+        cleanTimers()
+        error.value = '无法使用麦克风，请检查微信录音权限，或改用手动记录'
+        phase.value = 'error'
+      },
     })
     // wav：开发者工具里的「mp3」经常不是真 MPEG，上传会被服务端 422；真机也支持 wav，且 ASR 可识别。
     recorder.start({ duration: 60_000, format: 'wav', sampleRate: 16_000, numberOfChannels: 1 })
@@ -137,6 +146,36 @@ async function startVoice() {
   }
   // #endif
 }
+
+function begin(mode: CaptureMode) {
+  if (phase.value === 'recording' || phase.value === 'processing' || phase.value === 'draft') return
+  aborted = false
+  runCapture(mode, { startVoice, choosePhoto })
+}
+
+function reset() {
+  aborted = true
+  cleanTimers()
+  // #ifdef H5
+  if (h5Recorder?.state === 'recording') h5Recorder.stop()
+  h5Stream?.getTracks().forEach((track) => track.stop())
+  h5Stream = null
+  h5Recorder = null
+  // #endif
+  // #ifndef H5
+  mpRecorder?.stop()
+  // #endif
+  phase.value = 'idle'
+  error.value = ''
+  draft.value = null
+  lastMedia.value = null
+  lastKind.value = null
+  previewPath.value = ''
+  submitting.value = false
+  elapsed.value = 0
+}
+
+defineExpose({ begin, reset })
 
 const MIN_VOICE_MS = 2000
 
@@ -157,6 +196,7 @@ function stopVoice() {
 }
 
 function choosePhoto() {
+  aborted = false
   error.value = ''
   uni.chooseImage({
     count: 1,
@@ -202,10 +242,7 @@ function retryRecognition() {
 }
 
 onBeforeUnmount(() => {
-  cleanTimers()
-  if (h5Recorder?.state === 'recording') h5Recorder.stop()
-  h5Stream?.getTracks().forEach((track) => track.stop())
-  mpRecorder?.stop()
+  reset()
 })
 </script>
 

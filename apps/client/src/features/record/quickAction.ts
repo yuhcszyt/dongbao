@@ -5,10 +5,13 @@
  * 意图取走即清空：否则每次回到记录页都会重复弹出上一次的面板。
  */
 import { ref } from 'vue'
+import type { CaptureMode } from './captureFlow'
 import type { Payload, RecordType } from './domain'
 
+export type { CaptureMode }
+
 export type QuickAction =
-  | { kind: 'capture' }
+  | { kind: 'capture'; mode?: CaptureMode }
   | { kind: 'manual'; record_type: RecordType; payload?: Partial<Payload> }
 
 const pending = ref<QuickAction | null>(null)

@@ -6,7 +6,9 @@
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import AccountGone from '@/components/AccountGone.vue'
+import CapturePanel from '@/components/CapturePanel.vue'
 import { ARTICLES } from '@/features/content/articles'
+import type { CaptureMode } from '@/features/record/captureFlow'
 import {
   ageText,
   babyDisplayName,
@@ -17,6 +19,7 @@ import {
   nowParts,
   recordTimeText,
   typeMeta,
+  type RecordType,
 } from '@/features/record/domain'
 import { requestQuickAction, type QuickAction } from '@/features/record/quickAction'
 import { recordStore } from '@/features/record/store'
@@ -34,6 +37,8 @@ const metrics = computed(() => summary.value ? [
   { label: '尿布', value: `${summary.value.diaper_count} 次` },
   { label: '辅食', value: `${summary.value.complementary_food_count} 次` },
 ] : [])
+const captureOpen = ref(false)
+const capturePanel = ref<{ begin: (mode: CaptureMode) => void; reset: () => void } | null>(null)
 
 const openProfile = () => uni.switchTab({ url: '/pages/profile/index' })
 const openAi = () => uni.switchTab({ url: '/pages/ai/index' })
@@ -44,6 +49,31 @@ const openArticle = (id: number) => uni.navigateTo({ url: `/pages/article/index?
 function openRecord(action?: QuickAction) {
   if (action) requestQuickAction(action)
   uni.switchTab({ url: '/pages/record/index' })
+}
+
+function closeCapture() {
+  capturePanel.value?.reset()
+  captureOpen.value = false
+}
+
+function openCapture(mode: CaptureMode) {
+  if (!state.baby) {
+    uni.showToast({ title: '请先完善宝宝档案', icon: 'none' })
+    return
+  }
+  captureOpen.value = true
+  capturePanel.value?.begin(mode)
+}
+
+function openManualFromCapture(type: RecordType) {
+  closeCapture()
+  openRecord({ kind: 'manual', record_type: type })
+}
+
+function onCaptureSaved() {
+  closeCapture()
+  void recordStore.load(today.value)
+  uni.showToast({ title: '记好了', icon: 'success' })
 }
 
 function openHomeQuick(item: (typeof HOME_QUICK_TYPES)[number]) {
@@ -114,12 +144,12 @@ onShow(() => {
           <button class="link" @click="openRecord()">更多 ＋</button>
         </view>
         <view class="capture-row">
-          <button class="voice" @click="openRecord({ kind: 'capture' })">
+          <button class="voice" @click="openCapture('voice')">
             <text class="cap-icon">♩</text>
             <text class="cap-title">语音记录</text>
             <text class="cap-note">点一下，直接说</text>
           </button>
-          <button class="photo" @click="openRecord({ kind: 'capture' })">
+          <button class="photo" @click="openCapture('photo')">
             <text class="cap-icon">▣</text>
             <text class="cap-title">拍照记录</text>
             <text class="cap-note">拍食物、奶瓶等</text>
@@ -165,6 +195,18 @@ onShow(() => {
         </view>
       </view>
     </template>
+
+    <view v-if="state.baby" class="overlay" v-show="captureOpen" @click="closeCapture">
+      <view class="sheet" @click.stop>
+        <CapturePanel
+          ref="capturePanel"
+          :baby-id="state.baby.id"
+          @close="closeCapture"
+          @manual="openManualFromCapture"
+          @saved="onCaptureSaved"
+        />
+      </view>
+    </view>
   </view>
 </template>
 
@@ -219,4 +261,6 @@ onShow(() => {
 .article-title { display: block; font-size: 17px; font-weight: 800; margin-bottom: 5px; }
 .error { margin: 12px 0; border-radius: 12px; background: #fff0ec; padding: 12px; color: #9a4c3e; }
 .error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: #fff; color: #9a4c3e; font-weight: 700; }
+.overlay { position: fixed; z-index: 200; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: rgba(25, 47, 52, .46); }
+.sheet { width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; background: #fbfaf7; padding: 21px 18px calc(22px + env(safe-area-inset-bottom)); }
 </style>

@@ -4,6 +4,7 @@ import { onShow } from '@dcloudio/uni-app'
 import AccountGone from '@/components/AccountGone.vue'
 import CapturePanel from '@/components/CapturePanel.vue'
 import RecordForm from '@/components/RecordForm.vue'
+import type { CaptureMode } from '@/features/record/captureFlow'
 import { buildDateStrip, dateTimeParts, dayLabel, describeRecord, nowParts, pickerValue, RECORD_FILTERS, recordsOnDay, type MediaAsset, type Payload, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
 import { takeQuickAction } from '@/features/record/quickAction'
 import { recordStore } from '@/features/record/store'
@@ -11,6 +12,7 @@ import { mediaUrl } from '@/services/api'
 
 const { state } = recordStore
 const panel = ref<'capture' | 'form' | null>(null)
+const capturePanel = ref<{ begin: (mode: CaptureMode) => void; reset: () => void } | null>(null)
 const editing = ref<RecordItem | null>(null)
 const selectedType = ref<RecordType>('feeding')
 const draftPayload = ref<Partial<Payload> | undefined>()
@@ -40,7 +42,24 @@ function selectDay(date: string) {
   void recordStore.loadSummary(date)
 }
 
+function closePanel() {
+  capturePanel.value?.reset()
+  panel.value = null
+  editing.value = null
+  draftPayload.value = undefined
+}
+
+function openCapture(mode?: CaptureMode) {
+  if (!state.baby) {
+    uni.showToast({ title: '请先完善宝宝档案', icon: 'none' })
+    return
+  }
+  panel.value = 'capture'
+  if (mode) capturePanel.value?.begin(mode)
+}
+
 function openManual(type: RecordType, payload?: Partial<Payload>) {
+  capturePanel.value?.reset()
   selectedType.value = type
   draftPayload.value = payload
   editing.value = null
@@ -57,9 +76,7 @@ function openEdit(record: RecordItem) {
 async function saveRecord(input: RecordInput) {
   const saved = await recordStore.saveRecord(input, editing.value)
   if (!saved) return
-  panel.value = null
-  editing.value = null
-  draftPayload.value = undefined
+  closePanel()
   uni.showToast({ title: '记好了', icon: 'success' })
 }
 
@@ -97,7 +114,7 @@ const mediaLabel = (record: RecordItem, index: number) => {
 }
 
 const captureSaved = () => {
-  panel.value = null
+  closePanel()
   void recordStore.load()
 }
 
@@ -109,7 +126,7 @@ onShow(() => {
   today.value = nowParts().date
   void recordStore.load(day.value)
   const action = takeQuickAction()
-  if (action?.kind === 'capture') panel.value = 'capture'
+  if (action?.kind === 'capture') openCapture(action.mode)
   else if (action) openManual(action.record_type, action.payload)
 })
 </script>
@@ -124,7 +141,7 @@ onShow(() => {
       <view v-if="state.error" class="error"><text>{{ state.error }}</text><button v-if="state.retryable" class="retry" @click="recordStore.retrySession(day)">重试</button></view>
       <view class="topbar">
         <text class="page-title">记录</text>
-        <button class="tag" @click="panel = 'capture'">＋ 添加</button>
+        <button class="tag" @click="openCapture()">＋ 添加</button>
       </view>
       <view class="intro-row">
         <text class="muted">用记录，留住每一个小变化</text>
@@ -134,12 +151,12 @@ onShow(() => {
       <view class="capture-entry">
         <text class="card-title">给宝宝记一笔</text>
         <text class="lead">说一句，或拍张照，就能开始记录</text>
-        <button class="voice" @click="panel = 'capture'">
+        <button class="voice" @click="openCapture('voice')">
           <text class="cap-icon">♩</text>
           <text class="cap-title">语音记录</text>
           <text class="cap-note">点一下，直接说</text>
         </button>
-        <button class="photo" @click="panel = 'capture'">
+        <button class="photo" @click="openCapture('photo')">
           <text class="cap-icon">▣</text>
           <text class="cap-title">拍照记录</text>
           <text class="cap-note">拍食物、奶瓶等</text>
@@ -179,11 +196,18 @@ onShow(() => {
 
     <view v-if="state.deleted" class="undo"><text>已删除“{{ typeMeta(state.deleted.record_type).label }}”</text><button @click="restore">撤销</button></view>
 
-    <view v-if="panel && state.baby" class="overlay" @click.self="panel = null">
-      <view class="sheet">
-        <CapturePanel v-if="panel === 'capture'" :baby-id="state.baby.id" @close="panel = null" @manual="openManual" @saved="captureSaved" />
-        <template v-else>
-          <view class="sheet-head"><text class="card-title">{{ editing ? '修改记录' : '手动记录' }}</text><button aria-label="关闭" @click="panel = null">×</button></view>
+    <view v-if="state.baby" class="overlay" v-show="panel" @click="closePanel">
+      <view class="sheet" @click.stop>
+        <CapturePanel
+          v-show="panel === 'capture'"
+          ref="capturePanel"
+          :baby-id="state.baby.id"
+          @close="closePanel"
+          @manual="openManual"
+          @saved="captureSaved"
+        />
+        <template v-if="panel === 'form'">
+          <view class="sheet-head"><text class="card-title">{{ editing ? '修改记录' : '手动记录' }}</text><button aria-label="关闭" @click="closePanel">×</button></view>
           <RecordForm :initial="formInitial" :lock-type="Boolean(editing)" :submitting="state.saving" :submit-text="editing ? '保存修改' : '保存记录'" @submit="saveRecord" />
           <view v-if="state.error" class="error"><text>{{ state.error }}</text><button v-if="state.retryable" class="retry" @click="recordStore.retrySession(day)">重试</button></view>
         </template>
@@ -235,7 +259,7 @@ onShow(() => {
 .source { color: #27788f; font-size: 12px; }
 .error { margin: 12px 0; border-radius: 12px; background: #fff0ec; padding: 12px; color: #9a4c3e; }
 .error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: #fff; color: #9a4c3e; font-weight: 700; }
-.overlay { position: fixed; z-index: 20; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: rgba(25, 47, 52, .46); }
+.overlay { position: fixed; z-index: 200; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: rgba(25, 47, 52, .46); }
 .sheet { width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; background: #fbfaf7; padding: 21px 18px calc(22px + env(safe-area-inset-bottom)); }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; }
 .sheet-head button { width: 48px; height: 48px; border-radius: 50%; background: #eef2f1; font-size: 27px; }
