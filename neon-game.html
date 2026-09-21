@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>NEON SURVIVOR · 霓虹生存</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#070b18;color:#e5f5ff;font-family:system-ui,sans-serif;overflow:hidden}canvas{display:block;touch-action:none;width:100vw;height:100dvh}header{position:fixed;inset:24px 28px auto;display:flex;justify-content:space-between;pointer-events:none;gap:16px}.brand{font-size:13px;letter-spacing:4px;color:#6ee7ef}.stats{display:flex;gap:25px;font-variant-numeric:tabular-nums}.stats small{display:block;color:#8193ad;font-size:10px;letter-spacing:2px;margin-bottom:5px}.stats b{font-size:23px}#health{color:#ff668c}#overlay{position:fixed;inset:0;display:grid;place-items:center;background:#050914a8;backdrop-filter:blur(9px)}.card{text-align:center;width:min(540px,90vw);padding:38px 25px;border:1px solid #57d9ed40;background:linear-gradient(150deg,#152238e8,#090f22ed);border-radius:28px;box-shadow:0 25px 100px #0008}.tag{color:#59eadc;letter-spacing:5px;font-size:11px}h1{font-size:clamp(38px,8vw,66px);line-height:1.1;margin:22px 0 15px;letter-spacing:-2px}h1 span{color:#62f2e7;text-shadow:0 0 35px #32e8dd60}p{color:#a0b4ca;line-height:1.9;font-size:14px}button{border:0;border-radius:12px;background:#65f2de;color:#07322f;font-size:16px;font-weight:800;padding:16px 35px;cursor:pointer;margin-top:15px;box-shadow:0 0 35px #65f2de25}button:hover{background:#afffee}button:focus-visible{outline:3px solid white;outline-offset:5px}footer{position:fixed;bottom:20px;left:0;right:0;text-align:center;color:#748aa5;font-size:12px;pointer-events:none}#notice{position:fixed;top:110px;left:0;right:0;text-align:center;color:#ffe29b;font-weight:800;pointer-events:none;letter-spacing:3px}#pulse{position:fixed;right:24px;bottom:50px;padding:14px 20px;font-size:13px} @media(max-width:550px){header{inset:20px 16px}.brand{font-size:10px;letter-spacing:2px;max-width:80px}.stats{gap:14px}.stats b{font-size:18px}footer{font-size:10px}}
+</style>
+<canvas id="game" aria-label="霓虹生存游戏，方向键或 WASD 移动，空格释放冲击波"></canvas>
+<header><div class="brand">NEON<br>SURVIVOR / 01</div><div class="stats"><div><small>得分</small><b id="score">0</b></div><div><small>生存</small><b id="time">0s</b></div><div><small>护盾</small><b id="health">♥ ♥ ♥</b></div></div></header>
+<div id="notice" role="status"></div><button id="pulse" hidden>冲击波 · SPACE</button>
+<footer>WASD / 方向键移动 · 自动瞄准射击 · 空格冲击波 · P 暂停 · 手机按住画面移动</footer>
+<div id="overlay"><section class="card"><div class="tag">ONE FILE. INFINITE SURVIVAL.</div><h1 id="title">霓虹<span>生存</span></h1><p id="description">你是最后一道光。<br>穿过追击你的暗潮，活得再久一点。<br>自动射击 · 每 10 次击杀升级 · 冲击波清场</p><button id="start">开始生存 →</button><p style="font-size:11px;margin-bottom:0">无需安装 · 无需联网 · 即开即玩</p></section></div>
+<script>
+'use strict';
+const canvas=document.querySelector('#game'),ctx=canvas.getContext('2d');
+const $=id=>document.getElementById(id),keys=new Set();
+let w=0,h=0,state='ready',player,enemies=[],bullets=[],particles=[],rings=[],elapsed=0,kills=0,level=1,fire=0,spawn=0,cooldown=0,invincible=0,last=0,noticeTime=0,pointer=null,best=0;
+try{best=Number(localStorage.getItem('neon-survivor-best'))||0}catch{}
+function resize(){w=innerWidth;h=innerHeight;const d=Math.min(devicePixelRatio||1,2);canvas.width=w*d;canvas.height=h*d;ctx.setTransform(d,0,0,d,0,0);if(player){player.x=Math.max(16,Math.min(w-16,player.x));player.y=Math.max(16,Math.min(h-16,player.y))}}
+addEventListener('resize',resize);resize();
+const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+function burst(x,y,color,count=15){for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,s=40+Math.random()*220;particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:.3+Math.random()*.5,color})}}
+function announce(text){$('notice').textContent=text;noticeTime=2.5}
+function start(){player={x:w/2,y:h/2,hp:3};enemies=[];bullets=[];particles=[];rings=[];elapsed=kills=fire=spawn=cooldown=invincible=0;level=1;keys.clear();pointer=null;state='playing';$('overlay').style.display='none';$('pulse').hidden=false;announce('保持移动，自动锁定目标');updateHud()}
+function updateHud(){$('score').textContent=kills*100;$('time').textContent=Math.floor(elapsed)+'s';$('health').textContent='♥ '.repeat(player.hp);$('pulse').textContent=cooldown>0?'冲击波 · '+Math.ceil(cooldown)+'s':'冲击波 · SPACE'}
+function end(){state='over';best=Math.max(best,kills*100);try{localStorage.setItem('neon-survivor-best',String(best))}catch{}$('title').innerHTML='光芒<span>未熄</span>';$('description').textContent=`生存 ${Math.floor(elapsed)} 秒 · 得分 ${kills*100} · 等级 ${level}。最高纪录 ${best}，再突破一次？`;$('start').textContent='再来一局 →';$('overlay').style.display='grid';$('pulse').hidden=true}
+function kill(enemy){if(enemy.dead)return;enemy.dead=true;kills++;burst(enemy.x,enemy.y,enemy.color);if(kills%10===0){level++;player.hp=Math.min(3,player.hp+1);announce('LEVEL '+level+' · 火力升级 / 护盾修复');rings.push({x:player.x,y:player.y,r:10,life:1,color:'#ffe39c'})}}
+function pulse(){if(state!=='playing'||cooldown>0)return;cooldown=8;rings.push({x:player.x,y:player.y,r:10,life:1,color:'#70fff0'});for(const e of enemies)if(distance(e,player)<260)kill(e);burst(player.x,player.y,'#bafff4',40)}
+function pause(){if(state==='playing'){state='paused';announce('已暂停 · 按 P 或点击继续');$('start').textContent='继续生存 →';$('title').innerHTML='稍作<span>喘息</span>';$('description').textContent='准备好后，继续守住你的光。';$('overlay').style.display='grid'}else if(state==='paused'){state='playing';$('overlay').style.display='none';keys.clear()}}
+$('start').onclick=()=>state==='paused'?pause():start();$('pulse').onclick=pulse;
+addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();keys.add(e.key.toLowerCase());if(!e.repeat&&e.code==='Space')pulse();if(!e.repeat&&e.key.toLowerCase()==='p')pause()});
+addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
+addEventListener('blur',()=>{keys.clear();pointer=null;if(state==='playing')pause()});
+canvas.addEventListener('pointerdown',e=>{pointer={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId)});
+canvas.addEventListener('pointermove',e=>{if(pointer)pointer={x:e.clientX,y:e.clientY}});
+canvas.addEventListener('pointerup',()=>pointer=null);canvas.addEventListener('pointercancel',()=>pointer=null);
+function update(dt){
+ elapsed+=dt;fire-=dt;spawn-=dt;cooldown=Math.max(0,cooldown-dt);invincible=Math.max(0,invincible-dt);noticeTime-=dt;if(noticeTime<=0)$('notice').textContent='';
+ let dx=Number(keys.has('d')||keys.has('arrowright'))-Number(keys.has('a')||keys.has('arrowleft')),dy=Number(keys.has('s')||keys.has('arrowdown'))-Number(keys.has('w')||keys.has('arrowup'));
+ if(pointer){dx=pointer.x-player.x;dy=pointer.y-player.y}const length=Math.hypot(dx,dy);if(length>0){const step=pointer?Math.min(260*dt,length):260*dt;player.x+=dx/length*step;player.y+=dy/length*step}
+ player.x=Math.max(16,Math.min(w-16,player.x));player.y=Math.max(16,Math.min(h-16,player.y));
+ if(spawn<=0){spawn=Math.max(.15,.9-elapsed*.009);const side=Math.floor(Math.random()*4),heavy=Math.random()<.2;enemies.push({x:side===0?-25:side===1?w+25:Math.random()*w,y:side===2?-25:side===3?h+25:Math.random()*h,r:heavy?18:11,hp:heavy?3:1,speed:(heavy?45:75)+Math.min(elapsed,160)*.7,color:heavy?'#c084fc':'#ff5b88',dead:false})}
+ if(fire<=0&&enemies.some(e=>!e.dead)){const target=enemies.filter(e=>!e.dead).reduce((a,b)=>distance(a,player)<distance(b,player)?a:b);const a=Math.atan2(target.y-player.y,target.x-player.x),shots=Math.min(5,1+Math.floor((level-1)/2));for(let i=0;i<shots;i++){const angle=a+(i-(shots-1)/2)*.16;bullets.push({x:player.x,y:player.y,vx:Math.cos(angle)*620,vy:Math.sin(angle)*620,life:1.6})}fire=Math.max(.1,.38-level*.025)}
+ for(const b of bullets){b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;for(const e of enemies){if(!e.dead&&distance(b,e)<e.r+4){b.life=0;e.hp--;if(e.hp<=0)kill(e);break}}}bullets=bullets.filter(b=>b.life>0);
+ for(const e of enemies){if(e.dead)continue;const a=Math.atan2(player.y-e.y,player.x-e.x);e.x+=Math.cos(a)*e.speed*dt;e.y+=Math.sin(a)*e.speed*dt;if(distance(e,player)<e.r+12&&invincible<=0){player.hp--;invincible=1.5;burst(player.x,player.y,'#ffffff',25);e.dead=true;if(player.hp<=0){updateHud();end();return}}}enemies=enemies.filter(e=>!e.dead);updateHud();
+}
+function circle(x,y,r,color){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=color;ctx.fill()}
+function draw(dt,t){
+ ctx.fillStyle='#070b18';ctx.fillRect(0,0,w,h);ctx.lineWidth=1;ctx.strokeStyle='#15243b';const offset=(t*.012)%48;ctx.beginPath();for(let x=0;x<w;x+=48){ctx.moveTo(x,0);ctx.lineTo(x,h)}for(let y=offset;y<h;y+=48){ctx.moveTo(0,y);ctx.lineTo(w,y)}ctx.stroke();
+ const glow=ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,Math.max(w,h)*.65);glow.addColorStop(0,'#103a4728');glow.addColorStop(1,'#070b1800');ctx.fillStyle=glow;ctx.fillRect(0,0,w,h);
+ ctx.shadowBlur=16;for(const b of bullets){ctx.shadowColor='#76fff1';circle(b.x,b.y,3,'#b4fff3')}
+ for(const e of enemies){if(e.dead)continue;ctx.save();ctx.translate(e.x,e.y);ctx.rotate(t*.001);ctx.shadowColor=e.color;ctx.strokeStyle=e.color;ctx.fillStyle=e.color+'28';ctx.lineWidth=2;ctx.beginPath();for(let i=0;i<6;i++){const a=i*Math.PI/3;ctx.lineTo(Math.cos(a)*e.r,Math.sin(a)*e.r)}ctx.closePath();ctx.fill();ctx.stroke();ctx.restore()}
+ if(player){ctx.save();ctx.translate(player.x,player.y);ctx.globalAlpha=invincible>0?.45+Math.sin(t*.025)*.3:1;ctx.shadowColor='#65f2de';circle(0,0,12,'#65f2de');circle(0,0,5,'#ecfffc');ctx.strokeStyle='#65f2de50';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,20,0,Math.PI*2);ctx.stroke();ctx.restore()}
+ ctx.shadowBlur=0;for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;ctx.globalAlpha=Math.max(0,p.life);circle(p.x,p.y,2.5,p.color)}particles=particles.filter(p=>p.life>0);ctx.globalAlpha=1;
+ for(const r of rings){r.r+=400*dt;r.life-=dt;ctx.globalAlpha=Math.max(0,r.life);ctx.strokeStyle=r.color;ctx.lineWidth=3;ctx.beginPath();ctx.arc(r.x,r.y,r.r,0,Math.PI*2);ctx.stroke()}rings=rings.filter(r=>r.life>0);ctx.globalAlpha=1;
+}
+function frame(t){const dt=Math.min((t-last)/1000,.04);last=t;if(state==='playing')update(dt);draw(state==='paused'?0:dt,t);requestAnimationFrame(frame)}requestAnimationFrame(frame);
+</script>
+</html>
