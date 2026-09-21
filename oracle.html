@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>神谕 · 五子棋</title>
+<style>
+:root {
+  --ink: #f4ead8;
+  --muted: #9a8b72;
+  --line: #3a3228;
+  --gold: #e4c36a;
+  --board: #c9a36a;
+  --panel: #14110e;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: "Songti SC", "Noto Serif SC", "Iowan Old Style", serif;
+  background:
+    radial-gradient(1200px 700px at 20% -10%, #2a2114 0%, transparent 55%),
+    radial-gradient(900px 500px at 110% 80%, #1a140c 0%, transparent 50%),
+    #0b0907;
+  overflow: hidden;
+}
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) 1fr minmax(240px, 320px);
+  gap: 20px;
+  padding: 22px 24px 18px;
+}
+.side { display: flex; flex-direction: column; min-width: 0; }
+.brand {
+  letter-spacing: .42em;
+  font-size: 11px;
+  color: var(--gold);
+  margin-bottom: 10px;
+}
+h1 {
+  font-size: clamp(36px, 4vw, 54px);
+  font-weight: 700;
+  margin: 0 0 8px;
+  letter-spacing: .08em;
+}
+.lead {
+  color: var(--muted);
+  line-height: 1.75;
+  font-size: 14px;
+  margin: 0 0 22px;
+}
+.panel {
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 1px solid #2a241c;
+  border-radius: 18px;
+  padding: 16px;
+  backdrop-filter: blur(12px);
+}
+.kicker {
+  font-size: 11px;
+  letter-spacing: .28em;
+  color: var(--gold);
+  margin-bottom: 8px;
+}
+#thought {
+  min-height: 72px;
+  font-size: 18px;
+  line-height: 1.55;
+  margin: 0;
+}
+.meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.meta b { display: block; font-size: 22px; margin-top: 4px; }
+.meta span { color: var(--muted); font-size: 12px; letter-spacing: .12em; }
+.diffs { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0 12px; }
+.diffs button, .actions button, .ghost {
+  font: inherit;
+  cursor: pointer;
+  color: var(--ink);
+  background: #1c1813;
+  border: 1px solid #3b3228;
+  border-radius: 999px;
+  padding: 8px 14px;
+}
+.diffs button.active, .primary {
+  background: var(--gold);
+  color: #1a140a;
+  border-color: var(--gold);
+  font-weight: 700;
+}
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+.board-wrap {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+}
+canvas {
+  width: min(72vh, 100%);
+  height: auto;
+  max-width: 760px;
+  border-radius: 18px;
+  box-shadow: 0 30px 80px #0008, inset 0 0 0 1px #0003;
+  touch-action: none;
+  background: var(--board);
+}
+.log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: auto;
+  max-height: 42vh;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.9;
+  color: #cbb798;
+}
+.log li + li { border-top: 1px solid #2a241c; padding-top: 6px; margin-top: 6px; }
+.log em { color: var(--gold); font-style: normal; }
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #080705d0;
+  backdrop-filter: blur(10px);
+}
+.card {
+  width: min(520px, 90vw);
+  text-align: center;
+  padding: 36px 28px;
+  border-radius: 24px;
+  border: 1px solid #3b3228;
+  background: linear-gradient(180deg, #1b1611, #100e0b);
+}
+.card p { color: var(--muted); line-height: 1.8; }
+.hidden { display: none !important; }
+@media (max-width: 980px) {
+  body { overflow: auto; }
+  .app {
+    grid-template-columns: 1fr;
+    height: auto;
+    padding: 16px;
+  }
+  canvas { width: min(92vw, 92vh); }
+  .log { max-height: 180px; }
+  .actions { margin-top: 16px; }
+}
+</style>
+</head>
+<body>
+<main class="app">
+  <aside class="side">
+    <div class="brand">ORACLE / 15×15</div>
+    <h1>神谕</h1>
+    <p class="lead">不是随机下棋。它先找杀棋，再堵你的四，再用搜索把双活三算清楚。打开这一页，就是一场现场推演。</p>
+    <div class="diffs" role="group" aria-label="难度">
+      <button data-level="0">人间</button>
+      <button data-level="1" class="active">棋士</button>
+      <button data-level="2">神谕</button>
+    </div>
+    <div class="panel">
+      <div class="kicker">AI 正在想</div>
+      <p id="thought">执白后手。点天元附近，开始对局。</p>
+      <div class="meta">
+        <div><span>已看局面</span><b id="nodes">0</b></div>
+        <div><span>推演深度</span><b id="depth">—</b></div>
+        <div><span>你的战绩</span><b id="record">0-0</b></div>
+        <div><span>用时</span><b id="ms">0ms</b></div>
+      </div>
+    </div>
+  </aside>
+  <div class="board-wrap">
+    <canvas id="board" width="760" height="760" aria-label="十五路五子棋棋盘"></canvas>
+  </div>
+  <aside class="side">
+    <div class="panel" style="flex:1;display:flex;flex-direction:column">
+      <div class="kicker">推演记录</div>
+      <ol class="log" id="log"></ol>
+      <div class="actions">
+        <button class="primary" id="hint">让神谕提示</button>
+        <button id="undo">悔棋</button>
+        <button id="watch">观战自弈</button>
+        <button id="reset">重开</button>
+      </div>
+    </div>
+  </aside>
+</main>
+<div id="overlay">
+  <section class="card">
+    <div class="kicker">ONE FILE · LIVE SEARCH</div>
+    <h1 style="margin-top:12px">神谕五子</h1>
+    <p>你执黑先手。神谕执白，会把搜索过的热力画在棋盘上。<br>人间只会堵杀；棋士能算 3 步；神谕会把双威胁搜到 5 步。</p>
+    <button class="primary" id="start" style="margin-top:8px;padding:12px 28px">开始对局</button>
+    <p style="font-size:12px">无需联网 · 规则：五连即胜，无禁手</p>
+  </section>
+</div>
+<script>
+'use strict';
+const N = 15, EMPTY = 0, BLACK = 1, WHITE = 2;
+const DIRS = [[1, 0], [0, 1], [1, 1], [1, -1]];
+const LEVELS = [
+  { name: '人间', depth: 1, budget: 40, noise: 3 },
+  { name: '棋士', depth: 3, budget: 220, noise: 0 },
+  { name: '神谕', depth: 5, budget: 720, noise: 0 },
+];
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const thoughtEl = document.getElementById('thought');
+const logEl = document.getElementById('log');
+const overlay = document.getElementById('overlay');
+
+let board = new Int8Array(N * N);
+let heat = new Float32Array(N * N);
+let history = [];
+let turn = BLACK;
+let level = 1;
+let busy = false;
+let over = false;
+let hover = null;
+let watch = false;
+let nodes = 0;
+let lastPv = [];
+let stats = { w: 0, l: 0 };
+try {
+  const saved = JSON.parse(localStorage.getItem('oracle-gomoku') || '{}');
+  if (Number.isFinite(saved.w)) stats = { w: saved.w | 0, l: saved.l | 0 };
+} catch {}
+
+const idx = (x, y) => y * N + x;
+const at = (x, y) => board[idx(x, y)];
+const inside = (x, y) => x >= 0 && y >= 0 && x < N && y < N;
+const enemy = (c) => 3 - c;
+const coord = (x, y) => 'ABCDEFGHIJKLMNO'[x] + (y + 1);
+function setThought(text) { thoughtEl.textContent = text; }
+function setHud() {
+  document.getElementById('nodes').textContent = nodes.toLocaleString('zh-CN');
+  document.getElementById('record').textContent = stats.w + '-' + stats.l;
+}
+
+function lineLen(x, y, dx, dy, color) {
+  let n = 1, open = 0;
+  let i = 1;
+  while (inside(x + dx * i, y + dy * i) && at(x + dx * i, y + dy * i) === color) { n++; i++; }
+  if (inside(x + dx * i, y + dy * i) && at(x + dx * i, y + dy * i) === EMPTY) open++;
+  i = 1;
+  while (inside(x - dx * i, y - dy * i) && at(x - dx * i, y - dy * i) === color) { n++; i++; }
+  if (inside(x - dx * i, y - dy * i) && at(x - dx * i, y - dy * i) === EMPTY) open++;
+  return { n, open };
+}
+
+function isWinAt(x, y) {
+  const color = at(x, y);
+  if (!color) return false;
+  return DIRS.some(([dx, dy]) => lineLen(x, y, dx, dy, color).n >= 5);
+}
+
+function threatsAt(x, y, color) {
+  let liveFour = 0, four = 0, liveThree = 0;
+  for (const [dx, dy] of DIRS) {
+    const { n, open } = lineLen(x, y, dx, dy, color);
+    if (n >= 5) return { win: 1, liveFour: 0, four: 0, liveThree: 0 };
+    if (n === 4 && open === 2) liveFour++;
+    else if (n === 4 && open === 1) four++;
+    else if (n === 3 && open === 2) liveThree++;
+  }
+  return { win: 0, liveFour, four, liveThree };
+}
+
+function evalWindows(color) {
+  let score = 0;
+  const table = [0, 2, 18, 180, 4200, 5e6];
+  for (const [dx, dy] of DIRS) {
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const ex = x + dx * 4, ey = y + dy * 4;
+        if (!inside(ex, ey)) continue;
+        let mine = 0, opp = 0;
+        for (let k = 0; k < 5; k++) {
+          const v = at(x + dx * k, y + dy * k);
+          if (v === color) mine++;
+          else if (v) opp++;
+        }
+        if (!opp) score += table[mine];
+      }
+    }
+  }
+  return score;
+}
+
+function evaluate(color) {
+  return evalWindows(color) - evalWindows(enemy(color)) * 1.15;
+}
+
+function nearbyMoves() {
+  const seen = new Uint8Array(N * N);
+  const moves = [];
+  let stones = 0;
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      if (!at(x, y)) continue;
+      stones++;
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (!inside(nx, ny) || at(nx, ny) || seen[idx(nx, ny)]) continue;
+          seen[idx(nx, ny)] = 1;
+          moves.push([nx, ny]);
+        }
+      }
+    }
+  }
+  if (!stones) return [[7, 7]];
+  return moves;
+}
+
+function moveHeuristic(x, y, color) {
+  board[idx(x, y)] = color;
+  const mine = threatsAt(x, y, color);
+  const opp = threatsAt(x, y, enemy(color));
+  const center = 14 - Math.abs(x - 7) - Math.abs(y - 7);
+  let s = evaluate(color) + center * 3;
+  if (mine.win) s += 8e6;
+  s += mine.liveFour * 3e5 + mine.four * 8e4 + mine.liveThree * 2e4;
+  s += opp.liveFour * 1.2e5 + opp.four * 3e4 + opp.liveThree * 8e3;
+  board[idx(x, y)] = EMPTY;
+  return s;
+}
+
+function orderedMoves(color) {
+  return nearbyMoves()
+    .map(([x, y]) => [x, y, moveHeuristic(x, y, color)])
+    .sort((a, b) => b[2] - a[2]);
+}
+
+function tacticalMove(color) {
+  const moves = nearbyMoves();
+  for (const [x, y] of moves) {
+    board[idx(x, y)] = color;
+    const win = isWinAt(x, y);
+    board[idx(x, y)] = EMPTY;
+    if (win) return { x, y, why: '发现五连，直接取胜。', heat: 1 };
+  }
+  const opp = enemy(color);
+  for (const [x, y] of moves) {
+    board[idx(x, y)] = opp;
+    const win = isWinAt(x, y);
+    board[idx(x, y)] = EMPTY;
+    if (win) return { x, y, why: '你下一手就能五连，必须先堵。', heat: 1 };
+  }
+  for (const [x, y] of moves) {
+    board[idx(x, y)] = color;
+    const t = threatsAt(x, y, color);
+    board[idx(x, y)] = EMPTY;
+    if (t.liveFour) return { x, y, why: '走出活四，下一手不可阻挡。', heat: .96 };
+  }
+  for (const [x, y] of moves) {
+    board[idx(x, y)] = opp;
+    const t = threatsAt(x, y, opp);
+    board[idx(x, y)] = EMPTY;
+    if (t.liveFour) return { x, y, why: '切断你的活四。', heat: .94 };
+  }
+  for (const [x, y] of moves) {
+    board[idx(x, y)] = color;
+    const t = threatsAt(x, y, color);
+    board[idx(x, y)] = EMPTY;
+    if (t.four + t.liveThree >= 2 || (t.four && t.liveThree) || t.liveThree >= 2) {
+      return { x, y, why: '双威胁：两处活三/冲四，你只能堵一处。', heat: .9 };
+    }
+  }
+  for (const [x, y] of moves) {
+    board[idx(x, y)] = opp;
+    const t = threatsAt(x, y, opp);
+    board[idx(x, y)] = EMPTY;
+    if (t.four + t.liveThree >= 2 || t.liveThree >= 2) {
+      return { x, y, why: '拆掉你的双活三。', heat: .88 };
+    }
+  }
+  return null;
+}
+
+function negamax(color, depth, alpha, beta, deadline, pv) {
+  nodes++;
+  if (performance.now() > deadline) return { timeout: true, score: 0 };
+  if (depth === 0) return { score: evaluate(color) };
+  const moves = orderedMoves(color).slice(0, depth >= 4 ? 12 : 18);
+  if (!moves.length) return { score: 0 };
+  let best = { score: -1e12, x: moves[0][0], y: moves[0][1] };
+  for (const [x, y] of moves) {
+    board[idx(x, y)] = color;
+    if (isWinAt(x, y)) {
+      board[idx(x, y)] = EMPTY;
+      pv.length = 0;
+      pv.push([x, y]);
+      return { score: 1e7 + depth, x, y };
+    }
+    const childPv = [];
+    const child = negamax(enemy(color), depth - 1, -beta, -alpha, deadline, childPv);
+    board[idx(x, y)] = EMPTY;
+    if (child.timeout) return child;
+    const score = -child.score;
+    if (score > best.score) {
+      best = { score, x, y };
+      pv.length = 0;
+      pv.push([x, y], ...childPv);
+    }
+    if (score > alpha) alpha = score;
+    if (alpha >= beta) break;
+  }
+  return best;
+}
+
+function chooseMove(color) {
+  nodes = 0;
+  heat.fill(0);
+  const start = performance.now();
+  const cfg = LEVELS[level];
+  const forced = tacticalMove(color);
+  const ranked = orderedMoves(color);
+  ranked.slice(0, 16).forEach(([x, y, s], i) => {
+    heat[idx(x, y)] = Math.max(0.15, 1 - i / 16) * Math.min(1, s / (ranked[0][2] || 1));
+  });
+  if (forced) {
+    heat[idx(forced.x, forced.y)] = 1;
+    lastPv = [[forced.x, forced.y]];
+    return { ...forced, nodes, ms: performance.now() - start, depth: 0 };
+  }
+  let best = { x: ranked[0][0], y: ranked[0][1], score: ranked[0][2] };
+  lastPv = [[best.x, best.y]];
+  const deadline = start + cfg.budget;
+  for (let d = 1; d <= cfg.depth; d++) {
+    const pv = [];
+    const result = negamax(color, d, -1e12, 1e12, deadline, pv);
+    if (result.timeout) break;
+    best = result;
+    lastPv = pv.length ? pv : [[best.x, best.y]];
+    document.getElementById('depth').textContent = d + ' 步';
+  }
+  if (cfg.noise && ranked.length > 1) {
+    const pick = ranked[Math.floor(Math.random() * Math.min(cfg.noise, ranked.length))];
+    best = { x: pick[0], y: pick[1], score: pick[2] };
+  }
+  return {
+    x: best.x,
+    y: best.y,
+    why: lastPv.length > 1
+      ? '主变：' + lastPv.slice(0, 4).map(([x, y]) => coord(x, y)).join(' → ')
+      : '按局面评估落下。',
+    nodes,
+    ms: performance.now() - start,
+    depth: cfg.depth,
+  };
+}
+
+function place(x, y, color, note) {
+  board[idx(x, y)] = color;
+  history.push({ x, y, color });
+  const item = document.createElement('li');
+  item.innerHTML = `<em>${color === BLACK ? '黑' : '白'}</em> ${coord(x, y)}${note ? ' · ' + note : ''}`;
+  logEl.prepend(item);
+  draw();
+  if (isWinAt(x, y)) {
+    over = true;
+    const spectating = watch;
+    watch = false;
+    if (!spectating) {
+      if (color === BLACK) stats.w++;
+      else stats.l++;
+      try { localStorage.setItem('oracle-gomoku', JSON.stringify(stats)); } catch {}
+    }
+    setHud();
+    overlay.classList.remove('hidden');
+    overlay.querySelector('h1').textContent = spectating
+      ? (color === BLACK ? '黑胜' : '白胜')
+      : (color === BLACK ? '五连成立' : '神谕取胜');
+    overlay.querySelector('p').textContent = spectating
+      ? '两台神谕下完了。点再下一局，换你来执黑。'
+      : color === BLACK
+        ? '你做成了五连。神谕没能在这一步前把杀棋算死。'
+        : '白棋连成五子。再开一局，换神谕难度试试。';
+    overlay.querySelector('#start').textContent = '再下一局';
+    setThought(spectating ? '自弈结束。' : color === BLACK ? '你赢了。' : '我赢了。');
+    return true;
+  }
+  if (history.length === N * N) {
+    over = true;
+    overlay.classList.remove('hidden');
+    overlay.querySelector('h1').textContent = '和棋';
+    overlay.querySelector('p').textContent = '棋盘已满。';
+    overlay.querySelector('#start').textContent = '再下一局';
+    return true;
+  }
+  return false;
+}
+
+function resetGame() {
+  board.fill(0);
+  heat.fill(0);
+  history = [];
+  turn = BLACK;
+  over = false;
+  busy = false;
+  watch = false;
+  hover = null;
+  lastPv = [];
+  nodes = 0;
+  logEl.innerHTML = '';
+  document.getElementById('depth').textContent = '—';
+  document.getElementById('ms').textContent = '0ms';
+  setThought('执白后手。点天元附近，开始对局。');
+  setHud();
+  draw();
+}
+
+async function aiTurn() {
+  if (over || busy) return;
+  busy = true;
+  setThought(level === 2 ? '神谕正在把双威胁展开到 5 步…' : '棋士在局部搜索杀棋与防线…');
+  await new Promise((r) => requestAnimationFrame(r));
+  const move = chooseMove(turn);
+  document.getElementById('ms').textContent = Math.round(move.ms) + 'ms';
+  document.getElementById('nodes').textContent = move.nodes.toLocaleString('zh-CN');
+  setThought(move.why + ' 看了 ' + move.nodes.toLocaleString('zh-CN') + ' 个局面。');
+  const ended = place(move.x, move.y, turn, move.why);
+  turn = enemy(turn);
+  busy = false;
+  if (!ended && watch) setTimeout(aiTurn, 320);
+}
+
+function cellFromEvent(e) {
+  const rect = canvas.getBoundingClientRect();
+  const p = canvas.width / N;
+  const x = Math.floor(((e.clientX - rect.left) / rect.width) * N);
+  const y = Math.floor(((e.clientY - rect.top) / rect.height) * N);
+  return inside(x, y) ? [x, y] : null;
+}
+
+function humanPlay(x, y) {
+  if (over || busy || watch || turn !== BLACK || at(x, y)) return;
+  const ended = place(x, y, BLACK);
+  turn = WHITE;
+  if (!ended) aiTurn();
+}
+
+function undo() {
+  if (busy || over || history.length < 2) return;
+  for (let i = 0; i < 2; i++) {
+    const last = history.pop();
+    if (last) board[idx(last.x, last.y)] = EMPTY;
+    if (logEl.firstChild) logEl.removeChild(logEl.firstChild);
+  }
+  turn = BLACK;
+  heat.fill(0);
+  setThought('已收回双方各一手。');
+  draw();
+}
+
+function draw() {
+  const s = canvas.width, p = s / N, m = p / 2;
+  ctx.clearRect(0, 0, s, s);
+  const wood = ctx.createLinearGradient(0, 0, s, s);
+  wood.addColorStop(0, '#d7b07a');
+  wood.addColorStop(.5, '#c49a62');
+  wood.addColorStop(1, '#b58952');
+  ctx.fillStyle = wood;
+  ctx.fillRect(0, 0, s, s);
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const h = heat[idx(x, y)];
+      if (h <= 0) continue;
+      ctx.fillStyle = `rgba(180, 40, 28, ${0.12 + h * 0.38})`;
+      ctx.fillRect(x * p, y * p, p, p);
+    }
+  }
+  ctx.strokeStyle = '#5a3f22';
+  ctx.lineWidth = 1.2;
+  for (let i = 0; i < N; i++) {
+    ctx.beginPath();
+    ctx.moveTo(m, m + i * p);
+    ctx.lineTo(s - m, m + i * p);
+    ctx.moveTo(m + i * p, m);
+    ctx.lineTo(m + i * p, s - m);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#3b2714';
+  ;[[7, 7], [3, 3], [3, 11], [11, 3], [11, 11]].forEach(([x, y]) => {
+    ctx.beginPath();
+    ctx.arc(m + x * p, m + y * p, 4, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  if (hover && !at(hover[0], hover[1]) && turn === BLACK && !busy && !over) {
+    ctx.beginPath();
+    ctx.fillStyle = 'rgba(20,20,20,.28)';
+    ctx.arc(m + hover[0] * p, m + hover[1] * p, p * .36, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const c = at(x, y);
+      if (!c) continue;
+      const cx = m + x * p, cy = m + y * p, r = p * .38;
+      const g = ctx.createRadialGradient(cx - r * .3, cy - r * .3, r * .1, cx, cy, r);
+      if (c === BLACK) {
+        g.addColorStop(0, '#5a5a5a');
+        g.addColorStop(1, '#0b0b0b');
+      } else {
+        g.addColorStop(0, '#fffaf0');
+        g.addColorStop(1, '#cfc4aa');
+      }
+      ctx.beginPath();
+      ctx.fillStyle = g;
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  const last = history[history.length - 1];
+  if (last) {
+    ctx.fillStyle = '#c13b2a';
+    ctx.beginPath();
+    ctx.arc(m + last.x * p, m + last.y * p, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+canvas.addEventListener('pointermove', (e) => {
+  hover = cellFromEvent(e);
+  draw();
+});
+canvas.addEventListener('pointerleave', () => { hover = null; draw(); });
+canvas.addEventListener('pointerdown', (e) => {
+  const cell = cellFromEvent(e);
+  if (cell) humanPlay(cell[0], cell[1]);
+});
+document.querySelectorAll('.diffs button').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diffs button').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    level = Number(btn.dataset.level);
+    setThought('难度换成' + LEVELS[level].name + '。');
+  });
+});
+document.getElementById('start').addEventListener('click', () => {
+  overlay.classList.add('hidden');
+  resetGame();
+});
+document.getElementById('reset').addEventListener('click', () => {
+  overlay.classList.add('hidden');
+  resetGame();
+});
+document.getElementById('undo').addEventListener('click', undo);
+document.getElementById('hint').addEventListener('click', () => {
+  if (over || busy || turn !== BLACK) return;
+  const move = chooseMove(BLACK);
+  heat[idx(move.x, move.y)] = 1;
+  setThought('提示落在 ' + coord(move.x, move.y) + '。' + move.why);
+  document.getElementById('ms').textContent = Math.round(move.ms) + 'ms';
+  setHud();
+  draw();
+});
+document.getElementById('watch').addEventListener('click', () => {
+  if (over) resetGame();
+  watch = true;
+  overlay.classList.add('hidden');
+  setThought('观战：让两台神谕自己下。');
+  if (!busy) aiTurn();
+});
+setHud();
+draw();
+globalThis.__ORACLE__ = {
+  BLACK, WHITE, idx,
+  get board() { return board; },
+  setLevel(n) { level = n; },
+  resetBoard() {
+    board.fill(0); heat.fill(0); history = []; over = false; busy = false; watch = false; nodes = 0;
+  },
+  put(x, y, c) { board[idx(x, y)] = c; },
+  tacticalMove, chooseMove, isWinAt, coord,
+};
+</script>
+</body>
+</html>
