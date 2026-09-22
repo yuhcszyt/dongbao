@@ -35,13 +35,13 @@ onLoad(() => void recordStore.load())
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 18px 18px 40px; background: #fbfaf7; color: #203f4a; }
+.page { min-height: 100vh; padding: 18px 18px 40px; background: var(--db-background); color: var(--db-text); }
 .title { display: block; font-size: 22px; font-weight: 800; }
-.muted { display: block; color: #71858b; font-size: 13px; margin-top: 6px; line-height: 1.5; }
+.muted { display: block; color: var(--db-muted); font-size: 13px; margin-top: 6px; line-height: 1.5; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
-.chips button { padding: 7px 14px; border-radius: 19px; background: #edf4f6; color: #49646d; font-size: 13px; }
-.chips .active { background: #328da9; color: white; }
-.card { margin-top: 12px; border-radius: 19px; background: white; border: 1px solid #eef1ef; padding: 16px; }
+.chips button { padding: 7px 14px; border-radius: 19px; background: var(--db-soft); color: var(--db-muted); font-size: 13px; }
+.chips .active { background: var(--db-primary); color: white; }
+.card { margin-top: 12px; border-radius: 19px; background: var(--db-surface); border: 1px solid var(--db-border); padding: 16px; }
 .art { height: 110px; border-radius: 13px; display: flex; align-items: center; justify-content: center; font-size: 48px; margin-bottom: 10px; }
 .card-title { display: block; font-size: 17px; font-weight: 800; }
 </style>

@@ -39,18 +39,18 @@ function backToCry() {
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 18px 18px 40px; background: #fbfaf7; color: #203f4a; }
+.page { min-height: 100vh; padding: 18px 18px 40px; background: var(--db-background); color: var(--db-text); }
 .warn { border-radius: 12px; background: #fff0df; color: #b88346; padding: 10px 12px; font-size: 12px; }
-.notice { display: block; margin: 14px 0; color: #8b9c9f; font-size: 12px; line-height: 1.6; text-align: center; }
-.card { margin-top: 14px; border-radius: 19px; background: white; border: 1px solid #eef1ef; padding: 17px; }
-.tag { display: inline-block; padding: 4px 10px; border-radius: 20px; background: #edf6f8; color: #328da9; font-size: 11px; }
+.notice { display: block; margin: 14px 0; color: var(--db-muted); font-size: 12px; line-height: 1.6; text-align: center; }
+.card { margin-top: 14px; border-radius: 19px; background: var(--db-surface); border: 1px solid var(--db-border); padding: 17px; }
+.tag { display: inline-block; padding: 4px 10px; border-radius: 20px; background: var(--db-soft); color: var(--db-primary); font-size: 11px; }
 .title { display: block; margin: 14px 0 8px; font-size: 22px; font-weight: 800; }
-.muted { display: block; color: #71858b; font-size: 13px; line-height: 1.55; }
-.row { padding: 13px 0; border-bottom: 1px solid #e9eff0; font-size: 14px; font-weight: 700; }
+.muted { display: block; color: var(--db-muted); font-size: 13px; line-height: 1.55; }
+.row { padding: 13px 0; border-bottom: 1px solid var(--db-border); font-size: 14px; font-weight: 700; }
 .row:last-child { border: 0; }
 .card-title { display: block; font-size: 16px; font-weight: 800; margin-bottom: 10px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
-.chip { padding: 6px 12px; border-radius: 19px; background: #edf4f6; font-size: 12px; color: #328da9; }
-.primary { width: 100%; min-height: 52px; margin-top: 16px; border-radius: 14px; background: #328da9; color: white; font-weight: 700; }
-.outline { width: 100%; min-height: 50px; margin-top: 10px; border-radius: 14px; border: 1px solid #bedbe4; background: white; color: #328da9; }
+.chip { padding: 6px 12px; border-radius: 19px; background: var(--db-soft); font-size: 12px; color: var(--db-primary); }
+.primary { width: 100%; min-height: 52px; margin-top: 16px; border-radius: 14px; background: var(--db-primary); color: white; font-weight: 700; }
+.outline { width: 100%; min-height: 50px; margin-top: 10px; border-radius: 14px; border: 1px solid var(--db-border); background: var(--db-surface); color: var(--db-primary); }
 </style>

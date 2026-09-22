@@ -129,7 +129,11 @@ DRAFT_SYSTEM_PROMPT = """你是「懂宝」育儿记录助手，只根据家长�
 4. 维生素 AD / 伊可新等日常滴剂用 vitamin_ad；其它药品用 medication。
 5. 看不清的奶量、克数、药量不要猜，写进 missing_fields；可观察信息写进 payload。
 6. recognition_warnings 用中文短句说明不确定之处；没有就空数组。
-7. occurred_at 不确定时可为 null。"""
+7. occurred_at 不确定时可为 null。非记录内容 record_type 为 null，missing_fields 写 record_type，不要硬凑 custom。
+8. 用户提供的参考时间和时区用于解析“昨天”“刚才”；过去时间输出带时区的 ISO 时间。没说时间输出 null。
+9. 补充回答与原始内容合并为同一条记录，保留已明确的事实；解决的 missing_fields 和 recognition_warnings 必须移除。
+10. payload 格式：feeding {kind, feeding_type: breast/formula/mixed/unknown, amount_ml}；sleep {kind, duration_minutes 或 start_at/end_at}；stool {kind,color,consistency}；diaper {kind,content}；complementary_food {kind,food_name,amount_text}；vitamin_ad {kind,dose_text}；growth {kind,height_cm,weight_kg}；vaccine {kind,name,dose}；medication {kind,name,dosage_text}；crying {kind,duration_minutes,description}；custom {kind,title,details}。不要输出其它字段。
+11. 物品照片不能证明宝宝已吃掉或用过；如果事件本身不明确，missing_fields 写 event，追问实际发生了什么。"""
 
 DRAFT_USER_VOICE = "家长语音转写如下，请提取记录草稿 JSON：\n{content}"
 DRAFT_USER_PHOTO = "请看这张照片，判断家长想记哪一类宝宝日常（奶瓶/辅食/便便/维生素AD等），提取可观察信息并返回草稿 JSON。禁止编造看不清的数字。"
@@ -143,7 +147,7 @@ async def extract_draft(content: str | None = None, image_path: Path | None = No
         raise ProviderUnavailable("图片识别尚未启用，已转为手动填写")
     api_key = _secret(cfg.api_key_env)
     if image_path:
-        user_text = DRAFT_USER_PHOTO
+        user_text = DRAFT_USER_PHOTO + ("\n补充上下文：\n" + content if content else "")
     else:
         user_text = DRAFT_USER_VOICE.format(content=(content or "").strip() or "（无转写内容）")
     user_content: list[dict[str, Any]] = [{"type": "text", "text": user_text}]

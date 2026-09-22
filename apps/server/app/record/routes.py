@@ -207,6 +207,8 @@ async def draft_photo(body: DraftRequest, user: User = Depends(current_user), db
 def confirm_draft(draft_id: UUID, body: DraftConfirm, user: User = Depends(current_user), db: Session = Depends(get_db)):
     draft = db.scalar(select(RecordDraft).where(RecordDraft.id == draft_id, RecordDraft.family_id == user.family_id).with_for_update())
     if not draft: raise error(404, "draft_not_found", "没有找到这份草稿")
+    if draft.capture_context is not None:
+        raise error(409, "quick_capture", "请在懂宝 AI 中补充这条记录")
     if draft.status != "draft": raise error(409, "draft_already_confirmed", "这份草稿已经确认过")
     draft.status = "confirmed"
     record = BabyRecord(family_id=user.family_id, baby_id=draft.baby_id, record_type=body.record_type, occurred_at=body.occurred_at, source=draft.source, payload=body.payload.model_dump(mode="json"), note=body.note, created_by=user.id)

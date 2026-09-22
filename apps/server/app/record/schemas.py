@@ -173,3 +173,29 @@ class DailySummary(BaseModel):
     sleep_minutes: int
     diaper_count: int
     complementary_food_count: int
+
+
+class CaptureStart(DraftRequest):
+    timezone: str = Field(default="Asia/Shanghai", max_length=100)
+
+
+class CaptureReply(StrictModel):
+    request_id: UUID
+    message: str = Field(default="", max_length=2000)
+    media_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def one_answer(self):
+        if bool(self.message.strip()) == bool(self.media_id):
+            raise ValueError("请说一句或输入补充内容")
+        return self
+
+
+class CaptureResult(BaseModel):
+    state: Literal["needs_input", "saved", "cancelled"]
+    draft_id: UUID
+    conversation_id: UUID | None = None
+    question: str = ""
+    record: RecordOut | None = None
+    media: MediaOut | None = None
+    transcript: str | None = None

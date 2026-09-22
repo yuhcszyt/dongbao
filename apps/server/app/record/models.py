@@ -48,6 +48,7 @@ class RecordDraft(Base):
     source: Mapped[str] = mapped_column(String(16))
     transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
     recognition_warnings: Mapped[list] = mapped_column(JsonType, default=list)
+    capture_context: Mapped[dict | None] = mapped_column(JsonType, nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="draft")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
@@ -71,4 +72,3 @@ class RecordMedia(Base):
     __tablename__ = "record_media"
     record_id: Mapped[UUID] = mapped_column(ForeignKey("baby_records.id", ondelete="CASCADE"), primary_key=True)
     media_id: Mapped[UUID] = mapped_column(ForeignKey("media_assets.id", ondelete="RESTRICT"), primary_key=True)
-

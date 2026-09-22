@@ -79,12 +79,12 @@ function submit() {
 <style scoped>
 .profile-form { display: block; }
 .label { display: block; margin: 20px 0 8px; font-weight: 650; }
-.input { display: block; min-height: 54px; width: 100%; border: 1px solid #dfe7e7; border-radius: 14px; background: white; padding: 14px; font-size: 17px; color: #203f4a; }
+.input { display: block; min-height: 54px; width: 100%; border: 1px solid var(--db-border); border-radius: 14px; background: var(--db-surface); padding: 14px; font-size: 17px; color: var(--db-text); }
 .gender-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
-.gender-row button { min-height: 48px; border: 1px solid #dde7e8; border-radius: 13px; background: white; color: #49646d; }
-.selected { border-color: #328da9 !important; background: #edf6f8 !important; color: #236f87 !important; font-weight: 700; }
+.gender-row button { min-height: 48px; border: 1px solid var(--db-border); border-radius: 13px; background: var(--db-surface); color: var(--db-muted); }
+.selected { border-color: var(--db-primary) !important; background: var(--db-soft) !important; color: var(--db-primary) !important; font-weight: 700; }
 .error { margin: 12px 0; border-radius: 12px; background: #fff0ec; padding: 12px; color: #9a4c3e; }
-.error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: #fff; color: #9a4c3e; font-weight: 700; }
-.primary { width: 100%; min-height: 54px; margin-top: 24px; border-radius: 15px; background: #328da9; color: white; font-size: 17px; font-weight: 750; }
-.clear-birth { margin-top: 8px; min-height: 44px; padding: 0 8px; background: transparent; color: #2d8098; font-size: 14px; text-align: left; }
+.error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: var(--db-surface); color: #9a4c3e; font-weight: 700; }
+.primary { width: 100%; min-height: 54px; margin-top: 24px; border-radius: 15px; background: var(--db-primary); color: white; font-size: 17px; font-weight: 750; }
+.clear-birth { margin-top: 8px; min-height: 44px; padding: 0 8px; background: transparent; color: var(--db-primary); font-size: 14px; text-align: left; }
 </style>

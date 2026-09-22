@@ -11,7 +11,6 @@ import { ARTICLES } from '@/features/content/articles'
 import type { CaptureMode } from '@/features/record/captureFlow'
 import { requestQuickAction, type QuickAction } from '@/features/record/quickAction'
 import { recordStore } from '@/features/record/store'
-import { aiChatStore } from '@/features/content/aiChat'
 import {
   ageText,
   babyDisplayName,
@@ -21,8 +20,6 @@ import {
   HOME_QUICK_TYPES,
   nowParts,
   recordTimeText,
-  recordWhatText,
-  showSavedRecordAck,
   typeMeta,
   type RecordItem,
   type RecordType,
@@ -42,7 +39,7 @@ const metrics = computed(() => summary.value ? [
   { label: '辅食', value: `${summary.value.complementary_food_count} 次` },
 ] : [])
 const captureOpen = ref(false)
-const capturePanel = ref<{ begin: (mode: CaptureMode) => void; reset: () => void } | null>(null)
+const capturePanel = ref<{ begin: (mode: CaptureMode) => void; reset: () => void; requestClose: () => Promise<void> } | null>(null)
 
 const openProfile = () => uni.switchTab({ url: '/pages/profile/index' })
 const openAi = () => uni.switchTab({ url: '/pages/ai/index' })
@@ -81,11 +78,13 @@ function openManualFromCapture(type: RecordType) {
   openRecord({ kind: 'manual', record_type: type })
 }
 
-function onCaptureSaved(record: RecordItem) {
-  closeCapture()
+function onCaptureSaved() {
   void recordStore.load(today.value)
-  showSavedRecordAck(record)
-  void aiChatStore.traceRecord(record.baby_id, recordWhatText(record), record.id)
+}
+
+function editCapture(record: RecordItem) {
+  closeCapture()
+  openRecord({ kind: 'edit', record_id: record.id })
 }
 
 function openHomeQuick(item: (typeof HOME_QUICK_TYPES)[number]) {
@@ -154,7 +153,7 @@ onShow(() => {
           <text class="card-title">快速记录</text>
           <button class="link" @click="openRecord()">更多 ＋</button>
         </view>
-        <text class="muted capture-lead">语音、拍照都先经 AI 识别，确认后写入今日记录</text>
+        <text class="muted capture-lead">说一说，拍一张，懂宝自动帮你记好</text>
         <view class="capture-row">
           <button class="voice" @click="openCapture('voice')">
             <text class="cap-icon">🎤</text>
@@ -208,7 +207,7 @@ onShow(() => {
       </view>
     </template>
 
-    <view v-if="state.baby && captureOpen" class="overlay" @click="closeCapture">
+    <view v-if="state.baby && captureOpen" class="overlay" @click="capturePanel?.requestClose()">
       <view class="sheet" @click.stop>
         <CapturePanel
           ref="capturePanel"
@@ -216,6 +215,7 @@ onShow(() => {
           @close="closeCapture"
           @manual="openManualFromCapture"
           @saved="onCaptureSaved"
+          @edit="editCapture"
         />
       </view>
     </view>
@@ -223,57 +223,57 @@ onShow(() => {
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 22px 18px 120px; background: #fbfaf7; color: #203f4a; }
-.state { padding: 80px 20px; text-align: center; color: #70858c; }
-.muted { display: block; color: #71858b; font-size: 14px; line-height: 1.55; }
+.page { min-height: 100vh; padding: 22px 18px 120px; background: var(--db-background); color: var(--db-text); }
+.state { padding: 80px 20px; text-align: center; color: var(--db-muted); }
+.muted { display: block; color: var(--db-muted); font-size: 14px; line-height: 1.55; }
 .baby-row { display: flex; align-items: center; gap: 13px; }
-.avatar { display: grid; place-items: center; width: 43px; height: 43px; border-radius: 50%; background: #f5e4d3; border: 3px solid white; font-size: 26px; }
+.avatar { display: grid; place-items: center; width: 43px; height: 43px; border-radius: 50%; background: var(--db-apricot); border: 3px solid white; font-size: 26px; }
 .baby-info { flex: 1; }
 .baby-name { display: block; font-size: 16px; font-weight: 780; }
 .greeting-block { margin: 22px 0 8px; }
 .greeting { display: block; font-size: 22px; font-weight: 800; line-height: 1.4; }
 .card, .section { margin-top: 18px; }
-.card { border: 1px solid #eef1ef; border-radius: 19px; background: white; box-shadow: 0 3px 10px rgba(34, 70, 84, .02); padding: 17px; }
-.hero { background: linear-gradient(120deg, #e3f3f7, #f1f8fa); border-color: #d9edf2; }
+.card { border: 1px solid var(--db-border); border-radius: 19px; background: var(--db-surface); box-shadow: 0 3px 10px rgba(52, 46, 66, .04); padding: 17px; }
+.hero { background: linear-gradient(120deg, var(--db-soft), var(--db-soft)); border-color: var(--db-border); }
 .hero-row { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
-.cloud { font-size: 22px; color: #25516a; letter-spacing: 4px; }
+.cloud { font-size: 22px; color: var(--db-text); letter-spacing: 4px; }
 .card-title { display: block; font-size: 17px; font-weight: 800; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .card-head.sub { margin-top: 16px; }
 .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 13px; }
-.metric { background: #f4f8f9; border-radius: 11px; padding: 10px 4px; text-align: center; }
-.metric-label { display: block; font-size: 10px; color: #70858d; }
+.metric { background: var(--db-soft); border-radius: 11px; padding: 10px 4px; text-align: center; }
+.metric-label { display: block; font-size: 12px; color: var(--db-muted); }
 .metric-value { display: block; font-size: 14px; font-weight: 800; margin-top: 4px; }
-.note, .empty-note { margin-top: 8px; color: #8a9ba0; font-size: 13px; }
-.inputfake { width: 100%; margin-top: 15px; border-radius: 24px; background: white; padding: 11px 15px; text-align: left; color: #8198a2; font-size: 14px; }
-.inputfake text { float: right; color: #328da9; }
-.listen { width: 100%; margin-top: 10px; text-align: left; color: #328da9; font-size: 13px; background: transparent; }
+.note, .empty-note { margin-top: 8px; color: var(--db-muted); font-size: 13px; }
+.inputfake { width: 100%; margin-top: 15px; border-radius: 24px; background: var(--db-surface); padding: 11px 15px; text-align: left; color: var(--db-muted); font-size: 14px; }
+.inputfake text { float: right; color: var(--db-primary); }
+.listen { width: 100%; margin-top: 10px; text-align: left; color: var(--db-primary); font-size: 13px; background: transparent; }
 .listen text { float: right; }
 .capture-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .capture-lead { margin: 8px 0 0; }
 .capture-row button { min-height: 78px; border-radius: 16px; padding: 14px; text-align: left; }
 .cap-icon, .cap-title, .cap-note { display: block; }
 .cap-icon { font-size: 26px; }
-.cap-title { font-size: 18px; font-weight: 650; }
-.cap-note { margin-top: 4px; font-size: 13px; font-weight: 400; }
-.voice { background: #318ba5; color: white; }
-.photo { background: #f6e9d8; color: #6c5137; }
-.manual-link { width: 100%; margin-top: 8px; min-height: 44px; background: transparent; color: #377c94; font-size: 15px; }
+.cap-title { font-size: 20px; font-weight: 650; }
+.cap-note { margin-top: 4px; font-size: 15px; font-weight: 400; }
+.voice { background: var(--db-primary); color: white; }
+.photo { background: var(--db-apricot); color: #6c5137; }
+.manual-link { width: 100%; margin-top: 8px; min-height: 44px; background: transparent; color: var(--db-primary); font-size: 15px; }
 .quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
-.quick-grid button { padding: 0; font-size: 12px; background: transparent; color: #203f4a; }
-.ico { display: grid; place-items: center; width: 44px; height: 44px; margin: 0 auto 7px; border-radius: 13px; background: #edf6fa; font-size: 22px; }
-.quick-grid button:nth-child(2n) .ico { background: #fcf2e7; }
-.link { min-height: 40px; padding: 0 6px; background: transparent; color: #2d8098; font-size: 13px; }
-.timeline-item { display: flex; gap: 11px; padding: 14px 0; border-bottom: 1px solid #eff2f1; }
-.time { width: 43px; padding-top: 5px; font-size: 12px; color: #79939a; }
-.dot { display: grid; place-items: center; width: 37px; height: 37px; border-radius: 50%; background: #ecf6f8; font-size: 18px; }
+.quick-grid button { padding: 0; font-size: 12px; background: transparent; color: var(--db-text); }
+.ico { display: grid; place-items: center; width: 44px; height: 44px; margin: 0 auto 7px; border-radius: 13px; background: var(--db-soft); font-size: 22px; }
+.quick-grid button:nth-child(2n) .ico { background: var(--db-apricot); }
+.link { min-height: 40px; padding: 0 6px; background: transparent; color: var(--db-primary); font-size: 13px; }
+.timeline-item { display: flex; gap: 11px; padding: 14px 0; border-bottom: 1px solid var(--db-border); }
+.time { width: 43px; padding-top: 5px; font-size: 12px; color: var(--db-muted); }
+.dot { display: grid; place-items: center; width: 37px; height: 37px; border-radius: 50%; background: var(--db-soft); font-size: 18px; }
 .timeline-body { flex: 1; min-width: 0; }
 .timeline-title { display: block; font-size: 14px; font-weight: 700; }
 .article { margin-top: 0; }
 .art { height: 120px; border-radius: 13px; display: flex; align-items: center; justify-content: center; font-size: 48px; margin-bottom: 12px; }
 .article-title { display: block; font-size: 17px; font-weight: 800; margin-bottom: 5px; }
 .error { margin: 12px 0; border-radius: 12px; background: #fff0ec; padding: 12px; color: #9a4c3e; }
-.error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: #fff; color: #9a4c3e; font-weight: 700; }
-.overlay { position: fixed; z-index: 200; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: rgba(25, 47, 52, .46); }
-.sheet { width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; background: #fbfaf7; padding: 21px 18px calc(22px + env(safe-area-inset-bottom)); }
+.error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: var(--db-surface); color: #9a4c3e; font-weight: 700; }
+.overlay { position: fixed; z-index: 200; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: var(--db-overlay); }
+.sheet { width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; background: var(--db-background); padding: 21px 18px calc(22px + env(safe-area-inset-bottom)); }
 </style>

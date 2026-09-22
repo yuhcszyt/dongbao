@@ -7,6 +7,7 @@
  * 这里只放「服务端状态 + 会话重试」，UI 状态（当前打开的弹层、当前筛选）留在页面里。
  */
 import { reactive } from 'vue'
+import { aiChatStore } from '@/features/content/aiChat'
 import { ApiError, api, session, SessionError } from '@/services/api'
 import { nowParts, type Baby, type DailySummary, type RecordInput, type RecordItem } from './domain'
 
@@ -37,7 +38,7 @@ const state = reactive<RecordState>({
   baby: null,
   records: [],
   summary: emptySummary(),
-  summaryDate: nowParts().date,
+  summaryDate: '',
   loading: true,
   saving: false,
   error: '',
@@ -59,6 +60,21 @@ const fail = (reason: unknown) => {
 
 /** 只拉某一日的四项指标（首页看今天，记录页看选中的那一天）。 */
 let summaryRequest = 0
+let loadRequest = 0
+let lifecycle = 0
+let babyRequest: Promise<Baby | null> | null = null
+
+function loadBaby() {
+  if (babyRequest) return babyRequest
+  const current = lifecycle
+  const request = (async () => {
+    const baby = await api.getBaby()
+    if (current !== lifecycle) return null
+    return baby ?? await api.createBaby({ nickname: '宝宝', birth_date: null, gender: 'unknown' })
+  })().finally(() => { if (babyRequest === request) babyRequest = null })
+  babyRequest = request
+  return request
+}
 async function loadSummary(date: string) {
   if (!state.baby) return
   // 连点两个日期时，先发的请求可能后到：只认最后一次，否则页面会停在「正在取这一天的指标…」。
@@ -90,32 +106,31 @@ const summaryFor = (date: string) => (state.summaryDate === date ? state.summary
  * `date` 缺省沿用上一次关注的那一天（记录页翻到的某天），首页则显式传「今天」，
  * 因为「今日指标」必须是今天——记录页停在昨天时不能把首页也带到昨天。
  */
-async function load(date = state.summaryDate) {
+async function load(date = state.summaryDate || nowParts().date) {
   // 注销后不再拉取：页面展示「已注销」，不把用户静默重登成新账号。
   if (state.accountDeleted) return
+  const current = ++loadRequest
   state.loading = true
   clearError()
   try {
-    state.baby = await api.getBaby()
-    // 软建档：无宝宝时静默创建默认档案，登录后直接进首页，资料可稍后补。
-    if (!state.baby) {
-      state.baby = await api.createBaby({ nickname: '宝宝', birth_date: null, gender: 'unknown' })
-    }
+    const baby = await loadBaby()
+    if (current !== loadRequest) return
+    state.baby = baby
     if (state.baby) {
       await Promise.all([
         api.records(state.baby.id).then((records) => {
-          state.records = records
+          if (current === loadRequest) state.records = records
         }),
         loadSummary(date),
       ])
       // 档案已拉到说明会话可用；指标失败只留在 loadSummary 的提示里，
       // 不要让启动时一次失败的「登录失败」横幅继续盖住已成功的首页。
-      if (state.baby && state.error === '登录失败，请检查网络后重试') clearError()
+      if (current === loadRequest && state.baby && state.error === '登录失败，请检查网络后重试') clearError()
     }
   } catch (reason) {
-    fail(reason)
+    if (current === loadRequest) fail(reason)
   } finally {
-    state.loading = false
+    if (current === loadRequest) state.loading = false
   }
 }
 
@@ -153,6 +168,7 @@ async function createBaby(input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'
 
 /** 建档与编辑共用同一套字段，所以共用一个入口。 */
 async function saveBaby(input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) {
+  if (state.saving) return false
   const body = {
     nickname: input.nickname,
     birth_date: input.birth_date || null,
@@ -175,7 +191,7 @@ async function saveBaby(input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>)
 
 /** 新增（`existing` 为空）或保存修改（`existing` 是被改的那条）。 */
 async function saveRecord(input: RecordInput, existing: RecordItem | null) {
-  if (!state.baby) return false
+  if (!state.baby || state.saving) return false
   state.saving = true
   clearError()
   try {
@@ -223,10 +239,15 @@ const dismissUndo = () => {
 
 /** 注销后回到干净初始状态：本地不留上一位用户的任何数据。 */
 function reset() {
+  aiChatStore.reset()
+  lifecycle++
+  loadRequest++
+  summaryRequest++
+  babyRequest = null
   state.baby = null
   state.records = []
   state.summary = emptySummary()
-  state.summaryDate = nowParts().date
+  state.summaryDate = ''
   state.loading = false
   state.saving = false
   state.deleted = null

@@ -1,208 +1,207 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onHide, onShow } from '@dcloudio/uni-app'
 import AccountGone from '@/components/AccountGone.vue'
 import { aiChatStore } from '@/features/content/aiChat'
 import { babyDisplayName, nowParts } from '@/features/record/domain'
-import { recordStore } from '@/features/record/store'
-import { api, ApiError, SessionError } from '@/services/api'
+import { recordStore, errorText } from '@/features/record/store'
+import { api } from '@/services/api'
+import { createVoiceCapture } from '@/features/record/voiceCapture'
+import type { CaptureResult } from '@/features/record/quickCapture'
+import { requestQuickAction } from '@/features/record/quickAction'
 
 const { state } = recordStore
 const question = ref('')
 const babyName = computed(() => babyDisplayName(state.baby?.nickname))
 const ageLabel = computed(() => {
-  const birth = state.baby?.birth_date
-  if (!birth) return '月龄待完善'
-  const parts = birth.split('-').map(Number)
-  const todayParts = nowParts().date.split('-').map(Number)
-  const y = parts[0] ?? 0
-  const m = parts[1] ?? 1
-  const d = parts[2] ?? 1
-  const ty = todayParts[0] ?? 0
-  const tm = todayParts[1] ?? 1
-  const td = todayParts[2] ?? 1
-  let months = (ty - y) * 12 + (tm - m)
-  if (td < d) months -= 1
+  if (!state.baby?.birth_date) return '月龄待完善'
+  const birth = new Date(state.baby.birth_date + 'T00:00:00')
+  const today = new Date()
+  const months = (today.getFullYear() - birth.getFullYear()) * 12 + today.getMonth() - birth.getMonth() - Number(today.getDate() < birth.getDate())
   return `${Math.max(0, months)} 月龄`
 })
 const prompts = ['帮我看看最近的睡眠记录', '今天一共喝了多少奶？', '辅食应该什么时候开始添加？']
-
 const recording = ref(false)
+const starting = ref(false)
+const working = ref(false)
+const refreshing = ref(false)
 const pendingPreview = ref('')
 const pendingMediaId = ref<string | null>(null)
-let h5Recorder: MediaRecorder | null = null
-let h5Stream: MediaStream | null = null
-let h5Chunks: Blob[] = []
-let mpRecorder: ReturnType<typeof uni.getRecorderManager> | null = null
-let startedAt = 0
+const pending = ref<CaptureResult[]>([])
+const selectedDraft = ref('')
+const activeDraft = computed(() => pending.value.find((item) => item.draft_id === selectedDraft.value) ?? pending.value[0])
+const busy = computed(() => working.value || refreshing.value || starting.value || aiChatStore.state.loading)
+let photoVersion = 0
+let alive = true
+let refreshVersion = 0
+let retryVoice: (() => Promise<void>) | null = null
+const failedReply = ref<{ draftId: string; requestId: string; text: string; mediaId?: string } | null>(null)
+const canRetryVoice = ref(false)
+const newRequestId = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+  const r = Math.floor(Math.random() * 16)
+  return (c === 'x' ? r : (r & 3) | 8).toString(16)
+})
+
+async function refresh() {
+  const babyId = state.baby?.id
+  if (!babyId) return
+  const version = ++refreshVersion
+  refreshing.value = true
+  try {
+    const result = await api.pendingCaptures(babyId)
+    if (version !== refreshVersion || !alive) return
+    pending.value = result
+    await aiChatStore.load(babyId)
+  } catch (error) {
+    if (version === refreshVersion) aiChatStore.state.banner = errorText(error)
+  } finally {
+    if (version === refreshVersion) refreshing.value = false
+  }
+}
+
+async function submitReply(reply: NonNullable<typeof failedReply.value>) {
+  failedReply.value = reply
+  const result = await api.replyCapture(reply.draftId, reply.requestId, reply.text, reply.mediaId)
+  failedReply.value = null
+  if (result.state === 'saved') {
+    uni.showToast({ title: '已成功记录', icon: 'success' })
+    await recordStore.load(nowParts().date)
+  }
+  await refresh()
+}
 
 async function ask(text?: string) {
+  if (busy.value || recording.value) return
   const babyId = state.baby?.id
-  if (!babyId) {
-    uni.showToast({ title: '请先完善宝宝档案', icon: 'none' })
-    return
-  }
+  if (!babyId) return
   const q = (text ?? question.value).trim()
-  const mediaId = pendingMediaId.value
-  if (!q && !mediaId) {
-    uni.showToast({ title: '请先输入问题或选一张图片', icon: 'none' })
-    return
+  if (!q && !pendingMediaId.value && !failedReply.value) return
+  working.value = true
+  aiChatStore.state.banner = ''
+  try {
+    if (activeDraft.value || failedReply.value) {
+      await submitReply(failedReply.value ?? { draftId: activeDraft.value!.draft_id, requestId: newRequestId(), text: q })
+    } else {
+      const ok = await aiChatStore.ask(babyId, q, pendingMediaId.value, pendingPreview.value || undefined)
+      if (!ok) return
+    }
+    question.value = ''
+    clearPendingPhoto()
+  } catch (error) {
+    aiChatStore.state.banner = errorText(error)
+  } finally {
+    working.value = false
   }
-  question.value = ''
-  const preview = pendingPreview.value
-  pendingPreview.value = ''
-  pendingMediaId.value = null
-  await aiChatStore.ask(babyId, q, mediaId, preview || undefined)
 }
 
-function clearPendingPhoto() {
-  pendingPreview.value = ''
-  pendingMediaId.value = null
-}
+function clearPendingPhoto() { photoVersion++; pendingPreview.value = ''; pendingMediaId.value = null }
 
 function choosePhoto() {
+  if (busy.value || recording.value || activeDraft.value) return
   const babyId = state.baby?.id
-  if (!babyId) {
-    uni.showToast({ title: '请先完善宝宝档案', icon: 'none' })
-    return
-  }
+  if (!babyId) return
+  const version = ++photoVersion
+  working.value = true
   uni.chooseImage({
-    count: 1,
-    sizeType: ['compressed'],
-    sourceType: ['camera', 'album'],
-    success(result) {
+    count: 1, sizeType: ['compressed'], sourceType: ['camera', 'album'],
+    async success(result) {
       const path = result.tempFilePaths[0]
-      if (!path) return
-      pendingPreview.value = path
-      uni.showLoading({ title: '上传图片…' })
-      void api
-        .uploadPath(path, babyId, 'image')
-        .then((media) => {
-          pendingMediaId.value = media.id
-        })
-        .catch((error) => {
-          clearPendingPhoto()
-          const message = error instanceof ApiError || error instanceof SessionError ? error.message : '图片上传失败'
-          uni.showToast({ title: message, icon: 'none' })
-        })
-        .finally(() => uni.hideLoading())
+      if (!path || !alive || version !== photoVersion) { working.value = false; return }
+      try {
+        const media = await api.uploadPath(path, babyId, 'image')
+        if (alive && version === photoVersion) { pendingPreview.value = path; pendingMediaId.value = media.id }
+      } catch (error) { aiChatStore.state.banner = errorText(error) }
+      finally { working.value = false }
+    },
+    fail(result) {
+      working.value = false
+      if (!result.errMsg.includes('cancel')) aiChatStore.state.banner = '无法打开照片，请检查权限后重试。'
     },
   })
+}
+
+async function cancelDraft() {
+  if (busy.value || !activeDraft.value?.media) return
+  working.value = true
+  try {
+    const result = await api.cancelCapture(activeDraft.value.media.id)
+    if (result.state === 'saved') {
+      uni.showToast({ title: '这条已保存，可查看修改', icon: 'none' })
+      await recordStore.load(nowParts().date)
+    }
+    failedReply.value = null
+    question.value = ''
+    await refresh()
+  } catch (error) { aiChatStore.state.banner = errorText(error) }
+  finally { working.value = false }
 }
 
 function clearChat() {
-  const babyId = state.baby?.id
-  if (!babyId) {
-    uni.showToast({ title: '请先完善宝宝档案', icon: 'none' })
-    return
-  }
-  if (!aiChatStore.state.messages.length) {
-    uni.showToast({ title: '还没有对话记录', icon: 'none' })
-    return
-  }
+  if (busy.value || recording.value) return
+  if (pending.value.length) { aiChatStore.state.banner = '还有待补充的记录，请先补充或取消。'; return }
   uni.showModal({
-    title: '清空对话？',
-    content: '宝宝档案和日常记录会保留，仅新开一条聊天。',
-    success: ({ confirm }) => {
-      if (confirm) void aiChatStore.clear(babyId)
-    },
+    title: '新开对话？', content: '日常记录会保留，当前聊天将收起。',
+    success: ({ confirm }) => { if (confirm && state.baby) void aiChatStore.clear(state.baby.id) },
   })
 }
 
-function stopVoice() {
-  // #ifdef H5
-  if (h5Recorder?.state === 'recording') h5Recorder.stop()
-  // #endif
-  // #ifndef H5
-  mpRecorder?.stop()
-  // #endif
-  recording.value = false
-}
-
-async function sendVoiceAsQuestion(filePathOrBlob: string | Blob, durationMs: number) {
+async function sendVoice(file: string | Blob, duration: number) {
   const babyId = state.baby?.id
   if (!babyId) return
-  uni.showLoading({ title: '正在转写…' })
-  try {
-    const media =
-      typeof filePathOrBlob === 'string'
-        ? await api.uploadPath(filePathOrBlob, babyId, 'audio', durationMs)
-        : await api.uploadBlob(filePathOrBlob, babyId, 'audio', durationMs)
-    // 复用草稿 ASR，但不 confirm，避免写入正式记录
-    const draft = await api.draftFromMedia('voice', babyId, media.id)
-    const text = (draft.transcript || '').trim()
-    if (!text) {
-      uni.showToast({ title: '没听清，请改打字', icon: 'none' })
-      return
-    }
-    question.value = text
-    await ask(text)
-  } catch (error) {
-    const message = error instanceof ApiError || error instanceof SessionError ? error.message : '语音失败，请改打字'
-    uni.showToast({ title: message, icon: 'none' })
-  } finally {
-    uni.hideLoading()
+  working.value = true
+  aiChatStore.state.banner = ''
+  canRetryVoice.value = false
+  // 上传成功后重试沿用同一个媒体；补充请求沿用同一个 request_id。
+  let mediaId: string | undefined
+  const target = activeDraft.value?.draft_id
+  const requestId = newRequestId()
+  const run = async () => {
+    working.value = true
+    try {
+      mediaId ??= (typeof file === 'string' ? await api.uploadPath(file, babyId, 'audio', duration) : await api.uploadBlob(file, babyId, 'audio', duration)).id
+      if (target) await submitReply({ draftId: target, requestId, text: '', mediaId })
+      else {
+        const result = await api.transcribe(mediaId)
+        question.value = result.transcript
+        const ok = await aiChatStore.ask(babyId, result.transcript)
+        if (!ok) return
+        question.value = ''
+      }
+      retryVoice = null
+      canRetryVoice.value = false
+    } catch (error) { aiChatStore.state.banner = errorText(error); canRetryVoice.value = true }
+    finally { working.value = false }
   }
+  retryVoice = run
+  await run()
 }
 
-async function startVoice() {
-  const babyId = state.baby?.id
-  if (!babyId) {
-    uni.showToast({ title: '请先完善宝宝档案', icon: 'none' })
-    return
-  }
-  if (recording.value) {
-    stopVoice()
-    return
-  }
-  // #ifdef H5
-  try {
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') throw new Error('unsupported')
-    h5Stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    h5Chunks = []
-    const mimeType = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm'
-    h5Recorder = new MediaRecorder(h5Stream, { mimeType })
-    h5Recorder.ondataavailable = (event) => {
-      if (event.data.size) h5Chunks.push(event.data)
-    }
-    h5Recorder.onstop = () => {
-      h5Stream?.getTracks().forEach((track) => track.stop())
-      h5Stream = null
-      const durationMs = Math.min(60_000, Date.now() - startedAt)
-      const blob = new Blob(h5Chunks, { type: h5Recorder?.mimeType || 'audio/webm' })
-      h5Recorder = null
-      recording.value = false
-      void sendVoiceAsQuestion(blob, durationMs)
-    }
-    startedAt = Date.now()
-    h5Recorder.start()
-    recording.value = true
-  } catch {
-    uni.showToast({ title: '无法录音，请改打字', icon: 'none' })
-  }
-  // #endif
-  // #ifndef H5
-  mpRecorder = uni.getRecorderManager()
-  mpRecorder.onStop((result) => {
-    recording.value = false
-    void sendVoiceAsQuestion(result.tempFilePath, Math.min(60_000, Date.now() - startedAt))
-  })
-  mpRecorder.onError(() => {
-    recording.value = false
-    uni.showToast({ title: '录音失败', icon: 'none' })
-  })
-  startedAt = Date.now()
-  mpRecorder.start({ format: 'mp3', duration: 60_000 })
-  recording.value = true
-  // #endif
+const voice = createVoiceCapture({
+  started() { starting.value = false; recording.value = true },
+  stopped(file, duration) { recording.value = false; void sendVoice(file, duration) },
+  failed(message, stillRecording) { starting.value = false; recording.value = !!stillRecording; aiChatStore.state.banner = message },
+})
+function startVoice() {
+  if (recording.value) { voice.stop(); return }
+  if (busy.value || failedReply.value) return
+  starting.value = true
+  aiChatStore.state.banner = ''
+  void voice.start()
+}
+function cancelVoice() { voice.cancel(); starting.value = false; recording.value = false }
+function openRecord(recordId: string) {
+  requestQuickAction({ kind: 'edit', record_id: recordId })
+  uni.switchTab({ url: '/pages/record/index' })
 }
 
-onBeforeUnmount(() => stopVoice())
-
-onShow(() => {
-  void recordStore.load(nowParts().date).then(() => {
-    if (state.baby?.id) void aiChatStore.load(state.baby.id)
-  })
+onHide(cancelVoice)
+onBeforeUnmount(() => { alive = false; refreshVersion++; clearPendingPhoto(); cancelVoice() })
+onShow(async () => {
+  if (working.value) return
+  refreshing.value = true
+  await recordStore.load(nowParts().date)
+  refreshing.value = false
+  await refresh()
 })
 </script>
 
@@ -218,12 +217,30 @@ onShow(() => {
             <text class="muted">正在结合：{{ babyName }} · {{ ageLabel }}</text>
           </view>
         </view>
-        <button class="link" @click="clearChat">清空</button>
+        <button class="link" :disabled="busy || recording" @click="clearChat">新对话</button>
       </view>
 
       <view v-if="aiChatStore.state.banner" class="warn">{{ aiChatStore.state.banner }}</view>
+      <button v-if="canRetryVoice" class="outline" :disabled="busy" @click="retryVoice?.()">重试刚才的语音</button>
+      <button v-else-if="failedReply" class="outline" :disabled="busy" @click="ask()">重试补充记录</button>
+      <button v-else-if="aiChatStore.state.banner" class="outline" :disabled="busy" @click="refresh">重新加载</button>
+      <view v-if="activeDraft" class="card followup">
+        <text class="card-title">再说一句，就能记好</text>
+        <view v-if="pending.length > 1">
+          <button v-for="item in pending" :key="item.draft_id" class="outline" :disabled="busy || recording || !!failedReply" @click="selectedDraft = item.draft_id">{{ item.transcript || '照片记录' }}</button>
+        </view>
+        <text class="line">{{ activeDraft.question }}</text>
+        <button class="outline" :disabled="busy || !!failedReply" @click="startVoice">{{ recording ? '■ 说完了' : '🎤 点这里说' }}</button>
+        <button class="link" :disabled="busy || recording" @click="cancelDraft">取消这条待记录事项</button>
+      </view>
+      <view v-if="working || refreshing || starting || aiChatStore.state.loading" class="muted" role="status">{{ refreshing ? '正在加载…' : '正在处理，请稍候…' }}</view>
+      <view v-if="recording" class="card">
+        <text class="line">正在听你说，说完点“说完了”。</text>
+        <button class="outline" @click="startVoice">■ 说完了</button>
+        <button class="link" @click="cancelVoice">取消录音</button>
+      </view>
 
-      <view v-if="!aiChatStore.state.messages.length" class="welcome">
+      <view v-if="!activeDraft && !refreshing && !aiChatStore.state.messages.length" class="welcome">
         <text class="title">今天有什么想和我聊聊？</text>
         <text class="muted">我会结合{{ babyName }}的档案、近期记录，并检索专业育儿知识。</text>
         <view class="card">
@@ -239,6 +256,7 @@ onShow(() => {
         </view>
         <view class="answer">
           <text class="card-title">{{ msg.answer?.summary || msg.a }}</text>
+          <button v-for="recordId in msg.answer?.related_record_ids || []" :key="recordId" class="outline" @click="openRecord(recordId)">查看 / 修改这条记录</button>
           <view v-if="msg.answer?.actions?.length" class="block">
             <text class="label">现在可以怎么做</text>
             <text v-for="(line, i) in msg.answer.actions" :key="i" class="line">· {{ line }}</text>
@@ -262,41 +280,43 @@ onShow(() => {
       </view>
 
       <view class="composer">
-        <button class="mic" :class="{ on: recording }" @click="startVoice">{{ recording ? '■' : '🎤' }}</button>
-        <button class="mic" :disabled="aiChatStore.state.loading" @click="choosePhoto">🖼</button>
-        <input v-model="question" class="input" maxlength="500" placeholder="继续问懂宝…" confirm-type="send" :disabled="aiChatStore.state.loading" @confirm="ask()" />
-        <button class="send" :disabled="aiChatStore.state.loading" @click="ask()">{{ aiChatStore.state.loading ? '…' : '↑' }}</button>
+        <button class="mic" aria-label="语音输入" :class="{ on: recording }" :disabled="busy || !!failedReply" @click="startVoice">{{ recording ? '■' : '🎤' }}</button>
+        <button class="mic" aria-label="选择照片" :disabled="busy || recording || !!activeDraft" @click="choosePhoto">🖼</button>
+        <input v-model="question" class="input" maxlength="500" :placeholder="activeDraft ? '在这里补充，或点麦克风说…' : '继续问懂宝…'" confirm-type="send" :disabled="busy || recording || !!failedReply" @confirm="ask()" />
+        <button class="send" aria-label="发送" :disabled="busy || recording" @click="ask()">{{ busy ? '…' : '↑' }}</button>
       </view>
     </template>
   </view>
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 14px 19px calc(120px + env(safe-area-inset-bottom)); background: #fbfaf7; color: #203f4a; }
+.page { min-height: 100vh; padding: 14px 19px calc(120px + env(safe-area-inset-bottom)); background: var(--db-background); color: var(--db-text); }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .brand { display: flex; gap: 10px; align-items: center; }
-.cloud { width: 40px; height: 32px; border-radius: 50%; background: #b7e4f5; color: #25516a; font-size: 16px; letter-spacing: 3px; text-align: center; line-height: 32px; }
+.cloud { width: 40px; height: 32px; border-radius: 50%; background: var(--db-soft); color: var(--db-text); font-size: 16px; letter-spacing: 3px; text-align: center; line-height: 32px; }
 .title { display: block; font-size: 18px; font-weight: 800; }
-.muted { display: block; color: #71858b; font-size: 13px; line-height: 1.5; margin-top: 4px; }
-.link { background: transparent; color: #2d8098; font-size: 12px; }
+.muted { display: block; color: var(--db-muted); font-size: 13px; line-height: 1.5; margin-top: 4px; }
+.link { background: transparent; color: var(--db-primary); font-size: 12px; }
 .warn { margin: 14px 0; border-radius: 12px; background: #fff0df; color: #b88346; padding: 10px 12px; font-size: 12px; }
 .welcome { margin-top: 18px; }
 .welcome .title { font-size: 23px; }
-.card { margin-top: 16px; border-radius: 19px; background: white; border: 1px solid #eef1ef; padding: 16px; }
+.card { margin-top: 16px; border-radius: 19px; background: var(--db-surface); border: 1px solid var(--db-border); padding: 16px; }
 .card-title { display: block; font-size: 16px; font-weight: 800; margin-bottom: 8px; }
-.outline { display: block; width: 100%; margin-top: 10px; min-height: 48px; border-radius: 14px; border: 1px solid #bedbe4; background: white; color: #328da9; font-size: 14px; }
-.user { margin: 18px 0 12px 28px; padding: 12px 15px; border-radius: 17px 17px 4px 17px; background: #d8edf4; font-size: 14px; }
+.outline { display: block; width: 100%; margin-top: 10px; min-height: 48px; border-radius: 14px; border: 1px solid var(--db-border); background: var(--db-surface); color: var(--db-primary); font-size: 14px; }
+.user { margin: 18px 0 12px 28px; padding: 12px 15px; border-radius: 17px 17px 4px 17px; background: var(--db-soft); font-size: 14px; }
 .user-photo { display: block; width: 120px; height: 120px; border-radius: 10px; margin-bottom: 8px; }
-.answer { margin: 12px 0; padding: 16px; border-radius: 4px 18px 18px 18px; background: white; border: 1px solid #eef1ef; }
+.answer { margin: 12px 0; padding: 16px; border-radius: 4px 18px 18px 18px; background: var(--db-surface); border: 1px solid var(--db-border); }
 .block { margin-top: 10px; }
-.label { display: block; font-size: 12px; font-weight: 700; color: #2d8098; margin-bottom: 4px; }
-.line { display: block; font-size: 13px; line-height: 1.6; color: #203f4a; }
-.notice { display: block; margin-top: 10px; color: #8b9c9f; font-size: 11px; }
-.pending { display: flex; align-items: center; gap: 10px; margin: 12px 0 72px; padding: 10px 12px; border-radius: 12px; background: #edf6f8; }
+.label { display: block; font-size: 12px; font-weight: 700; color: var(--db-primary); margin-bottom: 4px; }
+.line { display: block; font-size: 16px; line-height: 1.7; color: var(--db-text); }
+.followup .card-title { font-size: 20px; }
+.followup .outline { min-height: 56px; font-size: 20px; }
+.notice { display: block; margin-top: 10px; color: var(--db-muted); font-size: 11px; }
+.pending { display: flex; align-items: center; gap: 10px; margin: 12px 0 72px; padding: 10px 12px; border-radius: 12px; background: var(--db-soft); }
 .pending-photo { width: 48px; height: 48px; border-radius: 8px; flex-shrink: 0; }
-.composer { position: fixed; left: 0; right: 0; bottom: calc(50px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; padding: 10px 15px; background: white; border-top: 1px solid #e9eff0; }
-.mic { width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; background: #edf6f8; color: #328da9; font-size: 16px; line-height: 40px; }
+.composer { position: fixed; left: 0; right: 0; bottom: calc(50px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; padding: 10px 15px; background: var(--db-surface); border-top: 1px solid var(--db-border); }
+.mic { width: 44px; height: 44px; padding: 0; flex-shrink: 0; border-radius: 50%; background: var(--db-soft); color: var(--db-primary); font-size: 16px; line-height: 44px; }
 .mic.on { background: #f8d7da; color: #a33; }
-.input { flex: 1; min-width: 0; height: 44px; line-height: 44px; border-radius: 22px; background: #f3f7f8; padding: 0 15px; font-size: 15px; }
-.send { width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; background: #328da9; color: white; font-size: 18px; line-height: 40px; }
+.input { flex: 1; min-width: 0; height: 44px; line-height: 44px; border-radius: 22px; background: var(--db-soft); padding: 0 15px; font-size: 15px; }
+.send { width: 44px; height: 44px; padding: 0; flex-shrink: 0; border-radius: 50%; background: var(--db-primary); color: white; font-size: 18px; line-height: 44px; }
 </style>

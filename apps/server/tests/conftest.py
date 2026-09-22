@@ -7,7 +7,7 @@ from app.main import app
 from app.record.database import SessionLocal
 from app.record.models import Baby, BabyRecord, MediaAsset, RecordDraft, RecordMedia
 from app.ai.models import AiConversation, AiMemory, AiMessage, RagChunk, RagDocument
-from app.ai.qdrant_store import reset_qdrant_client, wipe_collection
+from app.ai.qdrant_store import reset_qdrant_client
 
 DEFAULT_OPENID = "openid-of-parent-a"
 
@@ -32,18 +32,20 @@ def media_root_in_tmp(monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
-def clean_database():
+def clean_database(monkeypatch):
     """清空记录侧与鉴权侧全部表，保证用例之间互不残留（否则第二个用例会撞 unique openid）。"""
     with SessionLocal() as db:
         for model in (AiMessage, AiConversation, AiMemory, RecordMedia, RecordDraft, BabyRecord, MediaAsset, Baby, User, Family, RagChunk, RagDocument):
             db.execute(delete(model))
         db.commit()
-    try:
-        reset_qdrant_client()
-        wipe_collection()
-    except Exception:
-        pass
+    # 测试只用主机内存索引，不连接或清空开发中的 Qdrant。
+    from qdrant_client import QdrantClient
+    from app.ai import qdrant_store
+    reset_qdrant_client()
+    local_index = QdrantClient(location=":memory:")
+    monkeypatch.setattr(qdrant_store, "_client", local_index)
     yield
+    local_index.close()
 
 
 @pytest.fixture

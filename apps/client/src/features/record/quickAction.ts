@@ -11,6 +11,7 @@ import type { Payload, RecordType } from './domain'
 export type { CaptureMode }
 
 export type QuickAction =
+  | { kind: 'edit'; record_id: string }
   | { kind: 'capture'; mode?: CaptureMode }
   | { kind: 'manual'; record_type: RecordType; payload?: Partial<Payload> }
 

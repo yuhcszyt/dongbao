@@ -93,6 +93,7 @@ export const createSession = (ports: SessionPorts): Session => {
   let lastError: SessionError | null = null
   let restored = false
   let signingIn: Promise<void> | null = null
+  let generation = 0
 
   /** 启动时只读一次本地 token：有就先用着，不额外打一次登录接口。 */
   const restore = () => {
@@ -112,15 +113,19 @@ export const createSession = (ports: SessionPorts): Session => {
   }
 
   const signIn = async (): Promise<void> => {
+    const current = generation
     try {
       const code = await ports.loginCode()
+      if (current !== generation) throw blockedError()
       const result = await ports.login(code)
+      if (current !== generation) throw blockedError()
       token = result.token
       userId = result.user_id
       ports.storage.write({ token, userId })
       status = 'authenticated'
       lastError = null
     } catch (reason) {
+      if (current !== generation) throw blockedError()
       forget()
       status = 'needs-retry'
       lastError = new SessionError('login_failed', SESSION_MESSAGES.loginFailed, reason)
@@ -131,9 +136,10 @@ export const createSession = (ports: SessionPorts): Session => {
   /** 并发入口只允许一次真实登录，避免启动与首屏请求各登录一次。 */
   const signInOnce = (): Promise<void> => {
     if (!signingIn) {
-      signingIn = signIn().finally(() => {
-        signingIn = null
+      const pending = signIn().finally(() => {
+        if (signingIn === pending) signingIn = null
       })
+      signingIn = pending
     }
     return signingIn
   }
@@ -167,6 +173,8 @@ export const createSession = (ports: SessionPorts): Session => {
   }
 
   const clearCredentials = (): void => {
+    generation++
+    signingIn = null
     forget()
     lastError = null
     status = 'anonymous'
@@ -174,15 +182,21 @@ export const createSession = (ports: SessionPorts): Session => {
   }
 
   const logout = (): void => {
+    generation++
+    signingIn = null
+    restored = true
     forget()
     lastError = null
     status = 'signed-out'
   }
 
   const run = async (operation: AuthorizedOperation): Promise<SessionResponse> => {
+    const current = generation
     await ensureSession()
+    if (current !== generation) throw blockedError()
     const sentWith = activeToken()
     const first = await operation(bearer(sentWith))
+    if (current !== generation) throw blockedError()
     if (first.statusCode !== 401) return first
 
     // 401 只对「发出去时那个 token」成立：若这期间别的请求已经换过 token，说明它是旧的，
@@ -190,9 +204,13 @@ export const createSession = (ports: SessionPorts): Session => {
     if (token === sentWith) await signInOnce()
 
     // 重放一次且仅一次，不进入无限循环。
-    const replay = await operation(bearer(activeToken()))
+    if (current !== generation) throw blockedError()
+    const replayWith = activeToken()
+    const replay = await operation(bearer(replayWith))
+    if (current !== generation) throw blockedError()
     if (replay.statusCode !== 401) return replay
 
+    if (token !== replayWith) throw new SessionError('session_expired', SESSION_MESSAGES.sessionExpired)
     forget()
     status = 'needs-retry'
     lastError = new SessionError('session_expired', SESSION_MESSAGES.sessionExpired)

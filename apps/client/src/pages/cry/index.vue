@@ -163,21 +163,21 @@ onBeforeUnmount(() => stopRecording())
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 24px 18px 120px; background: #fbfaf7; color: #203f4a; text-align: center; }
+.page { min-height: 100vh; padding: 24px 18px 120px; background: var(--db-background); color: var(--db-text); text-align: center; }
 .title { display: block; font-size: 23px; font-weight: 800; margin-top: 12px; }
-.muted { display: block; color: #71858b; font-size: 14px; margin-top: 6px; }
-.mic { width: 148px; height: 148px; margin: 36px auto 20px; border-radius: 50%; background: #328da9; color: white; font-size: 42px; border: 18px solid #e3f3f8; outline: 14px solid #f0f8fb; }
+.muted { display: block; color: var(--db-muted); font-size: 14px; margin-top: 6px; }
+.mic { width: 148px; height: 148px; margin: 36px auto 20px; border-radius: 50%; background: var(--db-primary); color: white; font-size: 42px; border: 18px solid var(--db-soft); outline: 14px solid var(--db-soft); }
 .mic.recording { background: #ca7d69; }
-.status { display: block; margin-bottom: 16px; color: #49646d; }
+.status { display: block; margin-bottom: 16px; color: var(--db-muted); }
 .audio-box { margin: 12px 0; }
 .audio { width: 100%; margin-bottom: 10px; }
-.primary { width: 100%; min-height: 52px; border-radius: 14px; background: #328da9; color: white; font-weight: 700; }
-.outline { width: 100%; min-height: 50px; margin-top: 12px; border-radius: 14px; border: 1px solid #bedbe4; background: white; color: #328da9; }
-.link { display: block; margin: 18px auto; background: transparent; color: #2d8098; font-size: 13px; }
-.notice { display: block; margin-top: 14px; color: #8b9c9f; font-size: 12px; line-height: 1.6; }
+.primary { width: 100%; min-height: 52px; border-radius: 14px; background: var(--db-primary); color: white; font-weight: 700; }
+.outline { width: 100%; min-height: 50px; margin-top: 12px; border-radius: 14px; border: 1px solid var(--db-border); background: var(--db-surface); color: var(--db-primary); }
+.link { display: block; margin: 18px auto; background: transparent; color: var(--db-primary); font-size: 13px; }
+.notice { display: block; margin-top: 14px; color: var(--db-muted); font-size: 12px; line-height: 1.6; }
 .section { margin-top: 28px; text-align: left; }
 .card-title { display: block; font-size: 17px; font-weight: 800; margin-bottom: 10px; }
-.event { width: 100%; display: flex; gap: 12px; align-items: center; padding: 14px 0; border-bottom: 1px solid #eff2f1; background: transparent; text-align: left; }
-.bubble { width: 37px; height: 37px; border-radius: 50%; background: #ecf6f8; display: grid; place-items: center; }
+.event { width: 100%; display: flex; gap: 12px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--db-border); background: transparent; text-align: left; }
+.bubble { width: 37px; height: 37px; border-radius: 50%; background: var(--db-soft); display: grid; place-items: center; }
 .event-title { display: block; font-size: 14px; font-weight: 700; }
 </style>

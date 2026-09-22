@@ -28,11 +28,11 @@ function openArticle(id: number) {
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 18px 18px 40px; background: #fbfaf7; color: #203f4a; }
+.page { min-height: 100vh; padding: 18px 18px 40px; background: var(--db-background); color: var(--db-text); }
 .title { display: block; font-size: 22px; font-weight: 800; }
-.muted { display: block; color: #71858b; font-size: 13px; margin-top: 6px; line-height: 1.5; }
-.empty { margin-top: 48px; text-align: center; color: #94a5ab; line-height: 1.8; }
-.card { margin-top: 14px; border-radius: 19px; background: white; border: 1px solid #eef1ef; padding: 16px; }
+.muted { display: block; color: var(--db-muted); font-size: 13px; margin-top: 6px; line-height: 1.5; }
+.empty { margin-top: 48px; text-align: center; color: var(--db-muted); line-height: 1.8; }
+.card { margin-top: 14px; border-radius: 19px; background: var(--db-surface); border: 1px solid var(--db-border); padding: 16px; }
 .art { height: 100px; border-radius: 13px; display: flex; align-items: center; justify-content: center; font-size: 44px; margin-bottom: 10px; }
 .card-title { display: block; font-size: 17px; font-weight: 800; }
 </style>

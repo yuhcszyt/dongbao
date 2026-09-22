@@ -35,7 +35,7 @@ export const pickLanIPv4 = (
 export const isLoopbackApi = (url: string): boolean => {
   try {
     const host = new URL(url).hostname
-    return host === 'localhost' || host === '127.0.0.1' || host === '::1'
+    return host === 'localhost' || host.endsWith('.localhost') || host.startsWith('127.') || host === '[::1]' || host === '::1'
   } catch {
     return false
   }
@@ -48,6 +48,13 @@ export const resolveMiniProgramApiBase = (input: {
   interfaces: Record<string, NetAddr[] | undefined>
 }): string => {
   const specified = (input.specified || '').replace(/\/$/, '')
+  if (specified) {
+    let url: URL
+    try { url = new URL(specified) } catch { throw new Error('VITE_API_BASE_URL 必须是完整的 http(s) 接口地址，不能是相对路径') }
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+      throw new Error('VITE_API_BASE_URL 必须是不含凭证的 http(s) 接口地址')
+    }
+  }
   if (specified && !isLoopbackApi(specified)) return specified
   const source = specified || input.apiTarget || 'http://127.0.0.1:8001'
   const parsed = new URL(source)

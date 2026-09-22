@@ -324,22 +324,22 @@ function submit() {
 
 <style scoped>
 .record-form { padding-bottom: 12px; }
-.field-title { display: block; margin: 17px 0 7px; color: #385d6b; font-size: 16px; font-weight: 600; }
-.field-hint { display: block; margin-top: 8px; color: #71858b; font-size: 13px; line-height: 1.5; }
+.field-title { display: block; margin: 17px 0 7px; color: var(--db-text); font-size: 16px; font-weight: 600; }
+.field-hint { display: block; margin-top: 8px; color: var(--db-muted); font-size: 13px; line-height: 1.5; }
 
 .type-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; }
-.type-option { min-height: 65px; padding: 7px 2px; border: 1px solid #e0e9e9; border-radius: 12px; background: #fff; color: #526c74; font-size: 12px; line-height: 1.25; }
-.type-option.selected { border-color: #328da9; background: #edf6f8; color: #236f87; font-weight: 700; }
+.type-option { min-height: 65px; padding: 7px 2px; border: 1px solid var(--db-border); border-radius: 12px; background: var(--db-surface); color: var(--db-muted); font-size: 12px; line-height: 1.25; }
+.type-option.selected { border-color: var(--db-primary); background: var(--db-soft); color: var(--db-primary); font-weight: 700; }
 .type-option.is-disabled:not(.selected) { opacity: .42; }
 .type-icon { display: block; margin-bottom: 3px; font-size: 20px; }
 .fields { display: grid; grid-template-columns: 1fr; gap: 3px 12px; }
 .two-columns { grid-template-columns: 1fr 1fr; }
-.input, .picker-field, .textarea { width: 100%; min-height: 52px; border: 1px solid #dfe8e9; border-radius: 13px; background: #fff; padding: 13px 14px; color: #203f4a; font-size: 17px; }
+.input, .picker-field, .textarea { width: 100%; min-height: 52px; border: 1px solid var(--db-border); border-radius: 13px; background: var(--db-surface); padding: 13px 14px; color: var(--db-text); font-size: 17px; }
 .picker-field { display: flex; align-items: center; justify-content: space-between; }
 .textarea { height: 92px; line-height: 1.6; }
 .textarea.note { height: 78px; }
 .error { margin-top: 14px; border-radius: 10px; background: #fff0ec; padding: 10px 12px; color: #a04e3d; font-size: 14px; }
-.submit { width: 100%; min-height: 54px; margin-top: 20px; border-radius: 15px; background: #328da9; color: #fff; font-size: 18px; font-weight: 700; }
+.submit { width: 100%; min-height: 54px; margin-top: 20px; border-radius: 15px; background: var(--db-primary); color: var(--db-surface); font-size: 18px; font-weight: 700; }
 .submit.is-disabled { opacity: .55; }
 @media (max-width: 360px) {
   .type-grid { grid-template-columns: repeat(4, 1fr); }

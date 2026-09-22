@@ -85,6 +85,21 @@ beforeEach(async () => {
 })
 
 describe('注销账号', () => {
+  it('并发首屏加载只创建一个默认宝宝，重置后迟到响应不恢复旧数据', async () => {
+    mocks.getBaby.mockResolvedValue(null)
+    const one = recordStore.load('2026-09-22')
+    const two = recordStore.load('2026-09-22')
+    await Promise.all([one, two])
+    expect(mocks.createBaby).toHaveBeenCalledTimes(1)
+    let finish!: (value: typeof baby) => void
+    mocks.getBaby.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    const stale = recordStore.load()
+    recordStore.reset()
+    finish(baby)
+    await stale
+    expect(recordStore.state.baby).toBeNull()
+    expect(recordStore.state.records).toEqual([])
+  })
   it('注销成功后本地被清空，并停用会话（返回干净初始状态）', async () => {
     await recordStore.load('2026-05-01')
     expect(recordStore.state.baby).not.toBeNull()

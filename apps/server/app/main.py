@@ -11,6 +11,7 @@ from .auth.routes import router as auth_router
 from .auth.wechat import login_mode_message
 from .ai.routes import router as ai_router
 from .record.routes import router as record_router
+from .record.capture import router as capture_router
 
 logger = logging.getLogger(__name__)
 
@@ -58,3 +59,4 @@ async def validation_error(request: Request, exc: RequestValidationError):
 app.include_router(record_router)
 app.include_router(auth_router)
 app.include_router(ai_router)
+app.include_router(capture_router)

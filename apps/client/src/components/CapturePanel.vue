@@ -1,387 +1,139 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
-import RecordForm from '@/components/RecordForm.vue'
-import { api, ApiError, SessionError } from '@/services/api'
-import { bindRecorderOnce, runCapture, type CaptureMode } from '@/features/record/captureFlow'
-import { RECORD_TYPES, draftFormInitial, draftNeedsEdit, draftQuickInput, draftQuickSummary, type MediaAsset, type RecordDraft, type RecordInput, type RecordItem, type RecordType } from '@/features/record/domain'
+import { createQuickCapture } from '@/features/record/quickCapture'
+import { createVoiceCapture } from '@/features/record/voiceCapture'
+import { runCapture, type CaptureMode } from '@/features/record/captureFlow'
+import { recordWhatText, type RecordItem, type RecordType } from '@/features/record/domain'
 
 const props = defineProps<{ babyId: string }>()
-const emit = defineEmits<{
-  close: []
-  manual: [type: RecordType]
-  saved: [record: RecordItem]
-}>()
-
-type Phase = 'idle' | 'recording' | 'processing' | 'draft' | 'error'
-
-const phase = ref<Phase>('idle')
-const draft = ref<RecordDraft | null>(null)
-const editing = ref(false)
+const emit = defineEmits<{ close: []; manual: [type: RecordType]; saved: [record: RecordItem]; edit: [record: RecordItem] }>()
+const recording = ref(false)
+const opening = ref(false)
 const error = ref('')
-const elapsed = ref(0)
-const submitting = ref(false)
-const lastMedia = ref<MediaAsset | null>(null)
-const lastKind = ref<'voice' | 'photo' | null>(null)
 const previewPath = ref('')
-let ticker: ReturnType<typeof setInterval> | null = null
-let hardStop: ReturnType<typeof setTimeout> | null = null
-let startedAt = 0
-let h5Recorder: MediaRecorder | null = null
-let h5Stream: MediaStream | null = null
-let h5Chunks: Blob[] = []
-let mpRecorder: ReturnType<typeof uni.getRecorderManager> | null = null
-const recorderBound = { current: false }
-let aborted = false
-
-const statusText = computed(() => {
-  if (phase.value === 'recording') return `正在录音 ${String(Math.floor(elapsed.value / 60)).padStart(2, '0')}:${String(elapsed.value % 60).padStart(2, '0')}`
-  if (phase.value === 'processing') return 'AI 正在识别…'
-  return ''
+let alive = true
+let photoGeneration = 0
+const flow = createQuickCapture(props.babyId, (result) => {
+  if (result.state === 'saved' && result.record) emit('saved', result.record)
+  if (result.state === 'needs_input') {
+    emit('close')
+    uni.switchTab({ url: '/pages/ai/index' })
+  }
 })
-
-const draftSummary = computed(() => (draft.value ? draftQuickSummary(draft.value) : ''))
-
-const cleanTimers = () => {
-  if (ticker) clearInterval(ticker)
-  if (hardStop) clearTimeout(hardStop)
-  ticker = null
-  hardStop = null
-}
-
-const friendlyError = (value: unknown) => (value instanceof ApiError || value instanceof SessionError) ? value.message : '这次没有识别成功，请重试或手动填写'
-
-async function recognize(media: MediaAsset, kind: 'voice' | 'photo') {
-  phase.value = 'processing'
-  error.value = ''
-  lastMedia.value = media
-  lastKind.value = kind
-  try {
-    draft.value = await api.draftFromMedia(kind, props.babyId, media.id)
-    editing.value = draftNeedsEdit(draft.value)
-    phase.value = 'draft'
-  } catch (reason) {
-    error.value = `${friendlyError(reason)}。已上传的${kind === 'voice' ? '录音' : '图片'}会保留。`
-    phase.value = 'error'
-  }
-}
-
-async function handleH5Recording(blob: Blob, durationMs: number) {
-  phase.value = 'processing'
-  try {
-    const media = await api.uploadBlob(blob, props.babyId, 'audio', durationMs)
-    await recognize(media, 'voice')
-  } catch (reason) {
-    error.value = friendlyError(reason)
-    phase.value = 'error'
-  }
-}
-
-function startTicker() {
-  elapsed.value = 0
-  startedAt = Date.now()
-  ticker = setInterval(() => { elapsed.value = Math.min(60, Math.floor((Date.now() - startedAt) / 1000)) }, 500)
-  hardStop = setTimeout(() => stopVoice(), 60_000)
-}
+const { state } = flow
+const voice = createVoiceCapture({
+  started() { opening.value = false; recording.value = true },
+  stopped(file, duration, capturedAt) {
+    recording.value = false
+    void flow.submit(file, 'audio', duration, capturedAt)
+  },
+  failed(message, stillRecording) { opening.value = false; recording.value = !!stillRecording; error.value = message },
+})
+const busy = computed(() => state.busy || state.cancelling || opening.value)
+const saved = computed(() => state.result?.state === 'saved' ? state.result.record : null)
 
 async function startVoice() {
-  aborted = false
+  if (busy.value || recording.value) return
+  if (state.error && !await flow.cancel()) return
   error.value = ''
-  // #ifdef H5
-  try {
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') throw new Error('unsupported')
-    h5Stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    h5Chunks = []
-    const mimeType = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm'
-    h5Recorder = new MediaRecorder(h5Stream, { mimeType })
-    h5Recorder.ondataavailable = (event) => { if (event.data.size) h5Chunks.push(event.data) }
-    h5Recorder.onstop = () => {
-      cleanTimers()
-      h5Stream?.getTracks().forEach((track) => track.stop())
-      h5Stream = null
-      h5Recorder = null
-      if (aborted) return
-      const durationMs = Math.min(60_000, Date.now() - startedAt)
-      const blob = new Blob(h5Chunks, { type: mimeType })
-      void handleH5Recording(blob, durationMs)
-    }
-    h5Recorder.start()
-    phase.value = 'recording'
-    startTicker()
-    return
-  } catch {
-    error.value = '无法使用麦克风，请检查浏览器权限，或改用手动记录'
-    phase.value = 'error'
-    return
-  }
-  // #endif
-
-  // #ifndef H5
-  try {
-    const recorder = uni.getRecorderManager()
-    mpRecorder = recorder
-    bindRecorderOnce(recorder, recorderBound, {
-      onStop(result) {
-        if (aborted) return
-        cleanTimers()
-        phase.value = 'processing'
-        const durationMs = Math.min(60_000, Date.now() - startedAt)
-        previewPath.value = result.tempFilePath
-        void api.uploadPath(result.tempFilePath, props.babyId, 'audio', durationMs)
-          .then((media) => recognize(media, 'voice'))
-          .catch((reason) => {
-            error.value = friendlyError(reason)
-            phase.value = 'error'
-          })
-      },
-      onError() {
-        if (aborted) return
-        cleanTimers()
-        error.value = '无法使用麦克风，请检查微信录音权限，或改用手动记录'
-        phase.value = 'error'
-      },
-    })
-    // wav：开发者工具里的「mp3」经常不是真 MPEG，上传会被服务端 422；真机也支持 wav，且 ASR 可识别。
-    recorder.start({ duration: 60_000, format: 'wav', sampleRate: 16_000, numberOfChannels: 1 })
-    phase.value = 'recording'
-    startTicker()
-  } catch {
-    error.value = '无法使用麦克风，请检查微信录音权限，或改用手动记录'
-    phase.value = 'error'
-  }
-  // #endif
+  opening.value = true
+  void voice.start()
 }
 
-function begin(mode: CaptureMode) {
-  if (phase.value === 'recording' || phase.value === 'processing' || phase.value === 'draft') return
-  aborted = false
-  runCapture(mode, { startVoice, choosePhoto })
-}
+function stopVoice() { error.value = ''; voice.stop() }
 
-function reset() {
-  aborted = true
-  cleanTimers()
-  try {
-    // #ifdef H5
-    if (h5Recorder?.state === 'recording') h5Recorder.stop()
-    h5Stream?.getTracks().forEach((track) => track.stop())
-    h5Recorder = null
-    h5Stream = null
-    // #endif
-    // #ifndef H5
-    mpRecorder?.stop()
-    // #endif
-  } catch {
-    // 关弹层优先：录音 stop 失败不能抛到页面把遮罩卡死。
-  }
-  phase.value = 'idle'
+async function choosePhoto() {
+  if (busy.value || recording.value) return
+  if (state.error && !await flow.cancel()) return
   error.value = ''
-  draft.value = null
-  editing.value = false
-  lastMedia.value = null
-  lastKind.value = null
-  previewPath.value = ''
-  submitting.value = false
-  elapsed.value = 0
-}
-
-defineExpose({ begin, reset })
-
-function requestClose() {
-  reset()
-  emit('close')
-}
-
-const MIN_VOICE_MS = 2000
-
-function stopVoice() {
-  if (phase.value !== 'recording') return
-  if (Date.now() - startedAt < MIN_VOICE_MS) {
-    error.value = '请再说一会儿，说完再点结束'
-    return
-  }
-  error.value = ''
-  cleanTimers()
-  // #ifdef H5
-  if (h5Recorder?.state === 'recording') h5Recorder.stop()
-  // #endif
-  // #ifndef H5
-  mpRecorder?.stop()
-  // #endif
-}
-
-function choosePhoto(opts?: { cameraOnly?: boolean }) {
-  aborted = false
-  error.value = ''
+  opening.value = true
+  const generation = ++photoGeneration
   uni.chooseImage({
-    count: 1,
-    sizeType: ['compressed'],
-    // 首页/快速入口只要相机；面板内「拍照记录」同样默认相机，避免多点一次相册。
-    sourceType: opts?.cameraOnly === false ? ['camera', 'album'] : ['camera'],
+    count: 1, sizeType: ['compressed'], sourceType: ['camera'],
     success(result) {
+      if (!alive || generation !== photoGeneration) return
+      opening.value = false
       const path = result.tempFilePaths[0]
-      if (!path) return
+      if (!path) { emit('close'); return }
       previewPath.value = path
-      phase.value = 'processing'
-      void api.uploadPath(path, props.babyId, 'image')
-        .then((media) => recognize(media, 'photo'))
-        .catch((reason) => {
-          error.value = friendlyError(reason)
-          phase.value = 'error'
-        })
+      void flow.submit(path, 'image')
     },
     fail(result) {
-      if (!result.errMsg.includes('cancel')) {
-        error.value = '无法打开相机，请检查相机权限'
-        phase.value = 'error'
-      }
+      if (!alive || generation !== photoGeneration) return
+      opening.value = false
+      if (result.errMsg.includes('cancel')) emit('close')
+      else error.value = '无法打开相机，请检查相机权限后重试。'
     },
   })
 }
 
-async function confirm(input: RecordInput) {
-  if (!draft.value) return
-  submitting.value = true
-  error.value = ''
-  try {
-    const record = await api.confirmDraft(draft.value.id, input)
-    emit('saved', record)
-  } catch (reason) {
-    error.value = friendlyError(reason)
-  } finally {
-    submitting.value = false
-  }
+function begin(mode: CaptureMode) { runCapture(mode, { startVoice, choosePhoto }) }
+
+async function requestClose() {
+  if (state.cancelling) return
+  photoGeneration++
+  voice.cancel()
+  recording.value = false
+  opening.value = false
+  if (saved.value || await flow.cancel()) emit('close')
 }
 
-async function quickSave() {
-  if (!draft.value) return
-  const input = draftQuickInput(draft.value)
-  await confirm(input)
+function editSaved() {
+  if (!saved.value) return
+  emit('edit', saved.value)
 }
 
-function retryRecognition() {
-  if (lastMedia.value && lastKind.value) void recognize(lastMedia.value, lastKind.value)
-}
+function viewSaved() { emit('close'); uni.switchTab({ url: '/pages/ai/index' }) }
 
-onBeforeUnmount(() => {
-  reset()
-})
+function reset() { voice.cancel(); photoGeneration++; flow.dispose() }
+defineExpose({ begin, reset, requestClose })
+onBeforeUnmount(() => { alive = false; reset() })
 </script>
 
 <template>
   <view class="capture">
     <view class="heading">
-      <view>
-        <text class="eyebrow">AI 快速记录</text>
-        <text class="title">给宝宝记一笔</text>
-      </view>
-      <button class="close" hover-class="none" aria-label="关闭" @tap.stop="requestClose" @click.stop="requestClose">×</button>
+      <text class="title">{{ saved ? '✓ 已成功记录' : '给宝宝记一笔' }}</text>
+      <button class="close" aria-label="关闭" :disabled="state.cancelling" @click="requestClose">×</button>
     </view>
-
-    <template v-if="phase === 'idle' || phase === 'recording' || phase === 'processing' || phase === 'error'">
-      <text class="lead">{{ phase === 'recording' ? '正在听你说，说完再点结束。' : '语音和拍照都会先经 AI 识别，你确认后写入今日记录。' }}</text>
-      <image v-if="previewPath && lastKind === 'photo'" class="preview" :src="previewPath" mode="aspectFit" />
-      <view v-if="statusText" class="status" :class="{ live: phase === 'recording' }">{{ statusText }}</view>
-      <view class="capture-buttons">
-        <button
-          class="capture-btn voice"
-          :class="{ 'is-disabled': phase === 'processing' }"
-          :disabled="phase === 'processing'"
-          @click="phase === 'recording' ? stopVoice() : startVoice()"
-        >
-          <text class="capture-icon">{{ phase === 'recording' ? '■' : '🎤' }}</text>
-          <text class="capture-title">{{ phase === 'recording' ? '结束录音' : '语音记录' }}</text>
-          <text class="capture-note">{{ phase === 'recording' ? '说完再点结束，至少 2 秒' : '点一下开始说' }}</text>
-        </button>
-        <button
-          class="capture-btn photo"
-          :class="{ 'is-disabled': phase === 'recording' || phase === 'processing' }"
-          :disabled="phase === 'recording' || phase === 'processing'"
-          @click="choosePhoto({ cameraOnly: true })"
-        >
-          <text class="capture-icon">📷</text>
-          <text class="capture-title">拍照记录</text>
-          <text class="capture-note">打开相机，AI 来认</text>
-        </button>
-      </view>
-
-      <view v-if="error" class="warning" role="alert">{{ error }}</view>
-      <button v-if="phase === 'error' && lastMedia" class="retry" @click="retryRecognition">重新识别</button>
-
-      <view class="manual-block">
-        <text>也可以直接填每日记录</text>
-        <view class="manual-grid">
-          <button v-for="item in RECORD_TYPES" :key="item.value" class="manual-item" @click="emit('manual', item.value)">
-            <text class="manual-icon">{{ item.icon }}</text>{{ item.label }}
-          </button>
-        </view>
-      </view>
+    <template v-if="saved">
+      <text class="saved-summary">{{ recordWhatText(saved) }}</text>
+      <text class="lead">已保存，在懂宝 AI 和记录里都能看到。</text>
+      <button class="primary" @click="viewSaved">去懂宝 AI 查看</button>
+      <button class="secondary" @click="editSaved">修改这条记录</button>
+      <button class="secondary" @click="requestClose">完成</button>
     </template>
-
-    <template v-else-if="draft">
-      <view class="draft-state">
-        <text class="draft-title">AI 识别完成</text>
-        <text v-if="draft.transcript" class="transcript">“{{ draft.transcript }}”</text>
-        <view class="quick-card">
-          <text class="quick-label">将写入今日记录</text>
-          <text class="quick-value">{{ draftSummary }}</text>
-        </view>
-        <view v-for="warning in draft.recognition_warnings" :key="warning" class="warning">{{ warning }}</view>
-        <view v-if="editing" class="hint">还有信息需要你补充，空着的内容不会自动猜测。</view>
+    <template v-else>
+      <text class="lead">{{ recording ? '正在听你说，说完点下面的大按钮。' : '说一说，或拍一张，懂宝帮你记好。' }}</text>
+      <image v-if="previewPath" class="preview" :src="previewPath" mode="aspectFit" />
+      <view v-if="busy" class="status" role="status">{{ state.cancelling ? '正在确认取消结果…' : opening ? '正在打开，请稍候…' : '正在帮你识别、记好，请稍候…' }}</view>
+      <button v-if="recording" class="primary speak" @click="stopVoice">■ 说完了</button>
+      <view v-else-if="!busy" class="capture-buttons">
+        <button class="primary" @click="startVoice">🎤 {{ error || state.error ? '重新说' : '语音记录' }}</button>
+        <button class="photo" @click="choosePhoto">📷 {{ error || state.error ? '重新拍' : '拍照记录' }}</button>
       </view>
-
-      <template v-if="!editing">
-        <button class="primary-save" :class="{ 'is-disabled': submitting }" :disabled="submitting" @click="quickSave">
-          {{ submitting ? '保存中…' : '确认保存' }}
-        </button>
-        <button class="edit-link" :disabled="submitting" @click="editing = true">改一下</button>
-      </template>
-      <RecordForm
-        v-else
-        :initial="draftFormInitial(draft)"
-        :submitting="submitting"
-        submit-text="确认并保存"
-        @submit="confirm"
-      />
-      <view v-if="error" class="warning" role="alert">{{ error }}</view>
+      <text v-if="error || state.error" class="warning" role="alert">{{ error || state.error }}</text>
+      <button v-if="state.error && !busy && !state.cancelRequested" class="primary" @click="flow.retry">重试这次记录</button>
+      <button class="secondary" :disabled="state.cancelling" @click="requestClose">取消</button>
+      <button v-if="!recording && !busy && !state.error" class="secondary" @click="emit('manual', 'feeding')">手动填写</button>
     </template>
   </view>
 </template>
 
 <style scoped>
-.capture { padding-bottom: 12px; }
+.capture { padding-bottom: 12px; color: var(--db-text); }
 .heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.eyebrow { display: block; color: #328da9; font-size: 12px; font-weight: 700; letter-spacing: 1px; }
-.title { display: block; margin-top: 2px; font-size: 24px; font-weight: 800; }
-.close { width: 48px; height: 48px; border-radius: 50%; background: #f2f5f4; color: #536b72; font-size: 27px; line-height: 48px; }
-.lead { display: block; margin: 15px 0; color: #617b85; font-size: 16px; line-height: 1.6; }
-.capture-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.capture-btn { min-height: 116px; border-radius: 17px; padding: 14px 8px; }
-.voice { background: #328da9; color: white; }
-.voice.is-disabled, .photo.is-disabled { opacity: .55; }
-.photo { background: #f6e9d8; color: #6c5137; }
-.capture-icon, .capture-title, .capture-note { display: block; }
-.capture-icon { font-size: 28px; }
-.capture-title { margin-top: 2px; font-size: 19px; font-weight: 700; }
-.capture-note { margin-top: 3px; font-size: 12px; opacity: .86; }
-.status { margin: 10px 0; border-radius: 12px; background: #edf6f8; padding: 12px; text-align: center; color: #27788f; font-size: 16px; font-weight: 650; }
-.status.live { background: #fff0ec; color: #a45142; }
-.preview { width: 100%; height: 180px; margin-bottom: 10px; border-radius: 14px; background: #edf3f2; }
-.warning, .hint { margin-top: 12px; border-radius: 11px; background: #fff4e5; padding: 11px 12px; color: #815b2f; font-size: 14px; line-height: 1.55; }
-.retry { min-height: 48px; margin-top: 10px; border: 1px solid #328da9; border-radius: 13px; background: white; color: #26768e; font-size: 16px; }
-.manual-block { margin-top: 23px; border-top: 1px solid #e9eff0; padding-top: 18px; color: #617b85; font-size: 14px; }
-.manual-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; margin-top: 10px; }
-.manual-item { min-height: 56px; padding: 6px 1px; border: 1px solid #e4ebeb; border-radius: 11px; background: white; color: #385d6b; font-size: 11px; line-height: 1.3; }
-.manual-icon { display: block; font-size: 17px; }
-.draft-state { margin: 15px 0 2px; }
-.draft-title { display: block; font-size: 18px; font-weight: 750; }
-.transcript { display: block; margin-top: 9px; border-left: 3px solid #b7dfe9; padding: 8px 11px; color: #536e77; line-height: 1.6; }
-.quick-card { margin-top: 14px; border-radius: 14px; background: #edf6f8; padding: 14px 16px; }
-.quick-label { display: block; color: #27788f; font-size: 13px; font-weight: 650; }
-.quick-value { display: block; margin-top: 6px; color: #203f4a; font-size: 22px; font-weight: 800; line-height: 1.35; }
-.primary-save { width: 100%; min-height: 52px; margin-top: 16px; border-radius: 14px; background: #328da9; color: white; font-size: 18px; font-weight: 700; }
-.primary-save.is-disabled { opacity: .55; }
-.edit-link { width: 100%; min-height: 44px; margin-top: 8px; background: transparent; color: #377c94; font-size: 15px; }
-@media (max-width: 360px) {
-  .manual-grid { grid-template-columns: repeat(4, 1fr); }
-}
+.title { font-size: 24px; font-weight: 800; }
+.close { flex-shrink: 0; width: 48px; height: 48px; line-height: 48px; border-radius: 50%; background: var(--db-soft); color: var(--db-text); font-size: 28px; padding: 0; }
+.lead { display: block; margin: 18px 0; font-size: 18px; line-height: 1.6; color: var(--db-muted); }
+.capture-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.primary, .photo, .secondary { margin-top: 12px; min-height: 52px; border-radius: 14px; font-size: 18px; font-weight: 650; }
+.primary { background: var(--db-primary); color: white; }
+.speak { min-height: 76px; font-size: 24px; }
+.photo { background: var(--db-apricot); color: #6c5137; }
+.secondary { background: var(--db-surface); color: var(--db-primary); border: 1px solid var(--db-border); }
+.status { padding: 16px; border-radius: 14px; background: var(--db-soft); color: var(--db-primary); font-size: 18px; line-height: 1.6; }
+.warning { display: block; margin-top: 16px; padding: 12px; border-radius: 12px; background: #fff4e5; color: #815b2f; font-size: 16px; line-height: 1.6; }
+.saved-summary { display: block; margin-top: 24px; font-size: 23px; line-height: 1.5; font-weight: 700; }
+.preview { width: 100%; height: 160px; border-radius: 14px; }
 </style>

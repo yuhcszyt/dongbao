@@ -5,15 +5,14 @@ import AccountGone from '@/components/AccountGone.vue'
 import CapturePanel from '@/components/CapturePanel.vue'
 import RecordForm from '@/components/RecordForm.vue'
 import type { CaptureMode } from '@/features/record/captureFlow'
-import { buildDateStrip, dateTimeParts, dayLabel, describeRecord, nowParts, pickerValue, RECORD_FILTERS, recordsOnDay, recordWhatText, showSavedRecordAck, type MediaAsset, type Payload, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
+import { buildDateStrip, dateTimeParts, dayLabel, describeRecord, nowParts, pickerValue, RECORD_FILTERS, recordsOnDay, type MediaAsset, type Payload, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
 import { takeQuickAction } from '@/features/record/quickAction'
 import { recordStore } from '@/features/record/store'
-import { aiChatStore } from '@/features/content/aiChat'
 import { mediaUrl } from '@/services/api'
 
 const { state } = recordStore
 const panel = ref<'capture' | 'form' | null>(null)
-const capturePanel = ref<{ begin: (mode: CaptureMode) => void; reset: () => void } | null>(null)
+const capturePanel = ref<{ begin: (mode: CaptureMode) => void; reset: () => void; requestClose: () => Promise<void> } | null>(null)
 const editing = ref<RecordItem | null>(null)
 const selectedType = ref<RecordType>('feeding')
 const draftPayload = ref<Partial<Payload> | undefined>()
@@ -129,23 +128,25 @@ const mediaLabel = (record: RecordItem, index: number) => {
   return `${head} · 点击${record.media?.[index]?.media_type === 'image' ? '查看' : '播放'}`
 }
 
-const captureSaved = (record: RecordItem) => {
-  closePanel()
+const captureSaved = () => {
   void recordStore.load()
-  showSavedRecordAck(record)
-  void aiChatStore.traceRecord(record.baby_id, recordWhatText(record), record.id)
 }
 
 function openStats() {
   uni.navigateTo({ url: '/pages/stats/index' })
 }
 
-onShow(() => {
+onShow(async () => {
   today.value = nowParts().date
-  void recordStore.load(day.value)
+  await recordStore.load(day.value)
   const action = takeQuickAction()
   if (action?.kind === 'capture') void openCapture(action.mode)
-  else if (action) openManual(action.record_type, action.payload)
+  else if (action?.kind === 'manual') openManual(action.record_type, action.payload)
+  else if (action?.kind === 'edit') {
+    const record = state.records.find((item) => item.id === action.record_id)
+    if (record) openEdit(record)
+    else uni.showToast({ title: '记录暂不可用，请刷新后再试', icon: 'none' })
+  }
 })
 </script>
 
@@ -214,7 +215,7 @@ onShow(() => {
 
     <view v-if="state.deleted" class="undo"><text>已删除“{{ typeMeta(state.deleted.record_type).label }}”</text><button @click="restore">撤销</button></view>
 
-    <view v-if="state.baby && panel" class="overlay" @click="closePanel">
+    <view v-if="state.baby && panel" class="overlay" @click="panel === 'capture' ? capturePanel?.requestClose() : closePanel()">
       <view class="sheet" @click.stop>
         <CapturePanel
           v-if="panel === 'capture'"
@@ -223,6 +224,7 @@ onShow(() => {
           @close="closePanel"
           @manual="openManual"
           @saved="captureSaved"
+          @edit="openEdit"
         />
         <template v-if="panel === 'form'">
           <view class="sheet-head"><text class="card-title">{{ editing ? '修改记录' : '手动记录' }}</text><button class="sheet-close" hover-class="none" aria-label="关闭" @tap.stop="closePanel" @click.stop="closePanel">×</button></view>
@@ -243,53 +245,53 @@ onShow(() => {
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 14px 19px 120px; background: #fbfaf7; color: #203f4a; }
-.state { padding: 80px 20px; text-align: center; color: #70858c; }
-.empty { padding: 45px 10px; text-align: center; color: #94a5ab; line-height: 1.8; }
+.page { min-height: 100vh; padding: 14px 19px 120px; background: var(--db-background); color: var(--db-text); }
+.state { padding: 80px 20px; text-align: center; color: var(--db-muted); }
+.empty { padding: 45px 10px; text-align: center; color: var(--db-muted); line-height: 1.8; }
 .page-title { font-size: 23px; font-weight: 800; }
-.muted { color: #71858b; font-size: 13px; }
+.muted { color: var(--db-muted); font-size: 13px; }
 .topbar, .intro-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .intro-row { margin-top: 6px; }
-.tag { min-height: 32px; padding: 5px 10px; border-radius: 20px; background: #edf6f8; color: #328da9; font-size: 11px; letter-spacing: 1px; }
-.link { min-height: 36px; padding: 0; background: transparent; color: #2d8098; font-size: 12px; }
+.tag { min-height: 32px; padding: 5px 10px; border-radius: 20px; background: var(--db-soft); color: var(--db-primary); font-size: 11px; letter-spacing: 1px; }
+.link { min-height: 36px; padding: 0; background: transparent; color: var(--db-primary); font-size: 12px; }
 .capture-entry { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 22px 0 12px; }
 .card-title, .lead, .manual-link { grid-column: 1 / -1; }
 .card-title { font-size: 20px; font-weight: 800; }
-.lead { font-size: 14px; color: #617b85; }
+.lead { font-size: 14px; color: var(--db-muted); }
 .voice, .photo { min-height: 78px; border-radius: 16px; padding: 14px; text-align: left; }
-.voice { background: #318ba5; color: white; }
-.photo { background: #f6e9d8; color: #6c5137; }
+.voice { background: var(--db-primary); color: white; }
+.photo { background: var(--db-apricot); color: #6c5137; }
 .cap-icon, .cap-title, .cap-note { display: block; }
 .cap-icon { font-size: 29px; }
 .cap-title { font-size: 18px; font-weight: 650; }
 .cap-note { margin-top: 4px; font-size: 13px; font-weight: 400; }
-.manual-link { min-height: 48px; background: transparent; color: #377c94; font-size: 16px; }
+.manual-link { min-height: 48px; background: transparent; color: var(--db-primary); font-size: 16px; }
 .dates { display: flex; gap: 5px; margin: 15px 0 6px; }
-.dates button { flex: 1; padding: 8px 0; border-radius: 18px; background: transparent; color: #203f4a; font-size: 12px; }
-.dates .active { background: #328da9; color: white; }
+.dates button { flex: 1; padding: 8px 0; border-radius: 18px; background: transparent; color: var(--db-text); font-size: 12px; }
+.dates .active { background: var(--db-primary); color: white; }
 .dates-week { display: block; opacity: .7; }
 .dates-day { display: block; font-size: 14px; font-weight: 700; }
-.date-pick { display: block; color: #81949a; font-size: 13px; margin-bottom: 8px; }
+.date-pick { display: block; color: var(--db-muted); font-size: 13px; margin-bottom: 8px; }
 .chips { display: flex; flex-wrap: wrap; gap: 7px; margin: 14px 0; }
-.chips button { background: #edf4f6; border-radius: 19px; padding: 7px 14px; font-size: 12px; color: #203f4a; }
-.chips .active { background: #328da9; color: white; }
+.chips button { background: var(--db-soft); border-radius: 19px; padding: 7px 14px; font-size: 12px; color: var(--db-text); }
+.chips .active { background: var(--db-primary); color: white; }
 .day-heading { display: block; font-size: 16px; font-weight: 800; margin: 8px 0; }
-.event { display: flex; gap: 11px; width: 100%; padding: 14px 0; border-bottom: 1px solid #eff2f1; background: transparent; text-align: left; color: inherit; }
-.event-time { width: 43px; padding-top: 5px; font-size: 14px; color: #79939a; }
-.bubble { width: 37px; height: 37px; border-radius: 50%; background: #ecf6f8; text-align: center; line-height: 37px; font-size: 18px; }
+.event { display: flex; gap: 11px; width: 100%; padding: 14px 0; border-bottom: 1px solid var(--db-border); background: transparent; text-align: left; color: inherit; }
+.event-time { width: 43px; padding-top: 5px; font-size: 14px; color: var(--db-muted); }
+.bubble { width: 37px; height: 37px; border-radius: 50%; background: var(--db-soft); text-align: center; line-height: 37px; font-size: 18px; }
 .event-data { flex: 1; min-width: 0; }
 .event-title { display: block; font-size: 15px; font-weight: 700; }
-.event-note { display: block; color: #91a1a6; font-size: 12px; }
-.chev { color: #91a1a6; }
+.event-note { display: block; color: var(--db-muted); font-size: 12px; }
+.chev { color: var(--db-muted); }
 .media-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
-.source { color: #27788f; font-size: 12px; }
+.source { color: var(--db-primary); font-size: 12px; }
 .error { margin: 12px 0; border-radius: 12px; background: #fff0ec; padding: 12px; color: #9a4c3e; }
-.error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: #fff; color: #9a4c3e; font-weight: 700; }
-.overlay { position: fixed; z-index: 200; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: rgba(25, 47, 52, .46); }
-.sheet { width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; background: #fbfaf7; padding: 21px 18px calc(22px + env(safe-area-inset-bottom)); }
+.error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: var(--db-surface); color: #9a4c3e; font-weight: 700; }
+.overlay { position: fixed; z-index: 200; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: var(--db-overlay); }
+.sheet { width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; background: var(--db-background); padding: 21px 18px calc(22px + env(safe-area-inset-bottom)); }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; }
-.sheet-head .sheet-close, .sheet-head button { width: 48px; height: 48px; border-radius: 50%; background: #eef2f1; font-size: 27px; }
-.danger-delete { width: 100%; min-height: 48px; margin-top: 12px; border-radius: 14px; border: 1px solid #eccfc7; background: white; color: #b86e62; font-size: 15px; }
-.undo { position: fixed; z-index: 30; right: 16px; bottom: calc(70px + env(safe-area-inset-bottom)); left: 16px; display: flex; align-items: center; justify-content: space-between; min-height: 54px; border-radius: 14px; background: #244a56; padding: 8px 10px 8px 16px; color: white; }
-.undo button { min-width: 72px; min-height: 48px; border-radius: 11px; background: #fff; color: #267b93; font-weight: 700; }
+.sheet-head .sheet-close, .sheet-head button { width: 48px; height: 48px; border-radius: 50%; background: var(--db-border); font-size: 27px; }
+.danger-delete { width: 100%; min-height: 48px; margin-top: 12px; border-radius: 14px; border: 1px solid #eccfc7; background: var(--db-surface); color: #b86e62; font-size: 15px; }
+.undo { position: fixed; z-index: 30; right: 16px; bottom: calc(70px + env(safe-area-inset-bottom)); left: 16px; display: flex; align-items: center; justify-content: space-between; min-height: 54px; border-radius: 14px; background: var(--db-text); padding: 8px 10px 8px 16px; color: white; }
+.undo button { min-width: 72px; min-height: 48px; border-radius: 11px; background: var(--db-surface); color: var(--db-primary); font-weight: 700; }
 </style>

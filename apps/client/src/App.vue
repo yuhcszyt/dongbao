@@ -12,9 +12,19 @@ onLaunch(() => {
 
 <style>
 page {
+  --db-primary: #7560a8;
+  --db-primary-pale: #c5b8df;
+  --db-soft: #f0ebf7;
+  --db-background: #fbfaf7;
+  --db-surface: #ffffff;
+  --db-text: #342e42;
+  --db-muted: #716979;
+  --db-border: #e5dfed;
+  --db-apricot: #f4e6d5;
+  --db-overlay: rgba(52, 46, 66, .46);
   min-height: 100%;
-  background: #fbfaf7;
-  color: #203f4a;
+  background: var(--db-background);
+  color: var(--db-text);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
@@ -29,7 +39,11 @@ picker {
 
 button {
   margin: 0;
+  min-height: 44px;
 }
+
+button[disabled] { opacity: .6; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--db-primary); outline-offset: 3px; }
 
 button::after {
   border: 0;

@@ -14,6 +14,7 @@ from ..config import get_config
 from ..record.database import get_db
 from ..record.models import Baby, MediaAsset
 from ..record.storage import media_path
+from ..record.routes import media_out
 from .agent import run_parenting_agent
 from .models import AiConversation, AiMessage, now
 from .observability import chat_trace
@@ -94,7 +95,8 @@ def chat(body: ChatRequest, user: User = Depends(current_user), db: Session = De
     ).all()
     history = [{"role": m.role, "content": m.content} for m in reversed(prior) if m.role in ("user", "assistant")]
 
-    user_msg = AiMessage(conversation_id=conv.id, role="user", content=stored, created_at=now())
+    user_msg = AiMessage(conversation_id=conv.id, role="user", content=stored, created_at=now(),
+                         structured_payload={"media": media_out(db.get(MediaAsset, body.media_id)).model_dump(mode="json")} if body.media_id else None)
     db.add(user_msg)
     db.flush()
 

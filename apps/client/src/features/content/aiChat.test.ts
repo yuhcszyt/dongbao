@@ -28,6 +28,7 @@ const { aiChatStore } = await import('./aiChat')
 
 beforeEach(() => {
   vi.clearAllMocks()
+  aiChatStore.reset()
   aiChatStore.state.conversationId = null
   aiChatStore.state.messages = []
   aiChatStore.state.loading = false
@@ -36,6 +37,28 @@ beforeEach(() => {
 })
 
 describe('aiChatStore button → API', () => {
+  it('退出后迟到的回答不能恢复旧用户会话', async () => {
+    let finish!: (value: unknown) => void
+    mocks.aiChat.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    const pending = aiChatStore.ask('baby-1', '你好')
+    aiChatStore.reset()
+    finish({ conversation_id: 'old', answer: { summary: '旧数据' } })
+    expect(await pending).toBe(false)
+    expect(aiChatStore.state.messages).toEqual([])
+    expect(aiChatStore.state.conversationId).toBeNull()
+  })
+
+  it('发消息后旧的加载响应不覆盖新会话', async () => {
+    let finish!: (value: unknown) => void
+    mocks.aiActiveConversation.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    mocks.aiChat.mockResolvedValueOnce({ conversation_id: 'new', answer: { summary: '新回答' } })
+    const stale = aiChatStore.load('baby-1')
+    await aiChatStore.ask('baby-1', '新问题')
+    finish({ conversation_id: 'old', messages: [] })
+    await stale
+    expect(aiChatStore.state.messages[0]?.a).toBe('新回答')
+    expect(aiChatStore.state.conversationId).toBe('new')
+  })
   it('load 拉活跃会话并拼成问答轮次', async () => {
     mocks.aiActiveConversation.mockResolvedValue({
       conversation_id: 'c1',

@@ -99,9 +99,9 @@ seed-rag: db-up db-wait qdrant-up qdrant-wait
 		.venv/bin/python -c "from app.record.database import SessionLocal; from app.ai.seed import reseed_all; \
 		db=SessionLocal(); n=reseed_all(db); print(f'reseeded {n} chunks')"
 
-test-server: db-up db-wait qdrant-up qdrant-wait
-	cd $(SERVER_DIR) && $(SERVER_ENV) .venv/bin/alembic upgrade head
-	cd $(SERVER_DIR) && $(SERVER_ENV) .venv/bin/python -m pytest -q
+test-server: db-up db-wait
+	cd $(SERVER_DIR) && $(SERVER_ENV) APP_CONFIG=$(CURDIR)/apps/server/tests/providers.toml .venv/bin/alembic upgrade head
+	cd $(SERVER_DIR) && $(SERVER_ENV) APP_CONFIG=$(CURDIR)/apps/server/tests/providers.toml .venv/bin/python -m pytest -q
 
 test-client: typecheck
 	cd $(CLIENT_DIR) && npm test

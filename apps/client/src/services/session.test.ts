@@ -47,6 +47,33 @@ const scriptedTransport = (statuses: number[]) => {
 }
 
 describe('客户端会话契约', () => {
+  it('注销期间晚到的登录结果不能恢复凭证', async () => {
+    let finish!: (result: LoginResult) => void
+    const storage = memoryStorage()
+    const session = createSession({ storage, loginCode: () => 'code', login: () => new Promise((resolve) => { finish = resolve }) })
+    const pending = session.ensureSession()
+    await Promise.resolve()
+    session.logout()
+    const rejected = expect(pending).rejects.toBeInstanceOf(SessionError)
+    finish({ token: 'late-token', user_id: 'late-user' })
+    await rejected
+    expect(session.status).toBe('signed-out')
+    expect(storage.peek()).toBeNull()
+  })
+
+  it('退出登录后迟到的 401 不再重登或重放请求', async () => {
+    const { session, login } = harness({ stored: { token: 'old', userId: 'u' } })
+    let finish!: (response: SessionResponse) => void
+    const operation = vi.fn(() => new Promise<SessionResponse>((resolve) => { finish = resolve }))
+    const pending = session.run(operation)
+    await Promise.resolve()
+    session.clearCredentials()
+    const rejected = expect(pending).rejects.toBeInstanceOf(SessionError)
+    finish({ statusCode: 401, data: null })
+    await rejected
+    expect(login).not.toHaveBeenCalled()
+    expect(operation).toHaveBeenCalledTimes(1)
+  })
   it('启动时没有本地 token 会静默登录，并把凭证留在本地', async () => {
     const { session, storage, login, loginCode } = harness()
 

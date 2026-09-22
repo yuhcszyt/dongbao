@@ -29,7 +29,7 @@ export interface AiActiveConversation {
     id: string
     role: string
     content: string
-    structured_payload?: ParentingAnswer | null
+    structured_payload?: (Partial<ParentingAnswer> & { media?: import('@/features/record/domain').MediaAsset; draft_id?: string }) | null
     created_at: string
   }>
 }

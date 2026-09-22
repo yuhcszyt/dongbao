@@ -52,18 +52,18 @@ onLoad((query) => {
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 18px 18px 40px; background: #fbfaf7; color: #203f4a; }
+.page { min-height: 100vh; padding: 18px 18px 40px; background: var(--db-background); color: var(--db-text); }
 .top { display: flex; justify-content: space-between; align-items: center; }
-.tag { padding: 4px 10px; border-radius: 20px; background: #edf6f8; color: #328da9; font-size: 11px; }
-.link { background: transparent; color: #2d8098; font-size: 14px; }
+.tag { padding: 4px 10px; border-radius: 20px; background: var(--db-soft); color: var(--db-primary); font-size: 11px; }
+.link { background: transparent; color: var(--db-primary); font-size: 14px; }
 .title { display: block; margin: 14px 0; font-size: 26px; font-weight: 800; line-height: 1.35; }
-.card { border-radius: 19px; background: white; border: 1px solid #eef1ef; padding: 16px; margin-bottom: 14px; }
-.hero { background: linear-gradient(120deg, #e3f3f7, #f1f8fa); border-color: #d9edf2; }
+.card { border-radius: 19px; background: var(--db-surface); border: 1px solid var(--db-border); padding: 16px; margin-bottom: 14px; }
+.hero { background: linear-gradient(120deg, var(--db-soft), var(--db-soft)); border-color: var(--db-border); }
 .card-title { display: block; font-weight: 800; margin-bottom: 6px; }
-.muted, .body { display: block; color: #70858d; font-size: 14px; line-height: 1.9; }
+.muted, .body { display: block; color: var(--db-muted); font-size: 14px; line-height: 1.9; }
 .art { height: 160px; border-radius: 13px; display: flex; align-items: center; justify-content: center; font-size: 64px; margin-bottom: 16px; }
 .section { display: block; margin: 20px 0 8px; font-size: 17px; font-weight: 800; }
 .warn { margin: 18px 0; border-radius: 12px; background: #fff0df; color: #b88346; padding: 10px 12px; font-size: 12px; }
-.primary { width: 100%; min-height: 52px; border-radius: 14px; background: #328da9; color: white; font-weight: 700; }
-.outline { width: 100%; min-height: 50px; margin-top: 10px; border-radius: 14px; border: 1px solid #bedbe4; background: white; color: #328da9; }
+.primary { width: 100%; min-height: 52px; border-radius: 14px; background: var(--db-primary); color: white; font-weight: 700; }
+.outline { width: 100%; min-height: 50px; margin-top: 10px; border-radius: 14px; border: 1px solid var(--db-border); background: var(--db-surface); color: var(--db-primary); }
 </style>

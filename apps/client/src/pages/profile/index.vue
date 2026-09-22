@@ -150,34 +150,34 @@ onShow(() => void recordStore.load())
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 22px 18px 120px; background: #fbfaf7; color: #203f4a; }
-.state { padding: 80px 20px; text-align: center; color: #70858c; }
-.avatar { display: grid; place-items: center; width: 76px; height: 76px; margin: 0 auto; border-radius: 50%; background: #f2e8d8; font-size: 44px; }
+.page { min-height: 100vh; padding: 22px 18px 120px; background: var(--db-background); color: var(--db-text); }
+.state { padding: 80px 20px; text-align: center; color: var(--db-muted); }
+.avatar { display: grid; place-items: center; width: 76px; height: 76px; margin: 0 auto; border-radius: 50%; background: var(--db-apricot); font-size: 44px; }
 .head { text-align: center; margin-bottom: 20px; }
 .page-title { display: block; margin: 10px 0 4px; font-size: 27px; font-weight: 800; }
-.muted { display: block; color: #71858b; font-size: 14px; line-height: 1.55; }
-.card { margin: 14px 0; border: 1px solid #e6eceb; border-radius: 19px; background: white; box-shadow: 0 7px 24px rgba(43, 75, 83, .06); padding: 16px; }
+.muted { display: block; color: var(--db-muted); font-size: 14px; line-height: 1.55; }
+.card { margin: 14px 0; border: 1px solid var(--db-border); border-radius: 19px; background: var(--db-surface); box-shadow: 0 7px 24px rgba(43, 75, 83, .06); padding: 16px; }
 .card-head { display: flex; align-items: center; justify-content: space-between; }
 .card-title { font-size: 18px; font-weight: 800; }
-.link { min-height: 44px; padding: 0 8px; background: transparent; color: #2d8098; font-size: 15px; }
-.row, .menu-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px; border-bottom: 1px solid #eef2f1; width: 100%; background: transparent; text-align: left; color: inherit; font-size: 15px; padding: 0; }
+.link { min-height: 44px; padding: 0 8px; background: transparent; color: var(--db-primary); font-size: 15px; }
+.row, .menu-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px; border-bottom: 1px solid var(--db-border); width: 100%; background: transparent; text-align: left; color: inherit; font-size: 15px; padding: 0; }
 .row:last-child, .menu-row:last-child { border-bottom: 0; }
-.row-key { color: #71858b; }
+.row-key { color: var(--db-muted); }
 .row-value { font-weight: 700; }
-.chev { color: #91a1a6; }
+.chev { color: var(--db-muted); }
 .account .card-title { display: block; margin-bottom: 4px; }
-.account-note { display: block; margin-top: 12px; color: #8b9c9f; font-size: 11px; line-height: 1.7; }
+.account-note { display: block; margin-top: 12px; color: var(--db-muted); font-size: 11px; line-height: 1.7; }
 .danger { color: #b86e62; }
 .error { margin: 12px 0; border-radius: 12px; background: #fff0ec; padding: 12px; color: #9a4c3e; }
-.error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: #fff; color: #9a4c3e; font-weight: 700; }
-.overlay { position: fixed; z-index: 200; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: rgba(25, 47, 52, .46); }
-.sheet { width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; background: #fbfaf7; padding: 21px 18px calc(22px + env(safe-area-inset-bottom)); }
+.error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: var(--db-surface); color: #9a4c3e; font-weight: 700; }
+.overlay { position: fixed; z-index: 200; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: var(--db-overlay); }
+.sheet { width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; background: var(--db-background); padding: 21px 18px calc(22px + env(safe-area-inset-bottom)); }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.sheet-head .sheet-close, .sheet-head button { width: 48px; height: 48px; border-radius: 50%; background: #eef2f1; font-size: 27px; }
+.sheet-head .sheet-close, .sheet-head button { width: 48px; height: 48px; border-radius: 50%; background: var(--db-border); font-size: 27px; }
 .warn { margin: 12px 0; border-radius: 12px; background: #fff0df; color: #b88346; padding: 10px 12px; font-size: 13px; line-height: 1.6; }
-.primary { width: 100%; min-height: 52px; margin-top: 14px; border-radius: 14px; background: #328da9; color: white; font-weight: 700; }
-.outline { width: 100%; min-height: 50px; margin-top: 12px; border-radius: 14px; border: 1px solid #bedbe4; background: white; color: #328da9; }
+.primary { width: 100%; min-height: 52px; margin-top: 14px; border-radius: 14px; background: var(--db-primary); color: white; font-weight: 700; }
+.outline { width: 100%; min-height: 50px; margin-top: 12px; border-radius: 14px; border: 1px solid var(--db-border); background: var(--db-surface); color: var(--db-primary); }
 .danger-btn { color: #b86e62; border-color: #eccfc7; }
-.cancel { width: 100%; min-height: 50px; margin-top: 10px; border-radius: 14px; background: white; color: #566d75; }
-.confirm-word { width: 100%; margin-top: 12px; padding: 12px; border: 1px solid #e0eaed; border-radius: 10px; background: white; font-size: 16px; }
+.cancel { width: 100%; min-height: 50px; margin-top: 10px; border-radius: 14px; background: var(--db-surface); color: var(--db-muted); }
+.confirm-word { width: 100%; margin-top: 12px; padding: 12px; border: 1px solid var(--db-border); border-radius: 10px; background: var(--db-surface); font-size: 16px; }
 </style>

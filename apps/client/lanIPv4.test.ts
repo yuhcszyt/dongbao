@@ -21,6 +21,13 @@ describe('pickLanIPv4', () => {
 describe('resolveMiniProgramApiBase', () => {
   const interfaces = { en0: [en0] }
 
+  it('rejects relative paths and non-HTTP URLs instead of building an unusable mini program', () => {
+    for (const specified of ['/api/v1', 'ftp://host/api/v1', 'https://user:pass@host/api/v1']) {
+      expect(() => resolveMiniProgramApiBase({ specified, interfaces })).toThrow(/VITE_API_BASE_URL/)
+    }
+    expect(resolveMiniProgramApiBase({ specified: 'http://[::1]:8001/api/v1', interfaces })).toBe('http://192.168.0.101:8001/api/v1')
+  })
+
   it('keeps a public or LAN URL', () => {
     expect(
       resolveMiniProgramApiBase({ specified: 'https://api.example.com/api/v1/', interfaces }),

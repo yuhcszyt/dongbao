@@ -98,6 +98,25 @@ const babyBody = (input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) => ({
 })
 
 export const api = {
+  capture(babyId: string, mediaId: string, occurredAt: string) {
+    return request<import('@/features/record/quickCapture').CaptureResult>('/record-drafts/capture', 'POST', {
+      baby_id: babyId, media_id: mediaId, occurred_at: occurredAt, timezone: detectTimeZone(),
+    }, 120_000)
+  },
+  pendingCaptures(babyId: string) {
+    return request<import('@/features/record/quickCapture').CaptureResult[]>(`/record-drafts/pending?baby_id=${encodeURIComponent(babyId)}`)
+  },
+  replyCapture(draftId: string, requestId: string, message: string, mediaId?: string) {
+    return request<import('@/features/record/quickCapture').CaptureResult>(`/record-drafts/${draftId}/reply`, 'POST', {
+      request_id: requestId, ...(mediaId ? { media_id: mediaId } : { message }),
+    }, 120_000)
+  },
+  cancelCapture(mediaId: string) {
+    return request<import('@/features/record/quickCapture').CaptureResult>(`/record-drafts/capture/${mediaId}/cancel`, 'POST', undefined, 120_000)
+  },
+  transcribe(mediaId: string) {
+    return request<{ transcript: string }>(`/media/${mediaId}/transcript`, 'POST', undefined, 60_000)
+  },
   async getBaby() {
     const result = await request<Baby[] | { items: Baby[] }>('/babies')
     return unwrapList(result)[0] ?? null
@@ -179,13 +198,22 @@ export const api = {
       const form = new FormData()
       form.append('file', blob, mediaType === 'audio' ? 'recording.webm' : 'photo.jpg')
       for (const [key, value] of Object.entries(mediaFormData(babyId, mediaType, durationMs))) form.append(key, value)
-      const result = await fetch(`${API_BASE}/media`, {
-        method: 'POST',
-        headers: { ...tunnelHeaders(), ...headers },
-        body: form,
-      })
-      const body = (await result.json().catch(() => null)) as unknown
-      return { statusCode: result.status, data: body }
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 30_000)
+      try {
+        const result = await fetch(`${API_BASE}/media`, {
+          method: 'POST',
+          headers: { ...tunnelHeaders(), ...headers },
+          body: form,
+          signal: controller.signal,
+        })
+        const body = (await result.json().catch(() => null)) as unknown
+        return { statusCode: result.status, data: body }
+      } catch {
+        throw new ApiError(controller.signal.aborted ? '上传超时，请重试' : '上传没有完成，请检查网络后重试')
+      } finally {
+        clearTimeout(timer)
+      }
     })
     return uploadResult(response, '上传没有完成，请重试')
   },

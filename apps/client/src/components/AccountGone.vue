@@ -21,9 +21,9 @@
 
 <style scoped>
 .gone { max-width: 520px; margin: 0 auto; padding-top: 34px; text-align: center; }
-.mark { display: grid; place-items: center; width: 82px; height: 82px; margin: 0 auto 22px; border-radius: 50%; background: #f2e8d8; font-size: 45px; }
+.mark { display: grid; place-items: center; width: 82px; height: 82px; margin: 0 auto 22px; border-radius: 50%; background: var(--db-apricot); font-size: 45px; }
 .eyebrow, .title, .muted { display: block; }
-.eyebrow { color: #328da9; font-size: 13px; font-weight: 750; letter-spacing: 1px; }
+.eyebrow { color: var(--db-primary); font-size: 13px; font-weight: 750; letter-spacing: 1px; }
 .title { margin: 10px 0 4px; font-size: 27px; font-weight: 800; line-height: 1.25; }
-.muted { color: #71858b; font-size: 14px; line-height: 1.55; }
+.muted { color: var(--db-muted); font-size: 14px; line-height: 1.55; }
 </style>
