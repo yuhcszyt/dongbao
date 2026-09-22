@@ -11,6 +11,7 @@ import {
   pickerValue,
   recordTimeText,
   recordsOnDay,
+  savedRecordAck,
   shiftDate,
   timeZoneName,
   validateBabyProfile,
@@ -27,6 +28,18 @@ describe('记录领域契约', () => {
     expect(describeRecord({ record_type: 'diaper', payload: { kind: 'diaper', content: '更换尿布' } })).toBe('更换尿布')
     expect(describeRecord({ record_type: 'vaccine', payload: { kind: 'vaccine', name: '乙肝疫苗' } })).toBe('乙肝疫苗')
     expect(normalizeSummary({ feeding_ml: 180 })).toEqual({ feeding_ml: 180, sleep_minutes: 0, diaper_count: 0, complementary_food_count: 0 })
+  })
+
+  it('保存成功提示写明类型和数量，并点出已进今日记录', () => {
+    expect(savedRecordAck({ record_type: 'feeding', payload: { kind: 'feeding', amount_ml: 180 } })).toBe(
+      '已写入今日记录：喂奶 · 180 ml',
+    )
+    expect(savedRecordAck({ record_type: 'feeding', payload: { kind: 'feeding', feeding_type: 'formula' } })).toBe(
+      '已写入今日记录：喂奶',
+    )
+    expect(savedRecordAck({ record_type: 'vitamin_ad', payload: { kind: 'vitamin_ad', dose_text: '1 滴' } })).toBe(
+      '已写入今日记录：维生素AD · 已吃 · 1 滴',
+    )
   })
 
   it('识别没出类型时给自定义标题，确认表单不会卡在空标题', () => {

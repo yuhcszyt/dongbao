@@ -5,7 +5,7 @@ import AccountGone from '@/components/AccountGone.vue'
 import CapturePanel from '@/components/CapturePanel.vue'
 import RecordForm from '@/components/RecordForm.vue'
 import type { CaptureMode } from '@/features/record/captureFlow'
-import { buildDateStrip, dateTimeParts, dayLabel, describeRecord, nowParts, pickerValue, RECORD_FILTERS, recordsOnDay, type MediaAsset, type Payload, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
+import { buildDateStrip, dateTimeParts, dayLabel, describeRecord, nowParts, pickerValue, RECORD_FILTERS, recordsOnDay, showSavedRecordAck, type MediaAsset, type Payload, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
 import { takeQuickAction } from '@/features/record/quickAction'
 import { recordStore } from '@/features/record/store'
 import { mediaUrl } from '@/services/api'
@@ -128,9 +128,10 @@ const mediaLabel = (record: RecordItem, index: number) => {
   return `${head} · 点击${record.media?.[index]?.media_type === 'image' ? '查看' : '播放'}`
 }
 
-const captureSaved = () => {
+const captureSaved = (record: RecordItem) => {
   closePanel()
   void recordStore.load()
+  showSavedRecordAck(record)
 }
 
 function openStats() {
@@ -165,7 +166,7 @@ onShow(() => {
 
       <view class="capture-entry">
         <text class="card-title">给宝宝记一笔</text>
-        <text class="lead">说一句，或拍张照，就能开始记录</text>
+        <text class="lead">说一句或拍张照，确认后写入今日记录</text>
         <button class="voice" @click="openCapture('voice')">
           <text class="cap-icon">♩</text>
           <text class="cap-title">语音记录</text>

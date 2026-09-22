@@ -287,6 +287,27 @@ export function describeRecord(record: Pick<RecordItem, 'record_type' | 'payload
   }
 }
 
+/**
+ * 语音/拍照确认保存后的提示框正文：写明类型和数量，并点出已进今日记录（不是问懂宝）。
+ */
+export function savedRecordAck(record: Pick<RecordItem, 'record_type' | 'payload'>): string {
+  const label = typeMeta(record.record_type).label
+  const detail = describeRecord(record).trim()
+  if (!detail || detail === `已记录${label}` || detail.startsWith('已记录')) {
+    return `已写入今日记录：${label}`
+  }
+  return `已写入今日记录：${label} · ${detail}`
+}
+
+export function showSavedRecordAck(record: Pick<RecordItem, 'record_type' | 'payload'>) {
+  uni.showModal({
+    title: '记好了',
+    content: savedRecordAck(record),
+    showCancel: false,
+    confirmText: '知道了',
+  })
+}
+
 export function normalizeSummary(value: Partial<DailySummary> & Record<string, unknown>): DailySummary {
   return {
     feeding_ml: Number(value.feeding_ml ?? value.milk_ml ?? 0),

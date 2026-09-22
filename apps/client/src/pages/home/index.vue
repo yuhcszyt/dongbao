@@ -18,7 +18,9 @@ import {
   HOME_QUICK_TYPES,
   nowParts,
   recordTimeText,
+  showSavedRecordAck,
   typeMeta,
+  type RecordItem,
   type RecordType,
 } from '@/features/record/domain'
 import { requestQuickAction, type QuickAction } from '@/features/record/quickAction'
@@ -77,10 +79,10 @@ function openManualFromCapture(type: RecordType) {
   openRecord({ kind: 'manual', record_type: type })
 }
 
-function onCaptureSaved() {
+function onCaptureSaved(record: RecordItem) {
   closeCapture()
   void recordStore.load(today.value)
-  uni.showToast({ title: '记好了', icon: 'success' })
+  showSavedRecordAck(record)
 }
 
 function openHomeQuick(item: (typeof HOME_QUICK_TYPES)[number]) {
@@ -149,6 +151,7 @@ onShow(() => {
           <text class="card-title">给宝宝记一笔</text>
           <button class="link" @click="openRecord()">更多 ＋</button>
         </view>
+        <text class="muted capture-lead">说一句或拍一张，确认后写入今日记录（不是问懂宝）</text>
         <view class="capture-row">
           <button class="voice" @click="openCapture('voice')">
             <text class="cap-icon">🎤</text>
@@ -158,7 +161,7 @@ onShow(() => {
           <button class="photo" @click="openCapture('photo')">
             <text class="cap-icon">📷</text>
             <text class="cap-title">拍照记录</text>
-            <text class="cap-note">打开相机，AI 来记</text>
+            <text class="cap-note">打开相机，AI 填草稿</text>
           </button>
         </view>
         <button class="manual-link" @click="openRecord({ kind: 'manual', record_type: 'feeding' })">也可以手动填写 ›</button>
@@ -244,6 +247,7 @@ onShow(() => {
 .listen { width: 100%; margin-top: 10px; text-align: left; color: #328da9; font-size: 13px; background: transparent; }
 .listen text { float: right; }
 .capture-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.capture-lead { margin: 8px 0 0; }
 .capture-row button { min-height: 78px; border-radius: 16px; padding: 14px; text-align: left; }
 .cap-icon, .cap-title, .cap-note { display: block; }
 .cap-icon { font-size: 26px; }
