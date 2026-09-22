@@ -38,14 +38,26 @@ MIME_TO_VOICE_FORMAT = {
 
 
 async def transcribe_audio(path: Path, mime_type: str) -> str:
+    from .audio_convert import NEEDS_WAV_CONVERT, convert_to_asr_wav
+
     cfg = get_config().tencent_asr
     if not cfg.enabled:
         raise ProviderUnavailable("语音识别尚未启用，已转为手动填写")
     secret_id, secret_key = _secret(cfg.secret_id_env), _secret(cfg.secret_key_env)
+    work_path = path
+    cleanup: Path | None = None
     voice_format = MIME_TO_VOICE_FORMAT.get(mime_type)
+    if not voice_format and mime_type in NEEDS_WAV_CONVERT:
+        cleanup = convert_to_asr_wav(path)
+        work_path = cleanup
+        voice_format = "wav"
     if not voice_format:
         raise ProviderUnavailable("当前录音格式暂不支持识别，已保留录音并转为手动填写")
-    raw = path.read_bytes()
+    try:
+        raw = work_path.read_bytes()
+    finally:
+        if cleanup is not None:
+            cleanup.unlink(missing_ok=True)
     body = {
         "ProjectId": 0,
         "SubServiceType": 2,
@@ -121,7 +133,13 @@ async def extract_draft(content: str | None = None, image_path: Path | None = No
     if image_path:
         encoded = base64.b64encode(image_path.read_bytes()).decode()
         user_content.append({"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{encoded}"}})
-    request = {"model": cfg.model, "messages": [{"role": "user", "content": user_content}], "response_format": {"type": "json_object"}, "temperature": 0}
+    request = {
+        "model": cfg.model,
+        "messages": [{"role": "user", "content": user_content}],
+        "response_format": {"type": "json_object"},
+        "temperature": 0,
+        "thinking": {"type": "disabled"},
+    }
     url = cfg.base_url.rstrip("/") + "/chat/completions"
     async with httpx.AsyncClient(timeout=cfg.timeout_seconds) as client:
         response = await client.post(url, json=request, headers={"Authorization": f"Bearer {api_key}"})
