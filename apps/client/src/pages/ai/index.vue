@@ -92,7 +92,10 @@ function choosePhoto() {
 
 function clearChat() {
   const babyId = state.baby?.id
-  if (!babyId) return
+  if (!babyId) {
+    uni.showToast({ title: '请先完善宝宝档案', icon: 'none' })
+    return
+  }
   if (!aiChatStore.state.messages.length) {
     uni.showToast({ title: '还没有对话记录', icon: 'none' })
     return

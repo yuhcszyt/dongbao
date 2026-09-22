@@ -91,8 +91,8 @@ function openHomeQuick(item: (typeof HOME_QUICK_TYPES)[number]) {
 }
 
 onShow(() => {
-  // Tab 页保活：上次没关干净的遮罩，进来时清掉。
-  captureOpen.value = false
+  // 注意：不能在这里强制关掉弹层。选图/相机是原生页，返回会再进 onShow，
+  // 若此处 captureOpen=false，会把正在进行的拍照流程拆掉。
   today.value = nowParts().date
   greeting.value = greetingFor(new Date().getHours())
   void recordStore.load(today.value)

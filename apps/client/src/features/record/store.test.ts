@@ -248,4 +248,14 @@ describe('会话失败的面相', () => {
 
     expect(recordStore.state.error).toBe('操作没有完成，请稍后重试')
   })
+
+  it('退出登录清本地凭证，不走注销会话（可点重试重登）', () => {
+    recordStore.state.baby = baby
+    recordStore.state.records = [record]
+    recordStore.logoutSession()
+    expect(recordStore.state.baby).toBeNull()
+    expect(recordStore.state.records).toEqual([])
+    expect(mocks.clearCredentials).toHaveBeenCalledTimes(1)
+    expect(mocks.logout).not.toHaveBeenCalled()
+  })
 })

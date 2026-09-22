@@ -34,9 +34,10 @@ function openFavorites() {
 function confirmLogout() {
   logoutOpen.value = false
   recordStore.logoutSession()
+  // 不要立刻 load()：开发降级 / 微信静默登录会马上重登，退出按钮像没反应。
+  recordStore.state.error = '已退出登录，点重试可重新进入'
+  recordStore.state.retryable = true
   uni.showToast({ title: '已退出登录', icon: 'none' })
-  // 清凭证后重新拉会话：会静默重登（开发码 / 微信码）
-  void recordStore.load()
 }
 
 async function confirmDelete() {
@@ -100,7 +101,7 @@ onShow(() => void recordStore.load())
 
     <view v-if="logoutOpen" class="overlay" @click="logoutOpen = false">
       <view class="sheet" @click.stop>
-        <view class="sheet-head"><text class="card-title">退出登录</text><button @click="logoutOpen = false">×</button></view>
+        <view class="sheet-head"><text class="card-title">退出登录</text><button class="sheet-close" hover-class="none" aria-label="关闭" @tap.stop="logoutOpen = false" @click.stop="logoutOpen = false">×</button></view>
         <text class="muted">退出后将结束当前账号在本机的登录状态。</text>
         <view class="warn">宝宝档案和云端数据不会因为退出登录而删除。</view>
         <button class="primary" @click="confirmLogout">确认退出</button>
@@ -110,7 +111,7 @@ onShow(() => void recordStore.load())
 
     <view v-if="deleteStep === 1" class="overlay" @click="deleteStep = 0">
       <view class="sheet" @click.stop>
-        <view class="sheet-head"><text class="card-title">注销账号</text><button @click="deleteStep = 0">×</button></view>
+        <view class="sheet-head"><text class="card-title">注销账号</text><button class="sheet-close" hover-class="none" aria-label="关闭" @tap.stop="deleteStep = 0" @click.stop="deleteStep = 0">×</button></view>
         <text class="muted">注销后将无法继续使用当前账号。</text>
         <view class="warn">会永久删除宝宝档案、全部记录、语音和照片，且不可恢复。</view>
         <button class="outline danger-btn" @click="deleteStep = 2">继续注销</button>
@@ -120,7 +121,7 @@ onShow(() => void recordStore.load())
 
     <view v-if="deleteStep === 2" class="overlay" @click="deleteStep = 0">
       <view class="sheet" @click.stop>
-        <view class="sheet-head"><text class="card-title">最后确认</text><button @click="deleteStep = 0">×</button></view>
+        <view class="sheet-head"><text class="card-title">最后确认</text><button class="sheet-close" hover-class="none" aria-label="关闭" @tap.stop="deleteStep = 0" @click.stop="deleteStep = 0">×</button></view>
         <text class="muted">请输入「注销」确认你理解此操作会终止当前账号。</text>
         <input v-model="deleteWord" class="confirm-word" maxlength="2" placeholder="请输入：注销" />
         <button class="outline danger-btn" :disabled="state.saving" @click="confirmDelete">
@@ -132,7 +133,7 @@ onShow(() => void recordStore.load())
 
     <view v-if="formOpen" class="overlay" @click="formOpen = false">
       <view class="sheet" @click.stop>
-        <view class="sheet-head"><text class="card-title">编辑宝宝档案</text><button @click="formOpen = false">×</button></view>
+        <view class="sheet-head"><text class="card-title">编辑宝宝档案</text><button class="sheet-close" hover-class="none" aria-label="关闭" @tap.stop="formOpen = false" @click.stop="formOpen = false">×</button></view>
         <ProfileForm
           :key="state.baby?.updated_at ?? state.baby?.id ?? 'new'"
           :initial="state.baby ?? { nickname: '宝宝', birth_date: '', gender: 'unknown' }"
@@ -169,10 +170,10 @@ onShow(() => void recordStore.load())
 .danger { color: #b86e62; }
 .error { margin: 12px 0; border-radius: 12px; background: #fff0ec; padding: 12px; color: #9a4c3e; }
 .error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: #fff; color: #9a4c3e; font-weight: 700; }
-.overlay { position: fixed; z-index: 20; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: rgba(25, 47, 52, .46); }
+.overlay { position: fixed; z-index: 200; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: rgba(25, 47, 52, .46); }
 .sheet { width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; background: #fbfaf7; padding: 21px 18px calc(22px + env(safe-area-inset-bottom)); }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.sheet-head button { width: 48px; height: 48px; border-radius: 50%; background: #eef2f1; font-size: 27px; }
+.sheet-head .sheet-close, .sheet-head button { width: 48px; height: 48px; border-radius: 50%; background: #eef2f1; font-size: 27px; }
 .warn { margin: 12px 0; border-radius: 12px; background: #fff0df; color: #b88346; padding: 10px 12px; font-size: 13px; line-height: 1.6; }
 .primary { width: 100%; min-height: 52px; margin-top: 14px; border-radius: 14px; background: #328da9; color: white; font-weight: 700; }
 .outline { width: 100%; min-height: 50px; margin-top: 12px; border-radius: 14px; border: 1px solid #bedbe4; background: white; color: #328da9; }
