@@ -61,6 +61,7 @@ function openCapture(mode: CaptureMode) {
     uni.showToast({ title: '请先完善宝宝档案', icon: 'none' })
     return
   }
+  capturePanel.value?.reset()
   captureOpen.value = true
   capturePanel.value?.begin(mode)
 }

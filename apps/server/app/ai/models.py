@@ -52,3 +52,17 @@ class AiMessage(Base):
     model: Mapped[str | None] = mapped_column(String(128), nullable=True)
     usage: Mapped[dict | None] = mapped_column(JsonType, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class AiMemory(Base):
+    """跨会话长期记忆：偏好/规律总结，不是单次 Record，也不是公共 RAG。"""
+
+    __tablename__ = "ai_memories"
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    family_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    baby_id: Mapped[UUID] = mapped_column(ForeignKey("babies.id", ondelete="CASCADE"), index=True)
+    content: Mapped[str] = mapped_column(Text)
+    category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source: Mapped[str] = mapped_column(String(32), default="agent")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)

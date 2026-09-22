@@ -13,20 +13,21 @@ class SourceRef(BaseModel):
 
 
 class ParentingAnswer(BaseModel):
-    summary: str
-    reasons: list[str] = Field(default_factory=list)
-    baby_context: list[str] = Field(default_factory=list)
-    actions: list[str] = Field(default_factory=list)
-    watch_for: list[str] = Field(default_factory=list)
-    sources: list[SourceRef] = Field(default_factory=list)
+    summary: str = Field(description="给家长的一两句口语，温暖具体。禁止工具名、字段名、null、JSON。")
+    reasons: list[str] = Field(default_factory=list, description="留空。")
+    baby_context: list[str] = Field(default_factory=list, description="留空。不要罗列档案或记录。")
+    actions: list[str] = Field(default_factory=list, description="留空。最多一条家长现在能做的小事。")
+    watch_for: list[str] = Field(default_factory=list, description="留空。仅有明确危险信号时写一条。")
+    sources: list[SourceRef] = Field(default_factory=list, description="仅填写工具返回的文献；没有就空列表，不要解释缺失。")
     related_record_ids: list[UUID] = Field(default_factory=list)
-    medical_disclaimer: str | None = "本回答仅供育儿参考，不能替代执业医师诊断或处方。如有危险信号请及时就医。"
+    medical_disclaimer: str | None = None
 
 
 class ChatRequest(BaseModel):
     baby_id: UUID
-    message: str = Field(min_length=1, max_length=2000)
+    message: str = Field(default="", max_length=2000)
     conversation_id: UUID | None = None
+    media_id: UUID | None = None
 
 
 class ChatResponse(BaseModel):

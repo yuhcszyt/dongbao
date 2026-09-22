@@ -28,6 +28,8 @@ const ageLabel = computed(() => {
 const prompts = ['帮我看看最近的睡眠记录', '今天一共喝了多少奶？', '辅食应该什么时候开始添加？']
 
 const recording = ref(false)
+const pendingPreview = ref('')
+const pendingMediaId = ref<string | null>(null)
 let h5Recorder: MediaRecorder | null = null
 let h5Stream: MediaStream | null = null
 let h5Chunks: Blob[] = []
@@ -41,9 +43,51 @@ async function ask(text?: string) {
     return
   }
   const q = (text ?? question.value).trim()
-  if (!q) return
+  const mediaId = pendingMediaId.value
+  if (!q && !mediaId) {
+    uni.showToast({ title: '请先输入问题或选一张图片', icon: 'none' })
+    return
+  }
   question.value = ''
-  await aiChatStore.ask(babyId, q)
+  const preview = pendingPreview.value
+  pendingPreview.value = ''
+  pendingMediaId.value = null
+  await aiChatStore.ask(babyId, q, mediaId, preview || undefined)
+}
+
+function clearPendingPhoto() {
+  pendingPreview.value = ''
+  pendingMediaId.value = null
+}
+
+function choosePhoto() {
+  const babyId = state.baby?.id
+  if (!babyId) {
+    uni.showToast({ title: '请先完善宝宝档案', icon: 'none' })
+    return
+  }
+  uni.chooseImage({
+    count: 1,
+    sizeType: ['compressed'],
+    sourceType: ['camera', 'album'],
+    success(result) {
+      const path = result.tempFilePaths[0]
+      if (!path) return
+      pendingPreview.value = path
+      uni.showLoading({ title: '上传图片…' })
+      void api
+        .uploadPath(path, babyId, 'image')
+        .then((media) => {
+          pendingMediaId.value = media.id
+        })
+        .catch((error) => {
+          clearPendingPhoto()
+          const message = error instanceof ApiError || error instanceof SessionError ? error.message : '图片上传失败'
+          uni.showToast({ title: message, icon: 'none' })
+        })
+        .finally(() => uni.hideLoading())
+    },
+  })
 }
 
 function clearChat() {
@@ -186,17 +230,12 @@ onShow(() => {
       </view>
 
       <view v-for="(msg, index) in aiChatStore.state.messages" :key="index" class="thread">
-        <view class="user">{{ msg.q }}</view>
+        <view class="user">
+          <image v-if="msg.imagePreview" class="user-photo" :src="msg.imagePreview" mode="aspectFill" />
+          <text>{{ msg.q }}</text>
+        </view>
         <view class="answer">
           <text class="card-title">{{ msg.answer?.summary || msg.a }}</text>
-          <view v-if="msg.answer?.reasons?.length" class="block">
-            <text class="label">为什么这么判断</text>
-            <text v-for="(line, i) in msg.answer.reasons" :key="i" class="line">· {{ line }}</text>
-          </view>
-          <view v-if="msg.answer?.baby_context?.length" class="block">
-            <text class="label">结合宝宝当前情况</text>
-            <text v-for="(line, i) in msg.answer.baby_context" :key="i" class="line">· {{ line }}</text>
-          </view>
           <view v-if="msg.answer?.actions?.length" class="block">
             <text class="label">现在可以怎么做</text>
             <text v-for="(line, i) in msg.answer.actions" :key="i" class="line">· {{ line }}</text>
@@ -206,16 +245,22 @@ onShow(() => {
             <text v-for="(line, i) in msg.answer.watch_for" :key="i" class="line">· {{ line }}</text>
           </view>
           <view v-if="msg.answer?.sources?.length" class="block">
-            <text class="label">专业来源</text>
-            <text v-for="(src, i) in msg.answer.sources" :key="i" class="line">· {{ src.title }}（{{ src.publisher }}）</text>
+            <text class="label">参考</text>
+            <text v-for="(src, i) in msg.answer.sources" :key="i" class="line">· {{ src.title }}</text>
           </view>
-          <text v-else class="notice">专业来源：本轮知识库暂无相关条目，未生成虚构引用。</text>
-          <text v-if="msg.answer?.medical_disclaimer" class="notice">{{ msg.answer.medical_disclaimer }}</text>
+          <text v-if="msg.answer?.watch_for?.length && msg.answer?.medical_disclaimer" class="notice">{{ msg.answer.medical_disclaimer }}</text>
         </view>
+      </view>
+
+      <view v-if="pendingPreview" class="pending">
+        <image class="pending-photo" :src="pendingPreview" mode="aspectFill" />
+        <text class="muted">已选图片，可再写一句问题后发送</text>
+        <button class="link" @click="clearPendingPhoto">去掉</button>
       </view>
 
       <view class="composer">
         <button class="mic" :class="{ on: recording }" @click="startVoice">{{ recording ? '■' : '🎤' }}</button>
+        <button class="mic" :disabled="aiChatStore.state.loading" @click="choosePhoto">🖼</button>
         <input v-model="question" class="input" maxlength="500" placeholder="继续问懂宝…" confirm-type="send" :disabled="aiChatStore.state.loading" @confirm="ask()" />
         <button class="send" :disabled="aiChatStore.state.loading" @click="ask()">{{ aiChatStore.state.loading ? '…' : '↑' }}</button>
       </view>
@@ -238,11 +283,14 @@ onShow(() => {
 .card-title { display: block; font-size: 16px; font-weight: 800; margin-bottom: 8px; }
 .outline { display: block; width: 100%; margin-top: 10px; min-height: 48px; border-radius: 14px; border: 1px solid #bedbe4; background: white; color: #328da9; font-size: 14px; }
 .user { margin: 18px 0 12px 28px; padding: 12px 15px; border-radius: 17px 17px 4px 17px; background: #d8edf4; font-size: 14px; }
+.user-photo { display: block; width: 120px; height: 120px; border-radius: 10px; margin-bottom: 8px; }
 .answer { margin: 12px 0; padding: 16px; border-radius: 4px 18px 18px 18px; background: white; border: 1px solid #eef1ef; }
 .block { margin-top: 10px; }
 .label { display: block; font-size: 12px; font-weight: 700; color: #2d8098; margin-bottom: 4px; }
 .line { display: block; font-size: 13px; line-height: 1.6; color: #203f4a; }
 .notice { display: block; margin-top: 10px; color: #8b9c9f; font-size: 11px; }
+.pending { display: flex; align-items: center; gap: 10px; margin: 12px 0 72px; padding: 10px 12px; border-radius: 12px; background: #edf6f8; }
+.pending-photo { width: 48px; height: 48px; border-radius: 8px; flex-shrink: 0; }
 .composer { position: fixed; left: 0; right: 0; bottom: calc(50px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; padding: 10px 15px; background: white; border-top: 1px solid #e9eff0; }
 .mic { width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; background: #edf6f8; color: #328da9; font-size: 16px; line-height: 40px; }
 .mic.on { background: #f8d7da; color: #a33; }

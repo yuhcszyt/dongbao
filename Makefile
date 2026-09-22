@@ -1,4 +1,5 @@
-# 本地快速验证：日常迭代不碰 docker，只有 e2e 人工验收与里程碑一致性检查才起容器。
+# 本地快速验证：日常迭代不碰 docker，只有 e2e 人工验收与里程碑一致性检查才起全栈。
+# Compose profiles：test（测库）/ obs（Langfuse）/ ci（容器内测）/ weixin（可选）。
 # 用法见 `make help`。
 SHELL := /bin/bash
 
@@ -7,9 +8,13 @@ CLIENT_DIR := apps/client
 PY := $(SERVER_DIR)/.venv/bin/python
 PIP := $(SERVER_DIR)/.venv/bin/pip
 
+COMPOSE := docker compose
+PROFILE_TEST := --profile test
+PROFILE_OBS := --profile obs
+PROFILE_CI := --profile test --profile ci
+
 TEST_DATABASE_URL ?= postgresql+psycopg://dongbao:change-me@localhost:55432/dongbao_test
 QDRANT_URL ?= http://127.0.0.1:6334
-# 仅服务端进程需要，不进 compose 插值
 SERVER_ENV = DATABASE_URL=$(TEST_DATABASE_URL) \
 	APP_CONFIG=$(CURDIR)/config/providers.toml \
 	MEDIA_ROOT=$(CURDIR)/data/media \
@@ -17,57 +22,81 @@ SERVER_ENV = DATABASE_URL=$(TEST_DATABASE_URL) \
 	EMBEDDING_ALLOW_HASH=1 \
 	DEV_LOGIN=$(DEV_LOGIN)
 
-# 开发降级：仅本地/CI 显式 `make DEV_LOGIN=1 ...` 才开；默认空 = 真实微信。
 DEV_LOGIN ?=
-
 APP_MODULE ?= app.main:app
 PORT ?= 8001
-# 客户端构建 / 本地 uni 默认 API；与 docker-compose 的 CLIENT_API_BASE_URL 同名，便于一处改。
-CLIENT_API_BASE_URL ?= http://127.0.0.1:$(PORT)/api/v1
+# 小程序真机不能走 localhost；未指定时由 Vite 写入电脑局域网 IP。
+CLIENT_API_BASE_URL ?=
 
-.PHONY: help setup db-up db-wait db-down qdrant-up qdrant-wait seed-rag test test-server test-client typecheck build dev-server e2e docker-test
+.PHONY: help setup \
+	docker-ps docker-down docker-down-all \
+	db-up db-wait db-down qdrant-up qdrant-wait \
+	langfuse-up langfuse-down \
+	seed-rag test test-server test-client typecheck build \
+	dev-server e2e docker-test
 
 help:
-	@echo "make setup         一次性：建 venv、装 python 与 npm 依赖"
-	@echo "make test          本地全量：服务端 pytest + 客户端 typecheck/vitest（自动起测试库）"
-	@echo "make test-server   仅服务端：alembic upgrade head + pytest"
-	@echo "make test-client   仅客户端 typecheck + vitest"
-	@echo "make typecheck     仅 vue-tsc"
-	@echo "make build         客户端 h5 + mp-weixin 构建校验"
-	@echo "make dev-server    本地 uvicorn --reload（$(APP_MODULE)，端口 $(PORT)）；无微信凭证时加 DEV_LOGIN=1"
-	@echo "make db-up         只起测试库（localhost:55432，tmpfs，跑了就丢）"
-	@echo "make seed-rag      用真实 EMBEDDING_API_KEY 重建知识库向量（需 postgres + qdrant）"
-	@echo "make e2e           DEV_LOGIN=1 + docker compose up --build（H5 验收用开发降级）"
-	@echo "make docker-test   里程碑一致性：容器内带 --build 跑一遍全部测试"
+	@echo "── 日常（主机）──"
+	@echo "make setup          建 venv + 装依赖"
+	@echo "make test           服务端 pytest + 客户端 typecheck/vitest"
+	@echo "make test-server    仅服务端（自动起 test profile 依赖）"
+	@echo "make test-client    仅客户端"
+	@echo "make dev-server     本地 uvicorn :$(PORT)（需 DEV_LOGIN=1 才无微信登录）"
+	@echo "make seed-rag       真 embedding 写入测试 Qdrant"
+	@echo ""
+	@echo "── Docker 管理 ──"
+	@echo "make docker-ps      看本项目容器"
+	@echo "make docker-down    停默认 e2e 栈"
+	@echo "make docker-down-all 停全部 profile（test/obs/ci/weixin + e2e）"
+	@echo "make db-up          起测试库 :55432"
+	@echo "make langfuse-up    起 Langfuse UI :3100（profile obs）"
+	@echo "make e2e            DEV_LOGIN=1 起验收栈（postgres+qdrant+server+h5）"
+	@echo "make docker-test    容器内 --build 跑测（profile ci）"
 
 setup:
 	python3 -m venv $(SERVER_DIR)/.venv
 	$(PIP) install -q -r $(SERVER_DIR)/requirements.txt
 	cd $(CLIENT_DIR) && npm install
 
+# ── Docker 管理 ──────────────────────────────────────────────────
+docker-ps:
+	$(COMPOSE) --profile test --profile obs --profile ci --profile weixin ps -a
+
+docker-down:
+	$(COMPOSE) down --remove-orphans
+
+docker-down-all:
+	$(COMPOSE) --profile test --profile obs --profile ci --profile weixin down --remove-orphans
+
 db-up:
-	docker compose --profile tools up -d postgres-test
+	$(COMPOSE) $(PROFILE_TEST) up -d postgres-test
 
 db-wait:
-	@until docker compose --profile tools exec -T postgres-test pg_isready -U dongbao -d dongbao_test >/dev/null 2>&1; do sleep 0.5; done
+	@until $(COMPOSE) $(PROFILE_TEST) exec -T postgres-test pg_isready -U dongbao -d dongbao_test >/dev/null 2>&1; do sleep 0.5; done
 	@echo "postgres-test ready on localhost:55432"
 
 qdrant-up:
-	docker compose --profile tools up -d qdrant-test
+	$(COMPOSE) $(PROFILE_TEST) up -d qdrant-test
 
 qdrant-wait:
 	@until curl -sf http://127.0.0.1:6334/readyz >/dev/null 2>&1; do sleep 0.5; done
 	@echo "qdrant-test ready on localhost:6334"
 
-# 生产/本地真向量：需要 .env 里 EMBEDDING_API_KEY（硅基流动等），不要开 EMBEDDING_ALLOW_HASH
+langfuse-up:
+	$(COMPOSE) $(PROFILE_OBS) up -d langfuse-db langfuse
+	@echo "Langfuse UI: http://127.0.0.1:3100 — 创建 API Key → .env LANGFUSE_*"
+
+langfuse-down:
+	$(COMPOSE) $(PROFILE_OBS) stop langfuse langfuse-db
+
+db-down:
+	$(COMPOSE) $(PROFILE_TEST) stop postgres-test qdrant-test
+
 seed-rag: db-up db-wait qdrant-up qdrant-wait
 	cd $(SERVER_DIR) && set -a && [ -f $(CURDIR)/.env ] && . $(CURDIR)/.env; set +a; \
 		DATABASE_URL=$(TEST_DATABASE_URL) APP_CONFIG=$(CURDIR)/config/providers.toml QDRANT_URL=$(QDRANT_URL) \
 		.venv/bin/python -c "from app.record.database import SessionLocal; from app.ai.seed import reseed_all; \
 		db=SessionLocal(); n=reseed_all(db); print(f'reseeded {n} chunks')"
-
-db-down:
-	docker compose --profile tools stop postgres-test qdrant-test
 
 test-server: db-up db-wait qdrant-up qdrant-wait
 	cd $(SERVER_DIR) && $(SERVER_ENV) .venv/bin/alembic upgrade head
@@ -80,20 +109,19 @@ typecheck:
 	cd $(CLIENT_DIR) && npm run typecheck
 
 build:
-	cd $(CLIENT_DIR) && VITE_API_BASE_URL=$(CLIENT_API_BASE_URL) npm run build:h5
-	cd $(CLIENT_DIR) && VITE_API_BASE_URL=$(CLIENT_API_BASE_URL) npm run build:mp-weixin
+	cd $(CLIENT_DIR) && $(if $(strip $(CLIENT_API_BASE_URL)),VITE_API_BASE_URL=$(CLIENT_API_BASE_URL) )npm run build:h5
+	cd $(CLIENT_DIR) && $(if $(strip $(CLIENT_API_BASE_URL)),VITE_API_BASE_URL=$(CLIENT_API_BASE_URL) )npm run build:mp-weixin
 
 dev-server: db-up db-wait qdrant-up qdrant-wait
 	cd $(SERVER_DIR) && $(SERVER_ENV) .venv/bin/alembic upgrade head
-	cd $(SERVER_DIR) && $(SERVER_ENV) QDRANT_URL=http://127.0.0.1:6334 .venv/bin/uvicorn $(APP_MODULE) --reload --port $(PORT)
+	cd $(SERVER_DIR) && $(SERVER_ENV) QDRANT_URL=http://127.0.0.1:6334 .venv/bin/uvicorn $(APP_MODULE) --reload --host 0.0.0.0 --port $(PORT)
 
 test: test-server test-client
 
-# H5 人工验收必须开开发降级：compose 默认 DEV_LOGIN 为空时，缺微信凭证会 502 登录失败。
-# 真机 / 开发者工具验小程序时不要用这条——应设 WECHAT_APPID/SECRET，且不要开 DEV_LOGIN。
+# H5 验收：默认栈，不再顺带起 weixin / langfuse / test 库
 e2e:
-	DEV_LOGIN=1 docker compose up --build
+	DEV_LOGIN=1 $(COMPOSE) up --build
 
 docker-test:
-	docker compose --profile tools run --rm --build server-test
-	docker compose --profile tools run --rm --build client-test
+	$(COMPOSE) $(PROFILE_CI) run --rm --build server-test
+	$(COMPOSE) $(PROFILE_CI) run --rm --build client-test

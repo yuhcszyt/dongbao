@@ -135,7 +135,8 @@ export const api = {
 
   /** 注销账号：服务端把整族数据删干净（票 04），客户端不重登、不留残留。 */
   deleteAccount() {
-    return request<void>('/auth/me', 'DELETE')
+    // 与服务端 `DELETE /api/v1/me` 对齐（不是 `/auth/me`）。
+    return request<void>('/me', 'DELETE')
   },
 
   async dailySummary(babyId: string, date: string, timezone = detectTimeZone()) {

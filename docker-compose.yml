@@ -1,20 +1,31 @@
+# Dongbao Compose — 按 profile 启停，不要一把梭。
+#
+#   默认（e2e）  postgres + qdrant + server + client-h5
+#   --profile test   主机 pytest / seed-rag：postgres-test:55432、qdrant-test:6334
+#   --profile obs    本地 Langfuse：UI :3100（自带库，不占业务库）
+#   --profile ci     容器内测：server-test / client-test / client-build
+#   --profile weixin 小程序构建容器（可选）
+#
+# 管理：make docker-ps / make docker-down / make help
+
 name: dongbao
 
 x-server-environment: &server-environment
   PYTHONPATH: /app
   DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://dongbao:change-me@postgres:5432/dongbao}
   APP_CONFIG: /app/config/providers.toml
-  # 登录：真实微信凭证 / JWT 签名密钥（默认开发值，生产必须覆盖）
   WECHAT_APPID: ${WECHAT_APPID:-}
   WECHAT_SECRET: ${WECHAT_SECRET:-}
   JWT_SECRET: ${JWT_SECRET:-dongbao-dev-secret}
-  # 开发降级：仅本地/CI 显式设 DEV_LOGIN=1；默认空 = 真实微信，生产禁止设置
   DEV_LOGIN: ${DEV_LOGIN:-}
   TENCENT_SECRET_ID: ${TENCENT_SECRET_ID:-}
   TENCENT_SECRET_KEY: ${TENCENT_SECRET_KEY:-}
   MODEL_API_KEY: ${MODEL_API_KEY:-}
   EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
   QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+  LANGFUSE_HOST: ${LANGFUSE_HOST:-http://127.0.0.1:3100}
 
 x-server: &server
   build: ./apps/server
@@ -34,6 +45,7 @@ x-client: &client
     VITE_API_BASE_URL: ${CLIENT_API_BASE_URL:-http://localhost:8000/api/v1}
 
 services:
+  # ── e2e / 人工验收（默认 profile）────────────────────────────────
   postgres:
     image: postgres:16-alpine
     environment:
@@ -48,38 +60,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  postgres-test:
-    image: postgres:16-alpine
-    profiles: ["tools"]
-    environment:
-      POSTGRES_DB: dongbao_test
-      POSTGRES_USER: dongbao
-      POSTGRES_PASSWORD: change-me
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dongbao -d dongbao_test"]
-      interval: 2s
-      timeout: 2s
-      retries: 20
-    # 发布到主机，让主机上的 venv 能直接跑 pytest（tools profile，up 不会启动它）
-    ports:
-      - "55432:5432"
-    tmpfs:
-      - /var/lib/postgresql/data
-
   qdrant:
     image: qdrant/qdrant:v1.13.2
     ports:
       - "6333:6333"
     volumes:
       - qdrant_data:/qdrant/storage
-
-  qdrant-test:
-    image: qdrant/qdrant:v1.13.2
-    profiles: ["tools"]
-    ports:
-      - "6334:6333"
-    tmpfs:
-      - /qdrant/storage
 
   server:
     <<: *server
@@ -97,13 +83,74 @@ services:
 
   client-weixin:
     <<: *client
+    profiles: ["weixin"]
     command: ["npm", "run", "dev:mp-weixin"]
     volumes:
       - ./apps/client/dist:/app/dist
 
+  # ── 主机本地测试依赖（profile: test）────────────────────────────
+  postgres-test:
+    image: postgres:16-alpine
+    profiles: ["test"]
+    environment:
+      POSTGRES_DB: dongbao_test
+      POSTGRES_USER: dongbao
+      POSTGRES_PASSWORD: change-me
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dongbao -d dongbao_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    ports:
+      - "55432:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  qdrant-test:
+    image: qdrant/qdrant:v1.13.2
+    profiles: ["test"]
+    ports:
+      - "6334:6333"
+    tmpfs:
+      - /qdrant/storage
+
+  # ── 观测（profile: obs）— 与业务/测试库隔离 ─────────────────────
+  langfuse-db:
+    image: postgres:16-alpine
+    profiles: ["obs"]
+    environment:
+      POSTGRES_DB: langfuse
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    # 不映射宿主机端口：只给 langfuse 容器用
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  langfuse:
+    image: langfuse/langfuse:2
+    profiles: ["obs"]
+    depends_on:
+      langfuse-db:
+        condition: service_healthy
+    ports:
+      - "3100:3000"
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
+      NEXTAUTH_SECRET: dongbao-langfuse-nextauth
+      SALT: dongbao-langfuse-salt
+      NEXTAUTH_URL: http://127.0.0.1:3100
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+
+  # ── 里程碑容器内测（profile: ci）────────────────────────────────
   server-test:
     <<: *server
-    profiles: ["tools"]
+    profiles: ["ci"]
     environment:
       <<: *server-environment
       DATABASE_URL: postgresql+psycopg://dongbao:change-me@postgres-test:5432/dongbao_test
@@ -117,12 +164,12 @@ services:
 
   client-test:
     <<: *client
-    profiles: ["tools"]
+    profiles: ["ci"]
     command: ["sh", "-c", "npm run typecheck && npm test"]
 
   client-build:
     <<: *client
-    profiles: ["tools"]
+    profiles: ["ci"]
     command: ["sh", "-c", "npm run build:h5 && npm run build:mp-weixin"]
     volumes:
       - ./apps/client/dist:/app/dist

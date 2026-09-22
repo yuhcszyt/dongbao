@@ -192,14 +192,16 @@ async function saveRecord(input: RecordInput, existing: RecordItem | null) {
 }
 
 async function removeRecord(record: RecordItem) {
-  if (!state.baby) return
+  if (!state.baby) return false
   clearError()
   try {
     await api.deleteRecord(state.baby.id, record.id)
     state.deleted = record
     await load()
+    return true
   } catch (reason) {
     fail(reason)
+    return false
   }
 }
 

@@ -1,11 +1,12 @@
 {
   "description": "懂宝微信小程序开发者工具项目",
   "miniprogramRoot": "dist/dev/mp-weixin/",
-  "appid": "touristappid",
+  "appid": "wxddfd2a5610b90fec",
   "projectname": "dongbao",
   "setting": {
     "urlCheck": false,
     "es6": true,
     "minified": true
-  }
+  },
+  "isGameTourist": false
 }

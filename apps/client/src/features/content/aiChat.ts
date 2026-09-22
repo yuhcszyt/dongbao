@@ -9,6 +9,7 @@ export interface ChatTurn {
   q: string
   a: string
   answer?: ParentingAnswer
+  imagePreview?: string
 }
 
 const state = reactive({
@@ -45,18 +46,19 @@ export const aiChatStore = {
       state.loaded = true
     }
   },
-  async ask(babyId: string, question: string) {
-    const q = question.trim()
-    if (!q || state.loading) return
+  async ask(babyId: string, question: string, mediaId?: string | null, imagePreview?: string) {
+    const q = question.trim() || (mediaId ? '请结合这张图片说说' : '')
+    if ((!q && !mediaId) || state.loading) return
     state.loading = true
     state.banner = ''
     try {
-      const result = await api.aiChat(babyId, q, state.conversationId)
+      const result = await api.aiChat(babyId, q, state.conversationId, mediaId)
       state.conversationId = result.conversation_id
       state.messages.push({
-        q,
+        q: mediaId ? `[图片] ${q}` : q,
         a: result.answer.summary,
         answer: result.answer,
+        imagePreview,
       })
       if (!result.answer.sources?.length && /未配置|未配置大模型/.test(result.answer.summary)) {
         state.banner = '大模型未配置：已结合档案与知识库检索做降级回答'

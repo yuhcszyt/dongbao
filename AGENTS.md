@@ -25,7 +25,7 @@
 
 ```bash
 make test                                            # 服务端 pytest + 客户端 typecheck/vitest
-docker compose --profile tools up -d postgres-test   # 唯一需要的容器（主机 55432）
+docker compose --profile test up -d postgres-test   # 唯一需要的容器（主机 55432）
 ```
 
 - 日常开发、调试、改 bug、跑单测，**都在主机上跑**，用 `Makefile` 里的目标（`make help` 看全）。
@@ -139,13 +139,13 @@ DEV_LOGIN=1 make e2e          # 端到端人工验收（H5 也走同一登录接
 
 ```bash
 make e2e          # 等价于 docker compose up --build
-docker compose --profile tools run --rm client-build
+docker compose --profile ci run --rm client-build
 ```
 
 ### Server (local)
 
 ```bash
-make dev-server   # 起测试库 + alembic upgrade head + uvicorn --reload（端口 8001）
+make dev-server   # 起测试库 + alembic upgrade head + uvicorn --reload --host 0.0.0.0（端口 8001，真机走局域网 IP）
 ```
 
 手动等价写法（测试库端口 55432）：
@@ -162,7 +162,7 @@ DATABASE_URL=postgresql+psycopg://dongbao:change-me@localhost:55432/dongbao_test
 cd apps/client
 npm install
 npm run dev:h5        # H5 dev server (localhost:5173)
-npm run dev:mp-weixin  # WeChat Mini Program dev
+npm run dev:mp-weixin  # 小程序；API 写成电脑局域网 IP，禁止 localhost
 ```
 
 ### Testing
@@ -180,7 +180,7 @@ make help         # 全部目标
 
 本地闭环的构成：
 
-- 测试库是 `docker compose` 的 `postgres-test`（`tools` profile，tmpfs，跑了就丢），端口发布到主机 `55432`；
+- 测试库是 `docker compose` 的 `postgres-test`（`test` profile，tmpfs，跑了就丢），端口发布到主机 `55432`；
 - 服务端用 `apps/server/.venv`（已 gitignore）在主机跑 `alembic upgrade head && pytest`；
 - 客户端用主机 `node_modules` 跑 `vue-tsc` / `vitest` / `uni build`。
 

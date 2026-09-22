@@ -94,3 +94,130 @@ def test_active_conversation_and_clear(auth):
     cleared = client.post(f"/api/v1/ai/conversations/new?baby_id={baby_id}", headers=headers)
     assert cleared.status_code == 200
     assert cleared.json()["conversation_id"] != conv_id
+
+
+def test_sleep_and_growth_tools_only_return_matching_types(auth):
+    from datetime import datetime, timedelta, timezone
+    from uuid import UUID
+
+    from sqlalchemy import select
+
+    from app.auth.models import User
+    from app.record.database import SessionLocal
+
+    headers = auth()
+    client = TestClient(app)
+    baby_id = _create_baby(client, headers)
+    now = datetime.now(timezone.utc)
+    sleep = client.post(
+        f"/api/v1/babies/{baby_id}/records",
+        headers=headers,
+        json={
+            "record_type": "sleep",
+            "occurred_at": now.isoformat(),
+            "payload": {"kind": "sleep", "duration_minutes": 90},
+            "note": None,
+        },
+    )
+    assert sleep.status_code == 201, sleep.text
+    growth = client.post(
+        f"/api/v1/babies/{baby_id}/records",
+        headers=headers,
+        json={
+            "record_type": "growth",
+            "occurred_at": (now - timedelta(days=1)).isoformat(),
+            "payload": {"kind": "growth", "height_cm": "68.5", "weight_kg": "8.2"},
+            "note": None,
+        },
+    )
+    assert growth.status_code == 201, growth.text
+    feeding = client.post(
+        f"/api/v1/babies/{baby_id}/records",
+        headers=headers,
+        json={
+            "record_type": "feeding",
+            "occurred_at": now.isoformat(),
+            "payload": {"kind": "feeding", "feeding_type": "formula", "amount_ml": 120},
+            "note": None,
+        },
+    )
+    assert feeding.status_code == 201, feeding.text
+
+    with SessionLocal() as db:
+        user = db.scalar(select(User).limit(1))
+        scope = BabyScope(db, user.family_id, UUID(baby_id))
+        sleep_data = scope.get_recent_sleep(days=7)
+        assert sleep_data["session_count"] == 1
+        assert sleep_data["total_minutes"] == 90
+        assert sleep_data["sessions"][0]["duration_minutes"] == 90
+        growth_data = scope.get_growth_history()
+        assert growth_data["point_count"] == 1
+        assert growth_data["latest"]["height_cm"] is not None
+        assert float(growth_data["latest"]["height_cm"]) == 68.5
+
+
+def test_baby_memory_save_and_search(auth):
+    from uuid import UUID
+
+    from sqlalchemy import select
+
+    from app.auth.models import User
+    from app.record.database import SessionLocal
+
+    headers = auth()
+    client = TestClient(app)
+    baby_id = _create_baby(client, headers)
+    with SessionLocal() as db:
+        user = db.scalar(select(User).limit(1))
+        scope = BabyScope(db, user.family_id, UUID(baby_id))
+        saved = scope.save_baby_memory("通常晚上八点左右入睡", category="sleep")
+        assert saved["id"]
+        hits = scope.search_baby_memory("入睡")
+        assert len(hits) == 1
+        assert "八点" in hits[0]["content"]
+        db.commit()
+
+
+def test_chat_image_media_wrong_family_404(auth):
+    client = TestClient(app)
+    headers_a = auth("openid-img-a")
+    baby_a = _create_baby(client, headers_a)
+    upload = client.post(
+        "/api/v1/media",
+        data={"baby_id": baby_a},
+        files={"file": ("photo.jpg", b"\xff\xd8\xff\xd9", "image/jpeg")},
+        headers=headers_a,
+    )
+    assert upload.status_code == 201, upload.text
+    media_id = upload.json()["id"]
+    headers_b = auth("openid-img-b")
+    baby_b = _create_baby(client, headers_b)
+    response = client.post(
+        "/api/v1/ai/chat",
+        headers=headers_b,
+        json={"baby_id": baby_b, "message": "这是什么", "media_id": media_id},
+    )
+    assert response.status_code == 404
+
+
+def test_chat_with_own_image_accepted_without_model(auth):
+    """无大模型时带图不 500，走降级卡片。"""
+    headers = auth()
+    client = TestClient(app)
+    baby_id = _create_baby(client, headers)
+    # Minimal JPEG
+    upload = client.post(
+        "/api/v1/media",
+        data={"baby_id": baby_id},
+        files={"file": ("photo.jpg", b"\xff\xd8\xff\xd9", "image/jpeg")},
+        headers=headers,
+    )
+    assert upload.status_code == 201, upload.text
+    media_id = upload.json()["id"]
+    response = client.post(
+        "/api/v1/ai/chat",
+        headers=headers,
+        json={"baby_id": baby_id, "message": "", "media_id": media_id},
+    )
+    assert response.status_code == 200, response.text
+    assert "图片" in response.json()["answer"]["summary"] or response.json()["answer"]["summary"]

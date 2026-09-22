@@ -4,7 +4,7 @@ enabled = true
 base_url = "https://api.deepseek.com"
 model = "deepseek-flash"
 supports_vision = true
-timeout_seconds = 30
+timeout_seconds = 60
 api_key_env = "MODEL_API_KEY"
 
 # 向量检索：腾讯云 TokenHub（OpenAI-compatible）

@@ -45,9 +45,13 @@ async function confirmDelete() {
     return
   }
   const done = await recordStore.deleteAccount()
+  if (!done) {
+    uni.showToast({ title: state.error || '注销失败，请稍后重试', icon: 'none' })
+    return
+  }
   deleteStep.value = 0
   deleteWord.value = ''
-  if (done) uni.showToast({ title: '账号已注销', icon: 'success' })
+  uni.showToast({ title: '账号已注销', icon: 'success' })
 }
 
 onShow(() => void recordStore.load())

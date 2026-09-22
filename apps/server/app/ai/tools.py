@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from ..record.models import Baby, BabyRecord
 from .embedding import EmbeddingUnavailable, embed_query
+from .models import AiMemory, now
 from .qdrant_store import search_approved
 from .schemas import ChunkWithSource, SourceRef
 
@@ -95,6 +96,90 @@ class BabyScope:
         self._last_record_ids = [r.id for r in rows]
         return {"date": target.isoformat(), "feeding_count": len(rows), "feeding_ml": total_ml, "note": "仅统计已录入记录"}
 
+    def get_recent_sleep(self, days: int = 7, limit: int = 30) -> dict:
+        """只查 sleep 记录；表仍是 baby_records，靠 record_type + 复合索引。"""
+        self.baby()
+        days = max(1, min(int(days), 30))
+        limit = max(1, min(int(limit), 50))
+        since = datetime.now(timezone.utc) - timedelta(days=days)
+        rows = self.db.scalars(
+            select(BabyRecord)
+            .where(
+                BabyRecord.baby_id == self.baby_id,
+                BabyRecord.family_id == self.family_id,
+                BabyRecord.deleted_at.is_(None),
+                BabyRecord.record_type == "sleep",
+                BabyRecord.occurred_at >= since,
+            )
+            .order_by(BabyRecord.occurred_at.desc())
+            .limit(limit)
+        ).all()
+        self._last_record_ids = [r.id for r in rows]
+        sessions: list[dict] = []
+        total_minutes = 0
+        for r in rows:
+            payload = r.payload if isinstance(r.payload, dict) else {}
+            minutes = payload.get("duration_minutes")
+            if not isinstance(minutes, (int, float)) and payload.get("start_at") and payload.get("end_at"):
+                try:
+                    start = datetime.fromisoformat(str(payload["start_at"]).replace("Z", "+00:00"))
+                    end = datetime.fromisoformat(str(payload["end_at"]).replace("Z", "+00:00"))
+                    minutes = max(0, int((end - start).total_seconds() // 60))
+                except (TypeError, ValueError):
+                    minutes = None
+            if isinstance(minutes, (int, float)):
+                total_minutes += int(minutes)
+            sessions.append(
+                {
+                    "id": str(r.id),
+                    "occurred_at": r.occurred_at.isoformat(),
+                    "duration_minutes": int(minutes) if isinstance(minutes, (int, float)) else None,
+                    "start_at": payload.get("start_at"),
+                    "end_at": payload.get("end_at"),
+                    "note": r.note,
+                }
+            )
+        return {
+            "days": days,
+            "session_count": len(sessions),
+            "total_minutes": total_minutes,
+            "sessions": sessions,
+        }
+
+    def get_growth_history(self, limit: int = 20) -> dict:
+        """只查 growth 记录；按时间倒序，便于看身高体重趋势。"""
+        self.baby()
+        limit = max(1, min(int(limit), 50))
+        rows = self.db.scalars(
+            select(BabyRecord)
+            .where(
+                BabyRecord.baby_id == self.baby_id,
+                BabyRecord.family_id == self.family_id,
+                BabyRecord.deleted_at.is_(None),
+                BabyRecord.record_type == "growth",
+            )
+            .order_by(BabyRecord.occurred_at.desc())
+            .limit(limit)
+        ).all()
+        self._last_record_ids = [r.id for r in rows]
+        points: list[dict] = []
+        for r in rows:
+            payload = r.payload if isinstance(r.payload, dict) else {}
+            points.append(
+                {
+                    "id": str(r.id),
+                    "occurred_at": r.occurred_at.isoformat(),
+                    "height_cm": payload.get("height_cm"),
+                    "weight_kg": payload.get("weight_kg"),
+                    "note": r.note,
+                }
+            )
+        return {
+            "point_count": len(points),
+            "latest": points[0] if points else None,
+            "points": points,
+        }
+
     def search_parenting_knowledge(self, query: str, top_k: int = 5) -> list[dict]:
         try:
             vector = embed_query(query)
@@ -132,3 +217,48 @@ class BabyScope:
             )
         self._last_sources = sources
         return [c.model_dump(mode="json") for c in chunks]
+
+    def search_baby_memory(self, query: str = "", limit: int = 8) -> list[dict]:
+        """Postgres 长期记忆：文本匹配，不进公共知识库。"""
+        self.baby()
+        q = (query or "").strip()
+        stmt = (
+            select(AiMemory)
+            .where(AiMemory.baby_id == self.baby_id, AiMemory.family_id == self.family_id)
+            .order_by(AiMemory.updated_at.desc())
+            .limit(limit)
+        )
+        if q:
+            stmt = stmt.where(AiMemory.content.ilike(f"%{q}%"))
+        rows = self.db.scalars(stmt).all()
+        return [
+            {
+                "id": str(r.id),
+                "content": r.content,
+                "category": r.category,
+                "source": r.source,
+                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+            }
+            for r in rows
+        ]
+
+    def save_baby_memory(self, content: str, category: str | None = None) -> dict:
+        """写入跨会话记忆。禁止把单次喂奶量等业务事实整段复制进来。"""
+        self.baby()
+        text = (content or "").strip()
+        if not text:
+            return {"error": "empty_memory"}
+        if len(text) > 500:
+            text = text[:500]
+        row = AiMemory(
+            family_id=self.family_id,
+            baby_id=self.baby_id,
+            content=text,
+            category=(category or None),
+            source="agent",
+            created_at=now(),
+            updated_at=now(),
+        )
+        self.db.add(row)
+        self.db.flush()
+        return {"id": str(row.id), "content": row.content, "category": row.category}

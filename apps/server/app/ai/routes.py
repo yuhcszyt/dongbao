@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -9,10 +10,13 @@ from sqlalchemy.orm import Session
 
 from ..auth.dependencies import api_error, current_user
 from ..auth.models import User
+from ..config import get_config
 from ..record.database import get_db
-from ..record.models import Baby
+from ..record.models import Baby, MediaAsset
+from ..record.storage import media_path
 from .agent import run_parenting_agent
 from .models import AiConversation, AiMessage, now
+from .observability import chat_trace
 from .schemas import ChatRequest, ChatResponse
 from .seed import ensure_seeded
 from .tools import BabyScope
@@ -54,13 +58,35 @@ def _get_or_create_conversation(db: Session, family_id: UUID, baby_id: UUID, con
     return conv
 
 
+def _image_data_url(db: Session, family_id: UUID, baby_id: UUID, media_id: UUID) -> str:
+    media = db.scalar(
+        select(MediaAsset).where(
+            MediaAsset.id == media_id,
+            MediaAsset.baby_id == baby_id,
+            MediaAsset.family_id == family_id,
+            MediaAsset.media_type == "image",
+        )
+    )
+    if not media:
+        raise api_error(404, "not_found", "没有找到这张图片")
+    if not get_config().large_model.supports_vision:
+        raise api_error(422, "vision_disabled", "图片识别尚未启用")
+    path = media_path(media.object_key)
+    if not path.is_file():
+        raise api_error(404, "not_found", "图片文件不可用")
+    encoded = base64.b64encode(path.read_bytes()).decode()
+    return f"data:{media.mime_type};base64,{encoded}"
+
+
 @router.post("/chat", response_model=ChatResponse)
 def chat(body: ChatRequest, user: User = Depends(current_user), db: Session = Depends(get_db)):
     ensure_seeded(db)
     _baby_or_404(db, body.baby_id, user.family_id)
-    message = body.message.strip()
+    message = body.message.strip() or ("请结合这张图片说说" if body.media_id else "")
     if not message:
         raise api_error(422, "validation_error", "请输入问题")
+    image_url = _image_data_url(db, user.family_id, body.baby_id, body.media_id) if body.media_id else None
+    stored = f"[图片] {message}" if image_url else message
 
     conv = _get_or_create_conversation(db, user.family_id, body.baby_id, body.conversation_id)
     prior = db.scalars(
@@ -68,12 +94,21 @@ def chat(body: ChatRequest, user: User = Depends(current_user), db: Session = De
     ).all()
     history = [{"role": m.role, "content": m.content} for m in reversed(prior) if m.role in ("user", "assistant")]
 
-    user_msg = AiMessage(conversation_id=conv.id, role="user", content=message, created_at=now())
+    user_msg = AiMessage(conversation_id=conv.id, role="user", content=stored, created_at=now())
     db.add(user_msg)
     db.flush()
 
     scope = BabyScope(db, user.family_id, body.baby_id)
-    answer, model_name = run_parenting_agent(scope, message, history=history)
+    with chat_trace(
+        family_id=user.family_id,
+        baby_id=body.baby_id,
+        conversation_id=conv.id,
+        message=message,
+        has_image=bool(image_url),
+    ) as trace:
+        answer, model_name = run_parenting_agent(
+            scope, message, history=history, image_data_url=image_url, trace=trace
+        )
 
     assistant = AiMessage(
         conversation_id=conv.id,

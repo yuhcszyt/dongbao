@@ -54,6 +54,7 @@ function openCapture(mode?: CaptureMode) {
     uni.showToast({ title: '请先完善宝宝档案', icon: 'none' })
     return
   }
+  capturePanel.value?.reset()
   panel.value = 'capture'
   if (mode) capturePanel.value?.begin(mode)
 }
@@ -85,7 +86,10 @@ function remove(record: RecordItem) {
     title: '删除这条记录？',
     content: '删除后可在页面底部立即撤销。',
     success: ({ confirm }) => {
-      if (confirm) void recordStore.removeRecord(record)
+      if (!confirm) return
+      void recordStore.removeRecord(record).then((ok) => {
+        if (ok) closePanel()
+      })
     },
   })
 }
@@ -209,6 +213,14 @@ onShow(() => {
         <template v-if="panel === 'form'">
           <view class="sheet-head"><text class="card-title">{{ editing ? '修改记录' : '手动记录' }}</text><button aria-label="关闭" @click="closePanel">×</button></view>
           <RecordForm :initial="formInitial" :lock-type="Boolean(editing)" :submitting="state.saving" :submit-text="editing ? '保存修改' : '保存记录'" @submit="saveRecord" />
+          <button
+            v-if="editing"
+            class="danger-delete"
+            :disabled="state.saving"
+            @click="remove(editing)"
+          >
+            删除这条记录
+          </button>
           <view v-if="state.error" class="error"><text>{{ state.error }}</text><button v-if="state.retryable" class="retry" @click="recordStore.retrySession(day)">重试</button></view>
         </template>
       </view>
@@ -263,6 +275,7 @@ onShow(() => {
 .sheet { width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; background: #fbfaf7; padding: 21px 18px calc(22px + env(safe-area-inset-bottom)); }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; }
 .sheet-head button { width: 48px; height: 48px; border-radius: 50%; background: #eef2f1; font-size: 27px; }
+.danger-delete { width: 100%; min-height: 48px; margin-top: 12px; border-radius: 14px; border: 1px solid #eccfc7; background: white; color: #b86e62; font-size: 15px; }
 .undo { position: fixed; z-index: 30; right: 16px; bottom: calc(70px + env(safe-area-inset-bottom)); left: 16px; display: flex; align-items: center; justify-content: space-between; min-height: 54px; border-radius: 14px; background: #244a56; padding: 8px 10px 8px 16px; color: white; }
 .undo button { min-width: 72px; min-height: 48px; border-radius: 11px; background: #fff; color: #267b93; font-weight: 700; }
 </style>
