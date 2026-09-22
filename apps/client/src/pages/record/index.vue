@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import AccountGone from '@/components/AccountGone.vue'
 import CapturePanel from '@/components/CapturePanel.vue'
@@ -43,24 +43,35 @@ function selectDay(date: string) {
 }
 
 function closePanel() {
-  capturePanel.value?.reset()
   panel.value = null
   editing.value = null
   draftPayload.value = undefined
+  try {
+    capturePanel.value?.reset()
+  } catch {
+    // ignore
+  }
 }
 
-function openCapture(mode?: CaptureMode) {
+async function openCapture(mode?: CaptureMode) {
   if (!state.baby) {
     uni.showToast({ title: '请先完善宝宝档案', icon: 'none' })
     return
   }
-  capturePanel.value?.reset()
+  editing.value = null
+  draftPayload.value = undefined
   panel.value = 'capture'
-  if (mode) capturePanel.value?.begin(mode)
+  if (!mode) return
+  await nextTick()
+  capturePanel.value?.begin(mode)
 }
 
 function openManual(type: RecordType, payload?: Partial<Payload>) {
-  capturePanel.value?.reset()
+  try {
+    capturePanel.value?.reset()
+  } catch {
+    // ignore
+  }
   selectedType.value = type
   draftPayload.value = payload
   editing.value = null
@@ -130,7 +141,7 @@ onShow(() => {
   today.value = nowParts().date
   void recordStore.load(day.value)
   const action = takeQuickAction()
-  if (action?.kind === 'capture') openCapture(action.mode)
+  if (action?.kind === 'capture') void openCapture(action.mode)
   else if (action) openManual(action.record_type, action.payload)
 })
 </script>
@@ -200,10 +211,10 @@ onShow(() => {
 
     <view v-if="state.deleted" class="undo"><text>已删除“{{ typeMeta(state.deleted.record_type).label }}”</text><button @click="restore">撤销</button></view>
 
-    <view v-if="state.baby" class="overlay" v-show="panel" @click="closePanel">
+    <view v-if="state.baby && panel" class="overlay" @click="closePanel">
       <view class="sheet" @click.stop>
         <CapturePanel
-          v-show="panel === 'capture'"
+          v-if="panel === 'capture'"
           ref="capturePanel"
           :baby-id="state.baby.id"
           @close="closePanel"

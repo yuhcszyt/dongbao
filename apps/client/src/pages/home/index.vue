@@ -3,7 +3,7 @@
  * 首页（原型 V1.4）：宝宝行、问候、今日指标、懂宝 AI、哭声、四高频入口、最近动态、推荐。
  * 登录后直接进入；资料未完善也正常可用。
  */
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import AccountGone from '@/components/AccountGone.vue'
 import CapturePanel from '@/components/CapturePanel.vue'
@@ -52,17 +52,23 @@ function openRecord(action?: QuickAction) {
 }
 
 function closeCapture() {
-  capturePanel.value?.reset()
+  // 先卸掉遮罩：小程序上录音 stop 抛错时也不能把用户关在弹层里。
   captureOpen.value = false
+  try {
+    capturePanel.value?.reset()
+  } catch {
+    // ignore
+  }
 }
 
-function openCapture(mode: CaptureMode) {
+async function openCapture(mode: CaptureMode) {
   if (!state.baby) {
     uni.showToast({ title: '请先完善宝宝档案', icon: 'none' })
     return
   }
-  capturePanel.value?.reset()
+  // 必须用 v-if 挂载后再 begin；v-show 在微信里对 fixed 遮罩经常关不掉。
   captureOpen.value = true
+  await nextTick()
   capturePanel.value?.begin(mode)
 }
 
@@ -85,6 +91,8 @@ function openHomeQuick(item: (typeof HOME_QUICK_TYPES)[number]) {
 }
 
 onShow(() => {
+  // Tab 页保活：上次没关干净的遮罩，进来时清掉。
+  captureOpen.value = false
   today.value = nowParts().date
   greeting.value = greetingFor(new Date().getHours())
   void recordStore.load(today.value)
@@ -197,7 +205,7 @@ onShow(() => {
       </view>
     </template>
 
-    <view v-if="state.baby" class="overlay" v-show="captureOpen" @click="closeCapture">
+    <view v-if="state.baby && captureOpen" class="overlay" @click="closeCapture">
       <view class="sheet" @click.stop>
         <CapturePanel
           ref="capturePanel"

@@ -156,15 +156,19 @@ function begin(mode: CaptureMode) {
 function reset() {
   aborted = true
   cleanTimers()
-  // #ifdef H5
-  if (h5Recorder?.state === 'recording') h5Recorder.stop()
-  h5Stream?.getTracks().forEach((track) => track.stop())
-  h5Stream = null
-  h5Recorder = null
-  // #endif
-  // #ifndef H5
-  mpRecorder?.stop()
-  // #endif
+  try {
+    // #ifdef H5
+    if (h5Recorder?.state === 'recording') h5Recorder.stop()
+    h5Stream?.getTracks().forEach((track) => track.stop())
+    h5Recorder = null
+    h5Stream = null
+    // #endif
+    // #ifndef H5
+    mpRecorder?.stop()
+    // #endif
+  } catch {
+    // 关弹层优先：录音 stop 失败不能抛到页面把遮罩卡死。
+  }
   phase.value = 'idle'
   error.value = ''
   draft.value = null
@@ -176,6 +180,11 @@ function reset() {
 }
 
 defineExpose({ begin, reset })
+
+function requestClose() {
+  reset()
+  emit('close')
+}
 
 const MIN_VOICE_MS = 2000
 
@@ -253,7 +262,7 @@ onBeforeUnmount(() => {
         <text class="eyebrow">AI 辅助记录</text>
         <text class="title">给宝宝记一笔</text>
       </view>
-      <button class="close" aria-label="关闭" @click="emit('close')">×</button>
+      <button class="close" hover-class="none" aria-label="关闭" @tap.stop="requestClose" @click.stop="requestClose">×</button>
     </view>
 
     <template v-if="phase === 'idle' || phase === 'recording' || phase === 'processing' || phase === 'error'">
