@@ -3,7 +3,7 @@ import { networkFailMessage } from './http'
 
 describe('networkFailMessage', () => {
   it('maps WeChat request:fail to Chinese', () => {
-    expect(networkFailMessage('request:fail')).toContain('网络连接失败')
+    expect(networkFailMessage('request:fail')).toContain('连不上懂宝服务')
     expect(networkFailMessage('request:fail url not in domain list')).toContain('暂时连不上懂宝服务')
   })
 
