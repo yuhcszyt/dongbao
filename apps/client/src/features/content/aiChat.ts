@@ -79,4 +79,24 @@ export const aiChatStore = {
       state.banner = error instanceof ApiError ? error.message : '清空失败'
     }
   },
+
+  /**
+   * 记一笔成功后的会话留痕：把草稿识别结果写入 AI 历史。
+   * 识别（ASR/Vision/提草稿）已在确认前完成；此处不再走问答大模型。
+   */
+  async traceRecord(babyId: string, summary: string, recordId?: string | null) {
+    const text = summary.trim()
+    if (!text) return
+    try {
+      const result = await api.aiRecordTrace(babyId, text, recordId)
+      state.conversationId = result.conversation_id
+      state.messages.push({
+        q: result.user_content,
+        a: result.answer.summary,
+        answer: result.answer,
+      })
+    } catch {
+      // 留痕失败不打断记一笔
+    }
+  },
 }

@@ -35,6 +35,14 @@ vi.stubGlobal('uni', {
         answer: { summary: 'ok', reasons: [], baby_context: [], actions: [], watch_for: [], sources: [], related_record_ids: [] },
       }
     }
+    if (path === '/ai/record-trace') {
+      data = {
+        conversation_id: 'c1',
+        message_id: 'm-trace',
+        user_content: '【日常记录】喂奶 · 120 ml',
+        answer: { summary: '已记下：喂奶 · 120 ml', reasons: [], baby_context: [], actions: [], watch_for: [], sources: [], related_record_ids: [] },
+      }
+    }
     options.success({ statusCode: options.method === 'DELETE' ? 204 : 200, data })
   },
 })
@@ -89,6 +97,7 @@ describe('api path contract vs server routes', () => {
     await api.confirmDraft(draftId, feeding)
     await api.aiActiveConversation(babyId)
     await api.aiChat(babyId, '你好', null, null)
+    await api.aiRecordTrace(babyId, '喂奶 · 120 ml', recordId)
     await api.aiNewConversation(babyId)
 
     const paths = calls.map((item) => `${item.method} ${item.url}`)
@@ -98,6 +107,7 @@ describe('api path contract vs server routes', () => {
       `POST /api/v1/record-drafts/${draftId}/confirm`,
       `GET /api/v1/ai/conversations/active?baby_id=${babyId}`,
       'POST /api/v1/ai/chat',
+      'POST /api/v1/ai/record-trace',
       `POST /api/v1/ai/conversations/new?baby_id=${babyId}`,
     ])
   })

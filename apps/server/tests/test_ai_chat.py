@@ -96,6 +96,30 @@ def test_active_conversation_and_clear(auth):
     assert cleared.json()["conversation_id"] != conv_id
 
 
+def test_record_trace_appends_without_calling_chat(auth):
+    headers = auth()
+    client = TestClient(app)
+    baby_id = _create_baby(client, headers)
+    traced = client.post(
+        "/api/v1/ai/record-trace",
+        headers=headers,
+        json={"baby_id": baby_id, "summary": "喂奶 · 180 ml", "record_id": str(uuid4())},
+    )
+    assert traced.status_code == 200, traced.text
+    body = traced.json()
+    assert body["user_content"] == "【日常记录】喂奶 · 180 ml"
+    assert body["answer"]["summary"] == "已记下：喂奶 · 180 ml"
+    assert body["answer"]["related_record_ids"]
+    active = client.get(f"/api/v1/ai/conversations/active?baby_id={baby_id}", headers=headers)
+    assert active.status_code == 200
+    messages = active.json()["messages"]
+    assert len(messages) == 2
+    assert messages[0]["role"] == "user"
+    assert messages[0]["content"].startswith("【日常记录】")
+    assert messages[1]["role"] == "assistant"
+    assert messages[1]["content"].startswith("已记下：")
+
+
 def test_sleep_and_growth_tools_only_return_matching_types(auth):
     from datetime import datetime, timedelta, timezone
     from uuid import UUID

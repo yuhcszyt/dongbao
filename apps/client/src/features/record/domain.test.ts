@@ -12,6 +12,7 @@ import {
   recordTimeText,
   recordsOnDay,
   savedRecordAck,
+  recordWhatText,
   shiftDate,
   timeZoneName,
   validateBabyProfile,
@@ -31,6 +32,7 @@ describe('记录领域契约', () => {
   })
 
   it('保存成功提示写明类型和数量，并点出已进今日记录', () => {
+    expect(recordWhatText({ record_type: 'feeding', payload: { kind: 'feeding', amount_ml: 180 } })).toBe('喂奶 · 180 ml')
     expect(savedRecordAck({ record_type: 'feeding', payload: { kind: 'feeding', amount_ml: 180 } })).toBe(
       '已写入今日记录：喂奶 · 180 ml',
     )

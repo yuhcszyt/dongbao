@@ -5,9 +5,10 @@ import AccountGone from '@/components/AccountGone.vue'
 import CapturePanel from '@/components/CapturePanel.vue'
 import RecordForm from '@/components/RecordForm.vue'
 import type { CaptureMode } from '@/features/record/captureFlow'
-import { buildDateStrip, dateTimeParts, dayLabel, describeRecord, nowParts, pickerValue, RECORD_FILTERS, recordsOnDay, showSavedRecordAck, type MediaAsset, type Payload, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
+import { buildDateStrip, dateTimeParts, dayLabel, describeRecord, nowParts, pickerValue, RECORD_FILTERS, recordsOnDay, recordWhatText, showSavedRecordAck, type MediaAsset, type Payload, type RecordInput, type RecordItem, type RecordType, typeMeta } from '@/features/record/domain'
 import { takeQuickAction } from '@/features/record/quickAction'
 import { recordStore } from '@/features/record/store'
+import { aiChatStore } from '@/features/content/aiChat'
 import { mediaUrl } from '@/services/api'
 
 const { state } = recordStore
@@ -132,6 +133,7 @@ const captureSaved = (record: RecordItem) => {
   closePanel()
   void recordStore.load()
   showSavedRecordAck(record)
+  void aiChatStore.traceRecord(record.baby_id, recordWhatText(record), record.id)
 }
 
 function openStats() {

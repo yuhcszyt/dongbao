@@ -9,6 +9,9 @@ import AccountGone from '@/components/AccountGone.vue'
 import CapturePanel from '@/components/CapturePanel.vue'
 import { ARTICLES } from '@/features/content/articles'
 import type { CaptureMode } from '@/features/record/captureFlow'
+import { requestQuickAction, type QuickAction } from '@/features/record/quickAction'
+import { recordStore } from '@/features/record/store'
+import { aiChatStore } from '@/features/content/aiChat'
 import {
   ageText,
   babyDisplayName,
@@ -18,13 +21,12 @@ import {
   HOME_QUICK_TYPES,
   nowParts,
   recordTimeText,
+  recordWhatText,
   showSavedRecordAck,
   typeMeta,
   type RecordItem,
   type RecordType,
 } from '@/features/record/domain'
-import { requestQuickAction, type QuickAction } from '@/features/record/quickAction'
-import { recordStore } from '@/features/record/store'
 
 const { state } = recordStore
 const today = ref(nowParts().date)
@@ -83,6 +85,7 @@ function onCaptureSaved(record: RecordItem) {
   closeCapture()
   void recordStore.load(today.value)
   showSavedRecordAck(record)
+  void aiChatStore.traceRecord(record.baby_id, recordWhatText(record), record.id)
 }
 
 function openHomeQuick(item: (typeof HOME_QUICK_TYPES)[number]) {

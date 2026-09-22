@@ -229,6 +229,20 @@ export const api = {
   aiNewConversation(babyId: string) {
     return request<{ conversation_id: string }>(`/ai/conversations/new?baby_id=${encodeURIComponent(babyId)}`, 'POST')
   },
+
+  /** 记一笔成功后写入 AI 会话历史（摘要来自已确认记录；服务端不再问诊一轮）。 */
+  aiRecordTrace(babyId: string, summary: string, recordId?: string | null) {
+    return request<{
+      conversation_id: string
+      message_id: string
+      user_content: string
+      answer: import('@/features/content/aiTypes').ParentingAnswer
+    }>('/ai/record-trace', 'POST', {
+      baby_id: babyId,
+      summary,
+      ...(recordId ? { record_id: recordId } : {}),
+    })
+  },
 }
 
 export const recordTypeQuery = (type: RecordType | 'all') => (type === 'all' ? '' : type)

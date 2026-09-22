@@ -36,6 +36,21 @@ class ChatResponse(BaseModel):
     answer: ParentingAnswer
 
 
+class RecordTraceRequest(BaseModel):
+    """记一笔确认后写入会话：摘要来自已识别并确认的记录，不再走问答大模型。"""
+
+    baby_id: UUID
+    summary: str = Field(min_length=1, max_length=500)
+    record_id: UUID | None = None
+
+
+class RecordTraceResponse(BaseModel):
+    conversation_id: UUID
+    message_id: UUID
+    user_content: str
+    answer: ParentingAnswer
+
+
 class ChunkWithSource(BaseModel):
     chunk_id: UUID
     content: str

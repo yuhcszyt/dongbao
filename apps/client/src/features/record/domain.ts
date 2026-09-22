@@ -288,15 +288,20 @@ export function describeRecord(record: Pick<RecordItem, 'record_type' | 'payload
 }
 
 /**
- * 语音/拍照确认保存后的提示框正文：写明类型和数量，并点出已进今日记录（不是问懂宝）。
+ * 语音/拍照确认保存后的短摘要：类型 · 数量（若有），供提示框与 AI 会话留痕共用。
  */
-export function savedRecordAck(record: Pick<RecordItem, 'record_type' | 'payload'>): string {
+export function recordWhatText(record: Pick<RecordItem, 'record_type' | 'payload'>): string {
   const label = typeMeta(record.record_type).label
   const detail = describeRecord(record).trim()
-  if (!detail || detail === `已记录${label}` || detail.startsWith('已记录')) {
-    return `已写入今日记录：${label}`
-  }
-  return `已写入今日记录：${label} · ${detail}`
+  if (!detail || detail === `已记录${label}` || detail.startsWith('已记录')) return label
+  return `${label} · ${detail}`
+}
+
+/**
+ * 提示框正文：写明已进今日记录（不是问懂宝）。
+ */
+export function savedRecordAck(record: Pick<RecordItem, 'record_type' | 'payload'>): string {
+  return `已写入今日记录：${recordWhatText(record)}`
 }
 
 export function showSavedRecordAck(record: Pick<RecordItem, 'record_type' | 'payload'>) {

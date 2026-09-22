@@ -17,7 +17,7 @@ from ..record.storage import media_path
 from .agent import run_parenting_agent
 from .models import AiConversation, AiMessage, now
 from .observability import chat_trace
-from .schemas import ChatRequest, ChatResponse
+from .schemas import ChatRequest, ChatResponse, RecordTraceRequest, RecordTraceResponse, ParentingAnswer
 from .seed import ensure_seeded
 from .tools import BabyScope
 
@@ -123,6 +123,40 @@ def chat(body: ChatRequest, user: User = Depends(current_user), db: Session = De
     db.commit()
     db.refresh(assistant)
     return ChatResponse(conversation_id=conv.id, message_id=assistant.id, answer=answer)
+
+
+@router.post("/record-trace", response_model=RecordTraceResponse)
+def record_trace(body: RecordTraceRequest, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """记一笔确认后写入当前会话。识别已在 RecordDraft 完成；此处只留痕，不再问诊。"""
+    _baby_or_404(db, body.baby_id, user.family_id)
+    summary = body.summary.strip()
+    if not summary:
+        raise api_error(422, "validation_error", "缺少记录摘要")
+    user_content = f"【日常记录】{summary}"
+    answer = ParentingAnswer(
+        summary=f"已记下：{summary}",
+        related_record_ids=[body.record_id] if body.record_id else [],
+    )
+    conv = _get_or_create_conversation(db, user.family_id, body.baby_id, None)
+    db.add(AiMessage(conversation_id=conv.id, role="user", content=user_content, created_at=now()))
+    assistant = AiMessage(
+        conversation_id=conv.id,
+        role="assistant",
+        content=answer.summary,
+        structured_payload=answer.model_dump(mode="json"),
+        model="record-trace",
+        created_at=now(),
+    )
+    db.add(assistant)
+    conv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(assistant)
+    return RecordTraceResponse(
+        conversation_id=conv.id,
+        message_id=assistant.id,
+        user_content=user_content,
+        answer=answer,
+    )
 
 
 @router.post("/conversations/new")

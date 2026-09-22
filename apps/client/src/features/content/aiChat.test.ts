@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   aiActiveConversation: vi.fn(),
   aiChat: vi.fn(),
   aiNewConversation: vi.fn(),
+  aiRecordTrace: vi.fn(),
 }))
 
 vi.mock('@/services/api', () => {
@@ -18,6 +19,7 @@ vi.mock('@/services/api', () => {
       aiActiveConversation: mocks.aiActiveConversation,
       aiChat: mocks.aiChat,
       aiNewConversation: mocks.aiNewConversation,
+      aiRecordTrace: mocks.aiRecordTrace,
     },
   }
 })
@@ -108,5 +110,33 @@ describe('aiChatStore button → API', () => {
     expect(aiChatStore.state.banner).toBe('服务暂时不可用')
     expect(aiChatStore.state.loading).toBe(false)
     expect(aiChatStore.state.messages).toEqual([])
+  })
+
+  it('traceRecord 把记一笔摘要写入会话，失败也不抛', async () => {
+    mocks.aiRecordTrace.mockResolvedValue({
+      conversation_id: 'c-trace',
+      message_id: 'm-trace',
+      user_content: '【日常记录】喂奶 · 180 ml',
+      answer: {
+        summary: '已记下：喂奶 · 180 ml',
+        reasons: [],
+        baby_context: [],
+        actions: [],
+        watch_for: [],
+        sources: [],
+        related_record_ids: ['r1'],
+      },
+    })
+
+    await aiChatStore.traceRecord('baby-1', '喂奶 · 180 ml', 'r1')
+
+    expect(mocks.aiRecordTrace).toHaveBeenCalledWith('baby-1', '喂奶 · 180 ml', 'r1')
+    expect(aiChatStore.state.conversationId).toBe('c-trace')
+    expect(aiChatStore.state.messages.at(-1)).toEqual(
+      expect.objectContaining({ q: '【日常记录】喂奶 · 180 ml', a: '已记下：喂奶 · 180 ml' }),
+    )
+
+    mocks.aiRecordTrace.mockRejectedValue(new Error('network'))
+    await expect(aiChatStore.traceRecord('baby-1', '辅食 · 南瓜泥')).resolves.toBeUndefined()
   })
 })
