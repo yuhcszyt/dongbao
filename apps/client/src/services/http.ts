@@ -5,3 +5,20 @@
  */
 
 export const isSuccess = (statusCode: number) => statusCode >= 200 && statusCode < 300
+
+/**
+ * 微信/uni 网络失败原文常是 `request:fail` / `request:fail url not in domain list`，
+ * 不能直接上屏；统一收成家长能看懂的中文。
+ */
+export const networkFailMessage = (errMsg?: string, fallback = '网络连接失败，请检查电脑服务是否启动') => {
+  const raw = (errMsg || '').trim()
+  if (!raw) return fallback
+  if (/url not in domain list/i.test(raw)) {
+    return '请求域名未在小程序后台配置，开发阶段请勾选「不校验合法域名」'
+  }
+  if (/request:fail|timeout|ERR_CONNECTION|ECONNREFUSED|Failed to fetch|NetworkError/i.test(raw)) {
+    return fallback
+  }
+  // 其它未知原文也不直接上屏
+  return fallback
+}

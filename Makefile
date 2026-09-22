@@ -33,7 +33,7 @@ CLIENT_API_BASE_URL ?=
 	db-up db-wait db-down qdrant-up qdrant-wait \
 	langfuse-up langfuse-down \
 	seed-rag test test-server test-client typecheck build \
-	dev-server e2e docker-test
+	dev-server dev-mp e2e docker-test
 
 help:
 	@echo "── 日常（主机）──"
@@ -42,6 +42,7 @@ help:
 	@echo "make test-server    仅服务端（自动起 test profile 依赖）"
 	@echo "make test-client    仅客户端"
 	@echo "make dev-server     本地 uvicorn :$(PORT)（需 DEV_LOGIN=1 才无微信登录）"
+	@echo "make dev-mp         小程序编译；自动写入当前局域网 IP（解决 request:fail）"
 	@echo "make seed-rag       真 embedding 写入测试 Qdrant"
 	@echo ""
 	@echo "── Docker 管理 ──"
@@ -115,6 +116,16 @@ build:
 dev-server: db-up db-wait qdrant-up qdrant-wait
 	cd $(SERVER_DIR) && $(SERVER_ENV) .venv/bin/alembic upgrade head
 	cd $(SERVER_DIR) && $(SERVER_ENV) QDRANT_URL=http://127.0.0.1:6334 .venv/bin/uvicorn $(APP_MODULE) --reload --host 0.0.0.0 --port $(PORT)
+
+# 小程序必须打电脑局域网 IP；Wi-Fi 一变旧包就会 request:fail。
+# 每次用这个目标起编译，避免多个 watcher 抢着把 API 写回过期地址。
+dev-mp:
+	@IP=$$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null); \
+	if [ -z "$$IP" ]; then \
+	  IP=$$(python3 -c "import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.connect(('192.168.0.1',80));print(s.getsockname()[0]);s.close()"); \
+	fi; \
+	echo "小程序 API → http://$$IP:$(PORT)/api/v1"; \
+	cd $(CLIENT_DIR) && VITE_API_BASE_URL=http://$$IP:$(PORT)/api/v1 npm run dev:mp-weixin
 
 test: test-server test-client
 

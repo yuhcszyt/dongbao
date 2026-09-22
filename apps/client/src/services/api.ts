@@ -9,7 +9,7 @@ import type {
 } from '@/features/record/domain'
 import { detectTimeZone, normalizeSummary } from '@/features/record/domain'
 import { API_BASE, mediaUrl, tunnelHeaders } from './config'
-import { isSuccess } from './http'
+import { isSuccess, networkFailMessage } from './http'
 import type { SessionResponse } from './session'
 import { session } from './sessionHost'
 
@@ -57,7 +57,7 @@ const sendRequest = (options: {
       header: { ...tunnelHeaders(), ...options.headers },
       timeout: options.timeout ?? 15_000,
       success: (response) => resolve({ statusCode: response.statusCode, data: response.data }),
-      fail: (error) => reject(new ApiError(error.errMsg || '网络连接失败，请稍后重试')),
+      fail: (error) => reject(new ApiError(networkFailMessage(error.errMsg))),
     })
   })
 
@@ -167,7 +167,7 @@ export const api = {
               }
               resolve({ statusCode: result.statusCode, data: body })
             },
-            fail: (error) => reject(new ApiError(error.errMsg || '上传没有完成，请重试')),
+            fail: (error) => reject(new ApiError(networkFailMessage(error.errMsg, '上传没有完成，请重试'))),
           })
         }),
     )

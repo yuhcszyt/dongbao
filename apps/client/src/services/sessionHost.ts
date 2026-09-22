@@ -3,7 +3,7 @@
  * 所有对 uni API 的访问都在函数体内（不发生在 import 时），因此纯模块仍可被单独单测。
  */
 import { API_BASE, tunnelHeaders } from './config'
-import { isSuccess } from './http'
+import { isSuccess, networkFailMessage } from './http'
 import { createLoginCode } from './loginCode'
 import { shouldUseWxLogin } from './mpWeixin'
 import { createSession, type LoginResult, type Session, type StoredSession } from './session'
@@ -109,7 +109,7 @@ const login = (code: string) =>
         }
         reject(new Error(`登录接口返回 ${response.statusCode}`))
       },
-      fail: (error) => reject(new Error(error.errMsg || '登录请求失败')),
+      fail: (error) => reject(new Error(networkFailMessage(error.errMsg, '登录失败，请检查网络后重试'))),
     })
   })
 
