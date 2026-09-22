@@ -167,8 +167,8 @@ onShow(() => {
       </view>
 
       <view class="capture-entry">
-        <text class="card-title">给宝宝记一笔</text>
-        <text class="lead">说一句或拍张照，确认后写入今日记录</text>
+        <text class="card-title">快速记录</text>
+        <text class="lead">语音、拍照都先经 AI 识别，确认后写入今日记录</text>
         <button class="voice" @click="openCapture('voice')">
           <text class="cap-icon">♩</text>
           <text class="cap-title">语音记录</text>

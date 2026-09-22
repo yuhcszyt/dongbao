@@ -73,6 +73,9 @@ export interface RecordInput {
 export const draftFormInitial = (draft: RecordDraft): Partial<RecordInput> => {
   const recordType = draft.record_type || 'custom'
   const payload: Payload = { kind: recordType, ...draft.payload }
+  if (recordType === 'feeding' && !present(payload.feeding_type)) {
+    payload.feeding_type = 'unknown'
+  }
   if (recordType === 'custom' && !String(payload.title ?? '').trim()) {
     payload.title = draft.source === 'photo' ? '拍照记录' : '语音记录'
     if (!payload.details) {
@@ -86,6 +89,31 @@ export const draftFormInitial = (draft: RecordDraft): Partial<RecordInput> => {
     payload,
     note: draft.note,
   }
+}
+
+/** 快速记录：把草稿收成可直接 confirm 的完整输入。 */
+export function draftQuickInput(draft: RecordDraft): RecordInput {
+  const initial = draftFormInitial(draft)
+  const recordType = initial.record_type ?? 'custom'
+  const parts = nowParts()
+  return {
+    record_type: recordType,
+    occurred_at: initial.occurred_at || toIsoDateTime(parts.date, parts.time),
+    payload: (initial.payload ?? { kind: recordType }) as Payload,
+    note: initial.note ?? null,
+  }
+}
+
+/** 快速确认卡上的一行摘要。 */
+export function draftQuickSummary(draft: RecordDraft): string {
+  const input = draftQuickInput(draft)
+  return recordWhatText({ record_type: input.record_type, payload: input.payload })
+}
+
+/** 缺关键字段时不能一键保存，需要展开表单。 */
+export function draftNeedsEdit(draft: RecordDraft): boolean {
+  const input = draftQuickInput(draft)
+  return validatePayload(input.record_type, input.payload) !== null
 }
 
 export interface MediaAsset {

@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import RecordForm from '@/components/RecordForm.vue'
 import { api, ApiError, SessionError } from '@/services/api'
 import { bindRecorderOnce, runCapture, type CaptureMode } from '@/features/record/captureFlow'
-import { RECORD_TYPES, draftFormInitial, type MediaAsset, type RecordDraft, type RecordInput, type RecordItem, type RecordType } from '@/features/record/domain'
+import { RECORD_TYPES, draftFormInitial, draftNeedsEdit, draftQuickInput, draftQuickSummary, type MediaAsset, type RecordDraft, type RecordInput, type RecordItem, type RecordType } from '@/features/record/domain'
 
 const props = defineProps<{ babyId: string }>()
 const emit = defineEmits<{
@@ -16,6 +16,7 @@ type Phase = 'idle' | 'recording' | 'processing' | 'draft' | 'error'
 
 const phase = ref<Phase>('idle')
 const draft = ref<RecordDraft | null>(null)
+const editing = ref(false)
 const error = ref('')
 const elapsed = ref(0)
 const submitting = ref(false)
@@ -34,9 +35,11 @@ let aborted = false
 
 const statusText = computed(() => {
   if (phase.value === 'recording') return `正在录音 ${String(Math.floor(elapsed.value / 60)).padStart(2, '0')}:${String(elapsed.value % 60).padStart(2, '0')}`
-  if (phase.value === 'processing') return '正在上传并整理记录…'
+  if (phase.value === 'processing') return 'AI 正在识别…'
   return ''
 })
+
+const draftSummary = computed(() => (draft.value ? draftQuickSummary(draft.value) : ''))
 
 const cleanTimers = () => {
   if (ticker) clearInterval(ticker)
@@ -54,6 +57,7 @@ async function recognize(media: MediaAsset, kind: 'voice' | 'photo') {
   lastKind.value = kind
   try {
     draft.value = await api.draftFromMedia(kind, props.babyId, media.id)
+    editing.value = draftNeedsEdit(draft.value)
     phase.value = 'draft'
   } catch (reason) {
     error.value = `${friendlyError(reason)}。已上传的${kind === 'voice' ? '录音' : '图片'}会保留。`
@@ -172,6 +176,7 @@ function reset() {
   phase.value = 'idle'
   error.value = ''
   draft.value = null
+  editing.value = false
   lastMedia.value = null
   lastKind.value = null
   previewPath.value = ''
@@ -247,6 +252,12 @@ async function confirm(input: RecordInput) {
   }
 }
 
+async function quickSave() {
+  if (!draft.value) return
+  const input = draftQuickInput(draft.value)
+  await confirm(input)
+}
+
 function retryRecognition() {
   if (lastMedia.value && lastKind.value) void recognize(lastMedia.value, lastKind.value)
 }
@@ -260,14 +271,14 @@ onBeforeUnmount(() => {
   <view class="capture">
     <view class="heading">
       <view>
-        <text class="eyebrow">AI 辅助记录</text>
+        <text class="eyebrow">AI 快速记录</text>
         <text class="title">给宝宝记一笔</text>
       </view>
       <button class="close" hover-class="none" aria-label="关闭" @tap.stop="requestClose" @click.stop="requestClose">×</button>
     </view>
 
     <template v-if="phase === 'idle' || phase === 'recording' || phase === 'processing' || phase === 'error'">
-      <text class="lead">{{ phase === 'recording' ? '正在听你说，说完再点结束。' : '点语音直接开麦；点拍照直接打开相机。识别后可改，确认才保存。' }}</text>
+      <text class="lead">{{ phase === 'recording' ? '正在听你说，说完再点结束。' : '语音和拍照都会先经 AI 识别，你确认后写入今日记录。' }}</text>
       <image v-if="previewPath && lastKind === 'photo'" class="preview" :src="previewPath" mode="aspectFit" />
       <view v-if="statusText" class="status" :class="{ live: phase === 'recording' }">{{ statusText }}</view>
       <view class="capture-buttons">
@@ -289,7 +300,7 @@ onBeforeUnmount(() => {
         >
           <text class="capture-icon">📷</text>
           <text class="capture-title">拍照记录</text>
-          <text class="capture-note">打开相机，AI 帮你填</text>
+          <text class="capture-note">打开相机，AI 来认</text>
         </button>
       </view>
 
@@ -308,12 +319,24 @@ onBeforeUnmount(() => {
 
     <template v-else-if="draft">
       <view class="draft-state">
-        <text class="draft-title">识别完成，请确认</text>
+        <text class="draft-title">AI 识别完成</text>
         <text v-if="draft.transcript" class="transcript">“{{ draft.transcript }}”</text>
+        <view class="quick-card">
+          <text class="quick-label">将写入今日记录</text>
+          <text class="quick-value">{{ draftSummary }}</text>
+        </view>
         <view v-for="warning in draft.recognition_warnings" :key="warning" class="warning">{{ warning }}</view>
-        <view v-if="draft.missing_fields.length" class="hint">还有信息需要你补充，空着的内容不会自动猜测。</view>
+        <view v-if="editing" class="hint">还有信息需要你补充，空着的内容不会自动猜测。</view>
       </view>
+
+      <template v-if="!editing">
+        <button class="primary-save" :class="{ 'is-disabled': submitting }" :disabled="submitting" @click="quickSave">
+          {{ submitting ? '保存中…' : '确认保存' }}
+        </button>
+        <button class="edit-link" :disabled="submitting" @click="editing = true">改一下</button>
+      </template>
       <RecordForm
+        v-else
         :initial="draftFormInitial(draft)"
         :submitting="submitting"
         submit-text="确认并保存"
@@ -352,6 +375,12 @@ onBeforeUnmount(() => {
 .draft-state { margin: 15px 0 2px; }
 .draft-title { display: block; font-size: 18px; font-weight: 750; }
 .transcript { display: block; margin-top: 9px; border-left: 3px solid #b7dfe9; padding: 8px 11px; color: #536e77; line-height: 1.6; }
+.quick-card { margin-top: 14px; border-radius: 14px; background: #edf6f8; padding: 14px 16px; }
+.quick-label { display: block; color: #27788f; font-size: 13px; font-weight: 650; }
+.quick-value { display: block; margin-top: 6px; color: #203f4a; font-size: 22px; font-weight: 800; line-height: 1.35; }
+.primary-save { width: 100%; min-height: 52px; margin-top: 16px; border-radius: 14px; background: #328da9; color: white; font-size: 18px; font-weight: 700; }
+.primary-save.is-disabled { opacity: .55; }
+.edit-link { width: 100%; min-height: 44px; margin-top: 8px; background: transparent; color: #377c94; font-size: 15px; }
 @media (max-width: 360px) {
   .manual-grid { grid-template-columns: repeat(4, 1fr); }
 }

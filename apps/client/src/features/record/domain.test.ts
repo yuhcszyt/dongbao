@@ -6,6 +6,9 @@ import {
   describeRecord,
   detectTimeZone,
   draftFormInitial,
+  draftNeedsEdit,
+  draftQuickInput,
+  draftQuickSummary,
   greetingFor,
   normalizeSummary,
   pickerValue,
@@ -86,6 +89,32 @@ describe('记录领域契约', () => {
     })
     expect(feeding.record_type).toBe('feeding')
     expect(feeding.payload).toMatchObject({ kind: 'feeding', amount_ml: 120 })
+  })
+
+  it('快速记录可从草稿一键收成可保存输入', () => {
+    const draft = {
+      id: 'd4',
+      status: 'draft' as const,
+      baby_id: 'b1',
+      record_type: 'feeding' as const,
+      occurred_at: '2026-09-20T03:00:00Z',
+      payload: { kind: 'feeding', feeding_type: 'formula', amount_ml: 180 },
+      source: 'voice' as const,
+      transcript: '喝了180毫升',
+      missing_fields: [] as string[],
+      recognition_warnings: [] as string[],
+    }
+    expect(draftNeedsEdit(draft)).toBe(false)
+    expect(draftQuickSummary(draft)).toBe('喂奶 · 180 ml')
+    expect(draftQuickInput(draft)).toMatchObject({
+      record_type: 'feeding',
+      payload: { kind: 'feeding', feeding_type: 'formula', amount_ml: 180 },
+    })
+    expect(draftNeedsEdit({
+      ...draft,
+      record_type: 'stool',
+      payload: { kind: 'stool' },
+    })).toBe(true)
   })
 })
 

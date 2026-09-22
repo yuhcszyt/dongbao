@@ -151,10 +151,10 @@ onShow(() => {
 
       <view class="section">
         <view class="card-head">
-          <text class="card-title">给宝宝记一笔</text>
+          <text class="card-title">快速记录</text>
           <button class="link" @click="openRecord()">更多 ＋</button>
         </view>
-        <text class="muted capture-lead">说一句或拍一张，确认后写入今日记录（不是问懂宝）</text>
+        <text class="muted capture-lead">语音、拍照都先经 AI 识别，确认后写入今日记录</text>
         <view class="capture-row">
           <button class="voice" @click="openCapture('voice')">
             <text class="cap-icon">🎤</text>
@@ -164,7 +164,7 @@ onShow(() => {
           <button class="photo" @click="openCapture('photo')">
             <text class="cap-icon">📷</text>
             <text class="cap-title">拍照记录</text>
-            <text class="cap-note">打开相机，AI 填草稿</text>
+            <text class="cap-note">打开相机，AI 来认</text>
           </button>
         </view>
         <button class="manual-link" @click="openRecord({ kind: 'manual', record_type: 'feeding' })">也可以手动填写 ›</button>
