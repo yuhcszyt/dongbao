@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
-RecordType = Literal["feeding", "complementary_food", "sleep", "stool", "diaper", "crying", "growth", "vaccine", "medication", "custom"]
+RecordType = Literal["feeding", "complementary_food", "vitamin_ad", "sleep", "stool", "diaper", "crying", "growth", "vaccine", "medication", "custom"]
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -64,6 +64,11 @@ class VaccinePayload(StrictModel):
     name: str = Field(min_length=1, max_length=100)
     dose: str | None = Field(default=None, max_length=50)
 
+class VitaminAdPayload(StrictModel):
+    """每日维生素 AD：与用药分开，首页一键即可记一笔。"""
+    kind: Literal["vitamin_ad"]
+    dose_text: str | None = Field(default=None, max_length=100)
+
 class MedicationPayload(StrictModel):
     kind: Literal["medication"]
     name: str = Field(min_length=1, max_length=100)
@@ -74,7 +79,7 @@ class CustomPayload(StrictModel):
     title: str = Field(min_length=1, max_length=100)
     details: str | None = Field(default=None, max_length=1000)
 
-Payload = Annotated[Union[FeedingPayload, FoodPayload, SleepPayload, StoolPayload, DiaperPayload, CryingPayload, GrowthPayload, VaccinePayload, MedicationPayload, CustomPayload], Field(discriminator="kind")]
+Payload = Annotated[Union[FeedingPayload, FoodPayload, VitaminAdPayload, SleepPayload, StoolPayload, DiaperPayload, CryingPayload, GrowthPayload, VaccinePayload, MedicationPayload, CustomPayload], Field(discriminator="kind")]
 payload_adapter = TypeAdapter(Payload)
 
 class BabyCreate(StrictModel):

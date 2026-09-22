@@ -89,18 +89,21 @@ beforeEach(() => {
   mocks.deleteAccount.mockResolvedValue(undefined)
 })
 
-describe('首页快捷入口 → 记录页意图', () => {
-  it('四个点选入口都能落到手动面板意图', () => {
+describe('首页每日记录 → 记录页意图', () => {
+  it('四个每日记录入口都能落到手动面板意图', () => {
     for (const item of HOME_QUICK_TYPES) {
-      const payload =
-        'presetName' in item && item.presetName ? { kind: item.value, name: item.presetName } : undefined
-      requestQuickAction({ kind: 'manual', record_type: item.value, payload })
+      requestQuickAction({ kind: 'manual', record_type: item.value })
       expect(takeQuickAction()).toEqual({
         kind: 'manual',
         record_type: item.value,
-        payload,
       })
     }
+    expect(HOME_QUICK_TYPES.map((item) => item.value)).toEqual([
+      'feeding',
+      'complementary_food',
+      'vitamin_ad',
+      'stool',
+    ])
   })
 
   it('语音 / 拍照入口落到 capture 意图', () => {

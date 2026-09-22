@@ -204,13 +204,14 @@ function stopVoice() {
   // #endif
 }
 
-function choosePhoto() {
+function choosePhoto(opts?: { cameraOnly?: boolean }) {
   aborted = false
   error.value = ''
   uni.chooseImage({
     count: 1,
     sizeType: ['compressed'],
-    sourceType: ['camera', 'album'],
+    // 首页/快速入口只要相机；面板内「拍照记录」同样默认相机，避免多点一次相册。
+    sourceType: opts?.cameraOnly === false ? ['camera', 'album'] : ['camera'],
     success(result) {
       const path = result.tempFilePaths[0]
       if (!path) return
@@ -225,7 +226,7 @@ function choosePhoto() {
     },
     fail(result) {
       if (!result.errMsg.includes('cancel')) {
-        error.value = '无法读取图片，请检查相册或相机权限'
+        error.value = '无法打开相机，请检查相机权限'
         phase.value = 'error'
       }
     },
@@ -266,7 +267,7 @@ onBeforeUnmount(() => {
     </view>
 
     <template v-if="phase === 'idle' || phase === 'recording' || phase === 'processing' || phase === 'error'">
-      <text class="lead">说一句或拍一张，识别后可以修改，确认后才会保存。</text>
+      <text class="lead">{{ phase === 'recording' ? '正在听你说，说完再点结束。' : '点语音直接开麦；点拍照直接打开相机。识别后可改，确认才保存。' }}</text>
       <image v-if="previewPath && lastKind === 'photo'" class="preview" :src="previewPath" mode="aspectFit" />
       <view v-if="statusText" class="status" :class="{ live: phase === 'recording' }">{{ statusText }}</view>
       <view class="capture-buttons">
@@ -276,19 +277,19 @@ onBeforeUnmount(() => {
           :disabled="phase === 'processing'"
           @click="phase === 'recording' ? stopVoice() : startVoice()"
         >
-          <text class="capture-icon">{{ phase === 'recording' ? '■' : '●' }}</text>
+          <text class="capture-icon">{{ phase === 'recording' ? '■' : '🎤' }}</text>
           <text class="capture-title">{{ phase === 'recording' ? '结束录音' : '语音记录' }}</text>
-          <text class="capture-note">{{ phase === 'recording' ? '说完再点结束，至少 2 秒' : '点一下开始，说完再点结束' }}</text>
+          <text class="capture-note">{{ phase === 'recording' ? '说完再点结束，至少 2 秒' : '点一下开始说' }}</text>
         </button>
         <button
           class="capture-btn photo"
           :class="{ 'is-disabled': phase === 'recording' || phase === 'processing' }"
           :disabled="phase === 'recording' || phase === 'processing'"
-          @click="choosePhoto"
+          @click="choosePhoto({ cameraOnly: true })"
         >
-          <text class="capture-icon">▧</text>
+          <text class="capture-icon">📷</text>
           <text class="capture-title">拍照记录</text>
-          <text class="capture-note">拍食物、奶瓶等</text>
+          <text class="capture-note">打开相机，AI 帮你填</text>
         </button>
       </view>
 
@@ -296,7 +297,7 @@ onBeforeUnmount(() => {
       <button v-if="phase === 'error' && lastMedia" class="retry" @click="retryRecognition">重新识别</button>
 
       <view class="manual-block">
-        <text>也可以直接点选记录</text>
+        <text>也可以直接填每日记录</text>
         <view class="manual-grid">
           <button v-for="item in RECORD_TYPES" :key="item.value" class="manual-item" @click="emit('manual', item.value)">
             <text class="manual-icon">{{ item.icon }}</text>{{ item.label }}

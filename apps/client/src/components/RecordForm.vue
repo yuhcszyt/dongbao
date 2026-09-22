@@ -41,6 +41,7 @@ type FormValues = {
   dose: string
   medication_name: string
   dosage_text: string
+  vitamin_dose: string
   title: string
   details: string
 }
@@ -61,6 +62,7 @@ const emptyValues = (): FormValues => ({
   dose: '',
   medication_name: '',
   dosage_text: '',
+  vitamin_dose: '',
   title: '',
   details: '',
 })
@@ -90,6 +92,7 @@ watch(
     for (const key of Object.keys(fresh) as (keyof FormValues)[]) fresh[key] = textValue(payload, key) || fresh[key]
     if (recordType.value === 'vaccine') fresh.vaccine_name = String(payload.name ?? '')
     if (recordType.value === 'medication') fresh.medication_name = String(payload.name ?? '')
+    if (recordType.value === 'vitamin_ad') fresh.vitamin_dose = String(payload.dose_text ?? '')
     Object.assign(values, fresh)
     error.value = ''
   },
@@ -116,6 +119,8 @@ function buildPayload(): Payload {
       return { kind: 'growth', height_cm: optionalNumber(values.height_cm), weight_kg: optionalNumber(values.weight_kg) }
     case 'vaccine':
       return { kind: 'vaccine', name: values.vaccine_name.trim(), dose: values.dose.trim() || null }
+    case 'vitamin_ad':
+      return { kind: 'vitamin_ad', dose_text: values.vitamin_dose.trim() || null }
     case 'medication':
       return { kind: 'medication', name: values.medication_name.trim(), dosage_text: values.dosage_text.trim() || null }
     case 'custom':
@@ -260,6 +265,14 @@ function submit() {
       </label>
     </view>
 
+    <view v-else-if="recordType === 'vitamin_ad'" class="fields">
+      <label>
+        <text class="field-title">剂量（选填）</text>
+        <input v-model="values.vitamin_dose" class="input" placeholder="例如 1 滴" maxlength="40" />
+      </label>
+      <text class="field-hint">点保存即可记一笔「今天吃过维生素AD」。</text>
+    </view>
+
     <view v-else-if="recordType === 'medication'" class="fields">
       <label>
         <text class="field-title">药品名称</text>
@@ -312,6 +325,8 @@ function submit() {
 <style scoped>
 .record-form { padding-bottom: 12px; }
 .field-title { display: block; margin: 17px 0 7px; color: #385d6b; font-size: 16px; font-weight: 600; }
+.field-hint { display: block; margin-top: 8px; color: #71858b; font-size: 13px; line-height: 1.5; }
+
 .type-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; }
 .type-option { min-height: 65px; padding: 7px 2px; border: 1px solid #e0e9e9; border-radius: 12px; background: #fff; color: #526c74; font-size: 12px; line-height: 1.25; }
 .type-option.selected { border-color: #328da9; background: #edf6f8; color: #236f87; font-weight: 700; }

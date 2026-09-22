@@ -1,6 +1,7 @@
 export const RECORD_TYPES = [
   { value: 'feeding', label: '喂奶', icon: '🍼' },
   { value: 'complementary_food', label: '辅食', icon: '🥣' },
+  { value: 'vitamin_ad', label: '维生素AD', icon: '💧' },
   { value: 'sleep', label: '睡眠', icon: '☾' },
   { value: 'stool', label: '排便', icon: '●' },
   { value: 'diaper', label: '尿布', icon: '▱' },
@@ -100,11 +101,11 @@ export interface MediaAsset {
 export const typeMeta = (type: RecordType) =>
   RECORD_TYPES.find((item) => item.value === type) ?? RECORD_TYPES[RECORD_TYPES.length - 1]!
 
-/** 首页主记录入口固定四项（原型 V1.4）；完整类型仍在记录页。 */
+/** 首页「每日记录」快捷四项（原型：喝奶 / 辅食 / 维生素AD / 排便）。 */
 export const HOME_QUICK_TYPES = [
   { value: 'feeding' as const, label: '喝奶', icon: '🍼' },
   { value: 'complementary_food' as const, label: '辅食', icon: '🥣' },
-  { value: 'medication' as const, label: '维生素AD', icon: '💧', presetName: '维生素AD' },
+  { value: 'vitamin_ad' as const, label: '维生素AD', icon: '💧' },
   { value: 'stool' as const, label: '排便', icon: '💩' },
 ]
 
@@ -179,7 +180,7 @@ export const RECORD_FILTERS: { value: RecordType | 'all'; label: string }[] = [
   { value: 'all', label: '全部' },
   { value: 'feeding', label: '喂奶' },
   { value: 'complementary_food', label: '辅食' },
-  { value: 'medication', label: '维生素AD' },
+  { value: 'vitamin_ad', label: '维生素AD' },
   { value: 'sleep', label: '睡眠' },
   { value: 'stool', label: '排便' },
   { value: 'diaper', label: '尿布' },
@@ -221,6 +222,8 @@ export function validatePayload(type: RecordType, payload: Record<string, unknow
       return positive(payload.height_cm) || positive(payload.weight_kg) ? null : '身高或体重至少填写一项'
     case 'vaccine':
       return present(payload.name) ? null : '请填写疫苗名称'
+    case 'vitamin_ad':
+      return null
     case 'medication':
       return present(payload.name) ? null : '请填写药品名称'
     case 'custom':
@@ -275,6 +278,8 @@ export function describeRecord(record: Pick<RecordItem, 'record_type' | 'payload
       return [payload.height_cm ? `身高 ${numberText(payload.height_cm)} cm` : '', payload.weight_kg ? `体重 ${numberText(payload.weight_kg)} kg` : ''].filter(present).join(' · ')
     case 'vaccine':
       return [payload.name, payload.dose].filter(present).join(' · ')
+    case 'vitamin_ad':
+      return present(payload.dose_text) ? `已吃 · ${String(payload.dose_text)}` : '已记录维生素AD'
     case 'medication':
       return [payload.name, payload.dosage_text].filter(present).join(' · ')
     case 'custom':

@@ -7,12 +7,15 @@
 
 export type CaptureMode = 'voice' | 'photo'
 
-export function runCapture(
-  mode: CaptureMode,
-  ports: { startVoice: () => void; choosePhoto: () => void },
-) {
+export type CapturePorts = {
+  startVoice: () => void
+  /** 拍照默认只开相机（首页/记录页快速入口）；面板内可再选相册。 */
+  choosePhoto: (opts?: { cameraOnly?: boolean }) => void
+}
+
+export function runCapture(mode: CaptureMode, ports: CapturePorts) {
   if (mode === 'voice') ports.startVoice()
-  else ports.choosePhoto()
+  else ports.choosePhoto({ cameraOnly: true })
 }
 
 export type RecorderLike = {

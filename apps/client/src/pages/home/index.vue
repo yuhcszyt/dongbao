@@ -84,10 +84,7 @@ function onCaptureSaved() {
 }
 
 function openHomeQuick(item: (typeof HOME_QUICK_TYPES)[number]) {
-  const payload = 'presetName' in item && item.presetName
-    ? { kind: item.value, name: item.presetName }
-    : undefined
-  openRecord({ kind: 'manual', record_type: item.value, payload })
+  openRecord({ kind: 'manual', record_type: item.value })
 }
 
 onShow(() => {
@@ -154,19 +151,19 @@ onShow(() => {
         </view>
         <view class="capture-row">
           <button class="voice" @click="openCapture('voice')">
-            <text class="cap-icon">♩</text>
+            <text class="cap-icon">🎤</text>
             <text class="cap-title">语音记录</text>
             <text class="cap-note">点一下，直接说</text>
           </button>
           <button class="photo" @click="openCapture('photo')">
-            <text class="cap-icon">▣</text>
+            <text class="cap-icon">📷</text>
             <text class="cap-title">拍照记录</text>
-            <text class="cap-note">拍食物、奶瓶等</text>
+            <text class="cap-note">打开相机，AI 来记</text>
           </button>
         </view>
         <button class="manual-link" @click="openRecord({ kind: 'manual', record_type: 'feeding' })">也可以手动填写 ›</button>
         <view class="card-head sub">
-          <text class="card-title">点选记录</text>
+          <text class="card-title">每日记录</text>
         </view>
         <view class="quick-grid">
           <button v-for="item in HOME_QUICK_TYPES" :key="item.label" @click="openHomeQuick(item)">

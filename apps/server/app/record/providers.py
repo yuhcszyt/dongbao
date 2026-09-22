@@ -121,6 +121,20 @@ def _json_content(text: str) -> dict[str, Any]:
         raise ValueError("model output is not an object")
     return value
 
+DRAFT_SYSTEM_PROMPT = """你是「懂宝」育儿记录助手，只根据家长语音转写或照片，提取一条宝宝日常记录草稿。
+规则：
+1. 只返回一个 JSON 对象，字段固定为：record_type、occurred_at、payload、note、missing_fields、recognition_warnings。
+2. record_type 只能是：feeding、complementary_food、vitamin_ad、sleep、stool、diaper、crying、growth、vaccine、medication、custom。
+3. payload.kind 必须与 record_type 完全一致。
+4. 维生素 AD / 伊可新等日常滴剂用 vitamin_ad；其它药品用 medication。
+5. 看不清的奶量、克数、药量不要猜，写进 missing_fields；可观察信息写进 payload。
+6. recognition_warnings 用中文短句说明不确定之处；没有就空数组。
+7. occurred_at 不确定时可为 null。"""
+
+DRAFT_USER_VOICE = "家长语音转写如下，请提取记录草稿 JSON：\n{content}"
+DRAFT_USER_PHOTO = "请看这张照片，判断家长想记哪一类宝宝日常（奶瓶/辅食/便便/维生素AD等），提取可观察信息并返回草稿 JSON。禁止编造看不清的数字。"
+
+
 async def extract_draft(content: str | None = None, image_path: Path | None = None, mime_type: str | None = None) -> dict[str, Any]:
     cfg = get_config().large_model
     if not cfg.enabled:
@@ -128,14 +142,20 @@ async def extract_draft(content: str | None = None, image_path: Path | None = No
     if image_path and not cfg.supports_vision:
         raise ProviderUnavailable("图片识别尚未启用，已转为手动填写")
     api_key = _secret(cfg.api_key_env)
-    prompt = "将照护记录提取为 JSON，只返回 record_type、occurred_at、payload、note、missing_fields、recognition_warnings。无法确定的值留空，禁止猜测精确奶量、克数或药量。"
-    user_content: list[dict[str, Any]] = [{"type": "text", "text": prompt + (f"\n输入：{content}" if content else "\n请分析图片中的可观察信息。")}]
+    if image_path:
+        user_text = DRAFT_USER_PHOTO
+    else:
+        user_text = DRAFT_USER_VOICE.format(content=(content or "").strip() or "（无转写内容）")
+    user_content: list[dict[str, Any]] = [{"type": "text", "text": user_text}]
     if image_path:
         encoded = base64.b64encode(image_path.read_bytes()).decode()
         user_content.append({"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{encoded}"}})
     request = {
         "model": cfg.model,
-        "messages": [{"role": "user", "content": user_content}],
+        "messages": [
+            {"role": "system", "content": DRAFT_SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
+        ],
         "response_format": {"type": "json_object"},
         "temperature": 0,
         "thinking": {"type": "disabled"},

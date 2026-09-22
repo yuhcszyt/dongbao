@@ -34,6 +34,7 @@ PAYLOADS = [
     ("growth", {"kind": "growth", "height_cm": 68.5}),
     ("vaccine", {"kind": "vaccine", "name": "乙肝疫苗", "dose": "第 2 剂"}),
     ("medication", {"kind": "medication", "name": "维生素 D", "dosage_text": "1 滴"}),
+    ("vitamin_ad", {"kind": "vitamin_ad", "dose_text": "1 滴"}),
     ("custom", {"kind": "custom", "title": "第一次翻身", "details": "自己完成"}),
 ]
 
@@ -73,7 +74,7 @@ def test_manual_records_timeline_summary_delete_restore_and_edit(auth):
     assert changed.json()["payload"]["amount_ml"] == 200
 
     assert client.delete(f"/api/v1/babies/{baby_id}/records/{record_ids[0]}", headers=headers).status_code == 204
-    assert len(client.get(f"/api/v1/babies/{baby_id}/records", headers=headers).json()) == 9
+    assert len(client.get(f"/api/v1/babies/{baby_id}/records", headers=headers).json()) == len(PAYLOADS) - 1
     assert client.get(f"/api/v1/babies/{baby_id}/daily-summary", params={"date": local_date, "timezone": "Asia/Shanghai"}, headers=headers).json()["feeding_ml"] == 0
     restored = client.post(f"/api/v1/babies/{baby_id}/records/{record_ids[0]}/restore", headers=headers)
     assert restored.status_code == 200

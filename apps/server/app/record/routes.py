@@ -26,7 +26,7 @@ router = APIRouter()
 MAX_AUDIO_BYTES = 10 * 1024 * 1024
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 MAX_AUDIO_SECONDS = 60
-RECORD_TYPES = {"feeding", "complementary_food", "sleep", "stool", "diaper", "crying", "growth", "vaccine", "medication", "custom"}
+RECORD_TYPES = {"feeding", "complementary_food", "vitamin_ad", "sleep", "stool", "diaper", "crying", "growth", "vaccine", "medication", "custom"}
 
 
 def baby_for(db: Session, baby_id: UUID, family_id: UUID) -> Baby:

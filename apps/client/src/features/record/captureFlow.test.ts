@@ -1,15 +1,15 @@
 import { expect, it } from 'vitest'
 import { bindRecorderOnce, runCapture } from './captureFlow'
 
-it('语音点下去就开麦，拍照点下去就选图，两条入口不能混成同一块空面板', () => {
-  const calls: string[] = []
+it('语音点下去就开麦，拍照点下去就开相机，两条入口不能混成同一块空面板', () => {
+  const calls: Array<string | { cameraOnly?: boolean }> = []
   const ports = {
     startVoice: () => calls.push('voice'),
-    choosePhoto: () => calls.push('photo'),
+    choosePhoto: (opts?: { cameraOnly?: boolean }) => calls.push(opts ?? {}),
   }
   runCapture('voice', ports)
   runCapture('photo', ports)
-  expect(calls).toEqual(['voice', 'photo'])
+  expect(calls).toEqual(['voice', { cameraOnly: true }])
 })
 
 it('RecorderManager 是单例，onStop / onError 只允许注册一次', () => {
