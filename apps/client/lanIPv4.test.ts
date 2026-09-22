@@ -25,6 +25,10 @@ describe('resolveMiniProgramApiBase', () => {
     expect(
       resolveMiniProgramApiBase({ specified: 'https://api.example.com/api/v1/', interfaces }),
     ).toBe('https://api.example.com/api/v1')
+    // 显式局域网地址时不必依赖网卡枚举（受限环境可能读不到）
+    expect(
+      resolveMiniProgramApiBase({ specified: 'http://192.168.0.114:8001/api/v1', interfaces: {} }),
+    ).toBe('http://192.168.0.114:8001/api/v1')
   })
 
   it('replaces localhost / 127.0.0.1 with the LAN IP and keeps the port', () => {
