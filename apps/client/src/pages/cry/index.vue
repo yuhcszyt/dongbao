@@ -163,7 +163,7 @@ onBeforeUnmount(() => stopRecording())
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 24px 18px 120px; background: var(--db-background); color: var(--db-text); text-align: center; }
+.page { padding: 24px 18px 40px; background: var(--db-background); color: var(--db-text); text-align: center; }
 .title { display: block; font-size: 23px; font-weight: 800; margin-top: 12px; }
 .muted { display: block; color: var(--db-muted); font-size: 14px; margin-top: 6px; }
 .mic { width: 148px; height: 148px; margin: 36px auto 20px; border-radius: 50%; background: var(--db-primary); color: white; font-size: 42px; border: 18px solid var(--db-soft); outline: 14px solid var(--db-soft); }

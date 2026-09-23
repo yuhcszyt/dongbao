@@ -52,7 +52,7 @@ onLoad((query) => {
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 18px 18px 40px; background: var(--db-background); color: var(--db-text); }
+.page { padding: 18px 18px 40px; background: var(--db-background); color: var(--db-text); }
 .top { display: flex; justify-content: space-between; align-items: center; }
 .tag { padding: 4px 10px; border-radius: 20px; background: var(--db-soft); color: var(--db-primary); font-size: 11px; }
 .link { background: transparent; color: var(--db-primary); font-size: 14px; }

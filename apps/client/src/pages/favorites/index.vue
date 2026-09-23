@@ -28,7 +28,7 @@ function openArticle(id: number) {
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 18px 18px 40px; background: var(--db-background); color: var(--db-text); }
+.page { padding: 18px 18px 40px; background: var(--db-background); color: var(--db-text); }
 .title { display: block; font-size: 22px; font-weight: 800; }
 .muted { display: block; color: var(--db-muted); font-size: 13px; margin-top: 6px; line-height: 1.5; }
 .empty { margin-top: 48px; text-align: center; color: var(--db-muted); line-height: 1.8; }

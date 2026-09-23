@@ -58,7 +58,7 @@ onShow(() => void recordStore.load(nowParts().date))
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 18px 18px 40px; background: var(--db-background); color: var(--db-text); }
+.page { padding: 18px 18px 40px; background: var(--db-background); color: var(--db-text); }
 .title { display: block; font-size: 23px; font-weight: 800; }
 .muted { display: block; color: var(--db-muted); font-size: 13px; margin-top: 6px; line-height: 1.55; }
 .card { margin-top: 16px; border-radius: 19px; background: var(--db-surface); border: 1px solid var(--db-border); padding: 17px; }

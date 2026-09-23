@@ -290,7 +290,7 @@ onShow(async () => {
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 14px 19px calc(120px + env(safe-area-inset-bottom)); background: var(--db-background); color: var(--db-text); }
+.page { padding: 14px 19px 88px; background: var(--db-background); color: var(--db-text); }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .brand { display: flex; gap: 10px; align-items: center; }
 .cloud { width: 40px; height: 32px; border-radius: 50%; background: var(--db-soft); color: var(--db-text); font-size: 16px; letter-spacing: 3px; text-align: center; line-height: 32px; }
@@ -312,9 +312,9 @@ onShow(async () => {
 .followup .card-title { font-size: 20px; }
 .followup .outline { min-height: 56px; font-size: 20px; }
 .notice { display: block; margin-top: 10px; color: var(--db-muted); font-size: 11px; }
-.pending { display: flex; align-items: center; gap: 10px; margin: 12px 0 72px; padding: 10px 12px; border-radius: 12px; background: var(--db-soft); }
+.pending { display: flex; align-items: center; gap: 10px; margin: 12px 0; padding: 10px 12px; border-radius: 12px; background: var(--db-soft); }
 .pending-photo { width: 48px; height: 48px; border-radius: 8px; flex-shrink: 0; }
-.composer { position: fixed; left: 0; right: 0; bottom: calc(50px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; padding: 10px 15px; background: var(--db-surface); border-top: 1px solid var(--db-border); }
+.composer { position: fixed; left: 0; right: 0; bottom: var(--window-bottom); display: flex; align-items: center; gap: 8px; padding: 10px 15px; background: var(--db-surface); border-top: 1px solid var(--db-border); }
 .mic { width: 44px; height: 44px; padding: 0; flex-shrink: 0; border-radius: 50%; background: var(--db-soft); color: var(--db-primary); font-size: 16px; line-height: 44px; }
 .mic.on { background: #f8d7da; color: #a33; }
 .input { flex: 1; min-width: 0; height: 44px; line-height: 44px; border-radius: 22px; background: var(--db-soft); padding: 0 15px; font-size: 15px; }

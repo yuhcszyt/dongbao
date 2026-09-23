@@ -35,7 +35,7 @@ onLoad(() => void recordStore.load())
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 18px 18px 40px; background: var(--db-background); color: var(--db-text); }
+.page { padding: 18px 18px 40px; background: var(--db-background); color: var(--db-text); }
 .title { display: block; font-size: 22px; font-weight: 800; }
 .muted { display: block; color: var(--db-muted); font-size: 13px; margin-top: 6px; line-height: 1.5; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }

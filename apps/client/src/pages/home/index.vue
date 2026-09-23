@@ -223,7 +223,7 @@ onShow(() => {
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 22px 18px 120px; background: var(--db-background); color: var(--db-text); }
+.page { padding: 22px 18px 40px; background: var(--db-background); color: var(--db-text); }
 .state { padding: 80px 20px; text-align: center; color: var(--db-muted); }
 .muted { display: block; color: var(--db-muted); font-size: 14px; line-height: 1.55; }
 .baby-row { display: flex; align-items: center; gap: 13px; }

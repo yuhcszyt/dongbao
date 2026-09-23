@@ -245,7 +245,7 @@ onShow(async () => {
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 14px 19px 120px; background: var(--db-background); color: var(--db-text); }
+.page { padding: 14px 19px 40px; background: var(--db-background); color: var(--db-text); }
 .state { padding: 80px 20px; text-align: center; color: var(--db-muted); }
 .empty { padding: 45px 10px; text-align: center; color: var(--db-muted); line-height: 1.8; }
 .page-title { font-size: 23px; font-weight: 800; }
@@ -292,6 +292,6 @@ onShow(async () => {
 .sheet-head { display: flex; align-items: center; justify-content: space-between; }
 .sheet-head .sheet-close, .sheet-head button { width: 48px; height: 48px; border-radius: 50%; background: var(--db-border); font-size: 27px; }
 .danger-delete { width: 100%; min-height: 48px; margin-top: 12px; border-radius: 14px; border: 1px solid #eccfc7; background: var(--db-surface); color: #b86e62; font-size: 15px; }
-.undo { position: fixed; z-index: 30; right: 16px; bottom: calc(70px + env(safe-area-inset-bottom)); left: 16px; display: flex; align-items: center; justify-content: space-between; min-height: 54px; border-radius: 14px; background: var(--db-text); padding: 8px 10px 8px 16px; color: white; }
+.undo { position: fixed; z-index: 30; right: 16px; bottom: calc(var(--window-bottom) + 12px); left: 16px; display: flex; align-items: center; justify-content: space-between; min-height: 54px; border-radius: 14px; background: var(--db-text); padding: 8px 10px 8px 16px; color: white; }
 .undo button { min-width: 72px; min-height: 48px; border-radius: 11px; background: var(--db-surface); color: var(--db-primary); font-weight: 700; }
 </style>

@@ -39,7 +39,7 @@ function backToCry() {
 </template>
 
 <style scoped>
-.page { min-height: 100vh; padding: 18px 18px 40px; background: var(--db-background); color: var(--db-text); }
+.page { padding: 18px 18px 40px; background: var(--db-background); color: var(--db-text); }
 .warn { border-radius: 12px; background: #fff0df; color: #b88346; padding: 10px 12px; font-size: 12px; }
 .notice { display: block; margin: 14px 0; color: var(--db-muted); font-size: 12px; line-height: 1.6; text-align: center; }
 .card { margin-top: 14px; border-radius: 19px; background: var(--db-surface); border: 1px solid var(--db-border); padding: 17px; }
