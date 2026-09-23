@@ -18,6 +18,7 @@ QDRANT_URL ?= http://127.0.0.1:6334
 SERVER_ENV = DATABASE_URL=$(TEST_DATABASE_URL) \
 	APP_CONFIG=$(CURDIR)/config/providers.toml \
 	MEDIA_ROOT=$(CURDIR)/data/media \
+	CRY_MODEL_PATH=$(CURDIR)/data/models/babycry-v7 \
 	QDRANT_URL=$(QDRANT_URL) \
 	EMBEDDING_ALLOW_HASH=1 \
 	DEV_LOGIN=$(DEV_LOGIN)
@@ -28,7 +29,7 @@ PORT ?= 8001
 # 小程序真机不能走 localhost；未指定时由 Vite 写入电脑局域网 IP。
 CLIENT_API_BASE_URL ?=
 
-.PHONY: help setup \
+.PHONY: help setup setup-cry-model \
 	docker-ps docker-down docker-down-all \
 	db-up db-wait db-down qdrant-up qdrant-wait \
 	langfuse-up langfuse-down \
@@ -38,6 +39,7 @@ CLIENT_API_BASE_URL ?=
 help:
 	@echo "── 日常（主机）──"
 	@echo "make setup          建 venv + 装依赖"
+	@echo "make setup-cry-model 下载固定版本的哭声分类模型"
 	@echo "make test           服务端 pytest + 客户端 typecheck/vitest"
 	@echo "make test-server    仅服务端（自动起 test profile 依赖）"
 	@echo "make test-client    仅客户端"
@@ -58,6 +60,9 @@ setup:
 	python3 -m venv $(SERVER_DIR)/.venv
 	$(PIP) install -q -r $(SERVER_DIR)/requirements.txt
 	cd $(CLIENT_DIR) && npm install
+
+setup-cry-model:
+	$(PY) $(SERVER_DIR)/scripts/download_cry_model.py --output $(CURDIR)/data/models/babycry-v7
 
 # ── Docker 管理 ──────────────────────────────────────────────────
 docker-ps:

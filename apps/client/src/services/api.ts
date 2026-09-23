@@ -78,10 +78,11 @@ const request = async <T>(
   throw new ApiError(errorMessage(response.data as ApiErrorBody | null, '请求没有完成，请稍后重试'), response.statusCode)
 }
 
-const mediaFormData = (babyId: string, mediaType: 'audio' | 'image', durationMs?: number) => ({
+const mediaFormData = (babyId: string, mediaType: 'audio' | 'image', durationMs?: number, purpose?: 'cry_analysis') => ({
   baby_id: babyId,
   media_type: mediaType,
   ...(durationMs ? { duration_ms: String(durationMs) } : {}),
+  ...(purpose ? { purpose } : {}),
 })
 
 const uploadResult = (response: SessionResponse, fallback: string): MediaAsset => {
@@ -116,6 +117,12 @@ export const api = {
   },
   transcribe(mediaId: string) {
     return request<{ transcript: string }>(`/media/${mediaId}/transcript`, 'POST', undefined, 60_000)
+  },
+  analyzeCry(babyId: string, mediaId: string) {
+    return request<import('@/features/content/cryAnalysis').CryAnalysisResult>('/cry-analyses', 'POST', {
+      baby_id: babyId,
+      media_id: mediaId,
+    }, 120_000)
   },
   async getBaby() {
     const result = await request<Baby[] | { items: Baby[] }>('/babies')
@@ -166,7 +173,7 @@ export const api = {
     return normalizeSummary(result)
   },
 
-  async uploadPath(filePath: string, babyId: string, mediaType: 'audio' | 'image', durationMs?: number) {
+  async uploadPath(filePath: string, babyId: string, mediaType: 'audio' | 'image', durationMs?: number, purpose?: 'cry_analysis') {
     const response = await session.run(
       (headers) =>
         new Promise<SessionResponse>((resolve, reject) => {
@@ -176,7 +183,7 @@ export const api = {
             name: 'file',
             header: { ...tunnelHeaders(), ...headers },
             timeout: 30_000,
-            formData: mediaFormData(babyId, mediaType, durationMs),
+            formData: mediaFormData(babyId, mediaType, durationMs, purpose),
             success: (result) => {
               let body: unknown = null
               try {
@@ -193,11 +200,11 @@ export const api = {
     return uploadResult(response, '上传没有完成，请重试')
   },
 
-  async uploadBlob(blob: Blob, babyId: string, mediaType: 'audio' | 'image', durationMs?: number) {
+  async uploadBlob(blob: Blob, babyId: string, mediaType: 'audio' | 'image', durationMs?: number, purpose?: 'cry_analysis') {
     const response = await session.run(async (headers) => {
       const form = new FormData()
       form.append('file', blob, mediaType === 'audio' ? 'recording.webm' : 'photo.jpg')
-      for (const [key, value] of Object.entries(mediaFormData(babyId, mediaType, durationMs))) form.append(key, value)
+      for (const [key, value] of Object.entries(mediaFormData(babyId, mediaType, durationMs, purpose))) form.append(key, value)
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 30_000)
       try {

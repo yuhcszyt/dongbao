@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { cryAnalysisStore } from '@/features/content/cryAnalysis'
+
+const result = computed(() => cryAnalysisStore.state.current ?? cryAnalysisStore.state.analyses[0] ?? null)
+
 function askDongbao() {
   uni.switchTab({ url: '/pages/ai/index' })
 }
@@ -10,31 +15,32 @@ function backToCry() {
 
 <template>
   <view class="page">
-    <view class="warn">ⓘ 模拟结果，不代表真实分析</view>
-    <text class="notice">当前为演示流程。正式哭声模型接入前，不会对音频做真实判断。</text>
+    <view class="warn">ⓘ 实验性声音分析</view>
+    <text class="notice">模型只比较声音特征，不能确定宝宝哭泣的真实原因。</text>
 
-    <view class="card">
-      <text class="tag">可能需求 · 演示</text>
-      <text class="title">可以先排查这些需求</text>
-      <text class="muted">仅凭哭声不能确定原因，需要结合宝宝现场表现与日常记录。</text>
-      <view class="row"><text>1　回顾上次喂奶时间</text></view>
-      <view class="row"><text>2　观察是否有困倦表现</text></view>
-      <view class="row"><text>3　检查尿布与环境</text></view>
+    <view v-if="result" class="card">
+      <text class="tag">可能需求</text>
+      <text class="title">{{ result.summary }}</text>
+      <text class="muted">{{ result.status === 'uncertain' ? '可以结合喂奶、睡眠、尿布和现场表现继续排查。' : '这是声音模型给出的候选，请结合现场表现判断。' }}</text>
     </view>
 
-    <view class="card">
-      <text class="card-title">其他可能</text>
-      <view class="chips">
-        <text class="chip">需要安抚</text>
-        <text class="chip">饥饿</text>
-        <text class="chip">不舒服</text>
+    <view v-if="result" class="card">
+      <text class="card-title">五种可能</text>
+      <view v-for="candidate in result.candidates" :key="candidate.category" class="candidate">
+        <view class="candidate-head">
+          <text class="candidate-label">{{ candidate.label }}</text>
+          <text class="candidate-score">{{ candidate.possibility }} · 声音匹配度 {{ Math.round(candidate.score * 100) }}%</text>
+        </view>
+        <view class="track"><view class="fill" :style="{ width: `${Math.round(candidate.score * 100)}%` }" /></view>
       </view>
-      <text class="muted">以上仅展示产品如何组织信息，并非对音频的判断。</text>
+      <text class="muted">匹配度是模型在五类样本中的相对分数，不等于实际原因发生概率。</text>
     </view>
+
+    <view v-else class="card"><text class="title">还没有分析结果</text></view>
 
     <button class="primary" @click="askDongbao">结合记录问懂宝</button>
     <button class="outline" @click="backToCry">重新录音</button>
-    <text class="notice">仅供育儿参考，不用于医疗诊断</text>
+    <text class="notice">{{ result?.disclaimer || '仅供育儿参考，不用于医疗诊断' }}</text>
   </view>
 </template>
 
@@ -46,11 +52,14 @@ function backToCry() {
 .tag { display: inline-block; padding: 4px 10px; border-radius: 20px; background: var(--db-soft); color: var(--db-primary); font-size: 11px; }
 .title { display: block; margin: 14px 0 8px; font-size: 22px; font-weight: 800; }
 .muted { display: block; color: var(--db-muted); font-size: 13px; line-height: 1.55; }
-.row { padding: 13px 0; border-bottom: 1px solid var(--db-border); font-size: 14px; font-weight: 700; }
-.row:last-child { border: 0; }
 .card-title { display: block; font-size: 16px; font-weight: 800; margin-bottom: 10px; }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
-.chip { padding: 6px 12px; border-radius: 19px; background: var(--db-soft); font-size: 12px; color: var(--db-primary); }
+.candidate { padding: 12px 0; border-bottom: 1px solid var(--db-border); }
+.candidate:last-of-type { border-bottom: 0; }
+.candidate-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.candidate-label { font-size: 14px; font-weight: 700; }
+.candidate-score { color: var(--db-muted); font-size: 11px; text-align: right; }
+.track { height: 7px; margin-top: 8px; overflow: hidden; border-radius: 8px; background: var(--db-soft); }
+.fill { height: 100%; min-width: 2px; border-radius: inherit; background: var(--db-primary); }
 .primary { width: 100%; min-height: 52px; margin-top: 16px; border-radius: 14px; background: var(--db-primary); color: white; font-weight: 700; }
 .outline { width: 100%; min-height: 50px; margin-top: 10px; border-radius: 14px; border: 1px solid var(--db-border); background: var(--db-surface); color: var(--db-primary); }
 </style>

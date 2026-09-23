@@ -1,5 +1,7 @@
 import logging
+import asyncio
 from contextlib import asynccontextmanager
+from contextlib import suppress
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request
@@ -12,6 +14,8 @@ from .auth.wechat import login_mode_message
 from .ai.routes import router as ai_router
 from .record.routes import router as record_router
 from .record.capture import router as capture_router
+from .cry.routes import router as cry_router
+from .cry.retention import purge_expired_cry_audio
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +38,25 @@ configure_app_logging()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     logger.info(login_mode_message())  # 启动日志：当前是真实微信还是开发降级
-    yield
+    async def retention_loop():
+        while True:
+            await asyncio.sleep(3600)
+            try:
+                await asyncio.to_thread(purge_expired_cry_audio)
+            except Exception:
+                logger.warning("过期哭声音频清理失败，将在下一轮重试", exc_info=True)
+
+    try:
+        await asyncio.to_thread(purge_expired_cry_audio)
+    except Exception:
+        logger.warning("启动时清理过期哭声音频失败", exc_info=True)
+    retention_task = asyncio.create_task(retention_loop())
+    try:
+        yield
+    finally:
+        retention_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await retention_task
 
 app = FastAPI(title="懂宝 API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False, allow_methods=["*"], allow_headers=["*"])
@@ -60,3 +82,4 @@ app.include_router(record_router)
 app.include_router(auth_router)
 app.include_router(ai_router)
 app.include_router(capture_router)
+app.include_router(cry_router)

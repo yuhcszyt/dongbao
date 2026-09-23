@@ -12,3 +12,4 @@ apps/client/.vite/
 apps/client/project.private.config.json
 data/media/*
 !data/media/.gitkeep
+data/models/

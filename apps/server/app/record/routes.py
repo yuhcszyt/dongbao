@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from io import BytesIO
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -45,7 +45,8 @@ def record_for(db: Session, baby_id: UUID, record_id: UUID, family_id: UUID, inc
     return record
 
 def media_out(media: MediaAsset) -> MediaOut:
-    return MediaOut(id=media.id, baby_id=media.baby_id, media_type=media.media_type, mime_type=media.mime_type, size_bytes=media.size_bytes, duration_ms=media.duration_ms, url=f"/api/v1/media/{media.id}")
+    url = "" if media.is_private else f"/api/v1/media/{media.id}"
+    return MediaOut(id=media.id, baby_id=media.baby_id, media_type=media.media_type, mime_type=media.mime_type, size_bytes=media.size_bytes, duration_ms=media.duration_ms, url=url)
 
 def record_out(db: Session, record: BabyRecord) -> RecordOut:
     media = db.scalars(select(MediaAsset).join(RecordMedia, RecordMedia.media_id == MediaAsset.id).where(RecordMedia.record_id == record.id)).all()
@@ -129,8 +130,10 @@ def audio_duration_ms(mime: str, data: bytes, reported_duration_ms: int | None) 
 
 
 @router.post("/api/v1/media", response_model=MediaOut, status_code=201)
-async def upload_media(baby_id: UUID = Form(...), reported_duration_ms: int | None = Form(default=None, alias="duration_ms"), file: UploadFile = File(...), user: User = Depends(current_user), db: Session = Depends(get_db)):
+async def upload_media(baby_id: UUID = Form(...), reported_duration_ms: int | None = Form(default=None, alias="duration_ms"), purpose: str | None = Form(default=None), file: UploadFile = File(...), user: User = Depends(current_user), db: Session = Depends(get_db)):
     baby_for(db, baby_id, user.family_id)
+    if purpose not in {None, "cry_analysis"}:
+        raise error(422, "invalid_media_purpose", "媒体用途无效")
     declared = (file.content_type or "").lower().split(";")[0].strip()
     # 未声明类型时按音频上限读，再用魔数收紧
     limit = MAX_IMAGE_BYTES if declared.startswith("image/") else MAX_AUDIO_BYTES
@@ -148,12 +151,15 @@ async def upload_media(baby_id: UUID = Form(...), reported_duration_ms: int | No
         duration_ms = audio_duration_ms(mime, data, reported_duration_ms)
         if duration_ms > MAX_AUDIO_SECONDS * 1000:
             raise error(422, "audio_too_long", f"录音不能超过 {MAX_AUDIO_SECONDS} 秒")
+    if purpose == "cry_analysis" and not mime.startswith("audio/"):
+        raise error(422, "invalid_cry_audio", "哭声分析需要音频文件")
     media_id = uuid4()
     key = f"{media_id.hex[:2]}/{media_id.hex}{EXTENSIONS[mime]}"
     target = media_path(key)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(data)
-    media = MediaAsset(id=media_id, family_id=user.family_id, baby_id=baby_id, media_type="image" if mime.startswith("image/") else "audio", mime_type=mime, object_key=key, size_bytes=len(data), duration_ms=duration_ms)
+    private = purpose == "cry_analysis"
+    media = MediaAsset(id=media_id, family_id=user.family_id, baby_id=baby_id, media_type="image" if mime.startswith("image/") else "audio", mime_type=mime, object_key=key, size_bytes=len(data), duration_ms=duration_ms, is_private=private, expires_at=now() + timedelta(days=7) if private else None)
     db.add(media)
     try:
         db.commit()
@@ -166,7 +172,7 @@ async def upload_media(baby_id: UUID = Form(...), reported_duration_ms: int | No
 def read_media(media_id: UUID, db: Session = Depends(get_db)):
     # 免 token：uni.previewImage / createInnerAudioContext 无法带请求头，UUID 即能力凭证。
     # URL 只在已鉴权的列表 / 详情响应里下发，所以不可枚举。
-    media = db.scalar(select(MediaAsset).where(MediaAsset.id == media_id))
+    media = db.scalar(select(MediaAsset).where(MediaAsset.id == media_id, MediaAsset.is_private.is_(False)))
     if not media: raise error(404, "media_not_found", "没有找到这个媒体文件")
     root = media_root().resolve()
     path = media_path(media.object_key).resolve()

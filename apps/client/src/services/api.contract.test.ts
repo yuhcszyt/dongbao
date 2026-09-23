@@ -111,4 +111,14 @@ describe('api path contract vs server routes', () => {
       `POST /api/v1/ai/conversations/new?baby_id=${babyId}`,
     ])
   })
+
+  it('cry analysis matches server', async () => {
+    await api.analyzeCry(babyId, 'media-cry')
+
+    expect(calls).toEqual([{
+      method: 'POST',
+      url: '/api/v1/cry-analyses',
+      data: { baby_id: babyId, media_id: 'media-cry' },
+    }])
+  })
 })

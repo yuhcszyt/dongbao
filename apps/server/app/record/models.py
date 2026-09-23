@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 from uuid import UUID, uuid4
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, JSON, String, Text, Uuid
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, JSON, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -32,6 +32,8 @@ class MediaAsset(Base):
     object_key: Mapped[str] = mapped_column(String(255), unique=True)
     size_bytes: Mapped[int] = mapped_column(Integer)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 class RecordDraft(Base):
