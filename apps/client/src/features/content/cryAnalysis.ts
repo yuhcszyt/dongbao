@@ -1,4 +1,6 @@
 import { reactive } from 'vue'
+import { api } from '@/services/api'
+import type { ParentingAnswer } from './aiTypes'
 
 export type CryCategory = 'hungry' | 'discomfort' | 'tired' | 'belly_pain' | 'burping'
 export type CryPossibility = '较可能' | '有可能' | '可能性较低'
@@ -11,6 +13,10 @@ export interface CryCandidate {
 }
 
 export interface CryAnalysisResult {
+  id: string
+  baby_id: string
+  created_at: string
+  explanation?: ParentingAnswer | null
   status: 'experimental' | 'uncertain'
   primary_category: CryCategory | null
   summary: string
@@ -20,47 +26,47 @@ export interface CryAnalysisResult {
   disclaimer: string
 }
 
-export interface StoredCryAnalysis extends CryAnalysisResult {
-  id: string
-  time: string
-}
+// 清理旧版不区分账号的本机历史；新结果只从鉴权接口读取。
+try { uni.removeStorageSync('dongbao.cry.analyses.v1') } catch { /* 非宿主测试环境 */ }
 
-const KEY = 'dongbao.cry.analyses.v1'
-
-const read = (): StoredCryAnalysis[] => {
-  try {
-    const raw = uni.getStorageSync(KEY)
-    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
+export function createCryAnalysisStore() {
+  const state = reactive({ analyses: [] as CryAnalysisResult[], current: null as CryAnalysisResult | null, loading: false, error: '', hasMore: false })
+  let revision = 0
+  let scope = ''
+  return {
+    state,
+    reset() { revision++; scope = ''; state.analyses = []; state.current = null; state.loading = false; state.error = ''; state.hasMore = false },
+    add(result: CryAnalysisResult) {
+      if (scope && scope !== result.baby_id) return
+      scope = result.baby_id
+      state.current = result
+      state.analyses = [result, ...state.analyses.filter((item) => item.id !== result.id)]
+    },
+    async load(babyId: string, more = false) {
+      const current = ++revision
+      if (scope !== babyId) { state.analyses = []; state.current = null }
+      scope = babyId
+      state.loading = true
+      state.error = ''
+      try {
+        const rows = await api.cryHistory(babyId, more ? state.analyses.length : 0)
+        if (current !== revision) return
+        state.analyses = more ? [...state.analyses, ...rows.filter((row) => !state.analyses.some((item) => item.id === row.id))] : rows
+        state.hasMore = rows.length === 20
+      } catch { if (current === revision) state.error = '历史分析没有加载成功，请重试' }
+      finally { if (current === revision) state.loading = false }
+    },
+    async select(id: string) {
+      const current = ++revision
+      state.current = null
+      state.loading = true
+      state.error = ''
+      try {
+        const result = await api.cryDetail(id)
+        if (current === revision) { scope = result.baby_id; state.current = result }
+      } catch { if (current === revision) state.error = '这次分析暂时无法查看，请返回重试' }
+      finally { if (current === revision) state.loading = false }
+    },
   }
 }
-
-const state = reactive<{ analyses: StoredCryAnalysis[]; current: StoredCryAnalysis | null }>({
-  analyses: read(),
-  current: null,
-})
-
-const persist = () => {
-  try {
-    uni.setStorageSync(KEY, JSON.stringify(state.analyses))
-  } catch {
-    // 本地历史写入失败不影响本次结果展示。
-  }
-}
-
-export const cryAnalysisStore = {
-  state,
-  add(result: CryAnalysisResult) {
-    const item = { ...result, id: String(Date.now()), time: new Date().toLocaleString('zh-CN') }
-    state.current = item
-    state.analyses.unshift(item)
-    state.analyses = state.analyses.slice(0, 10)
-    persist()
-    return item
-  },
-  select(id: string) {
-    state.current = state.analyses.find((item) => item.id === id) ?? null
-  },
-}
+export const cryAnalysisStore = createCryAnalysisStore()

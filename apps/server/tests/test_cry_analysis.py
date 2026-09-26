@@ -189,3 +189,27 @@ def test_detector_checks_later_windows(monkeypatch):
 def test_invalid_model_scores_are_not_presented_as_certainty():
     with pytest.raises(CryModelUnavailable):
         normalize_predictions([{"label": "hungry", "score": float("nan")}])
+
+
+def test_history_is_idempotent_scoped_and_survives_audio_expiry(monkeypatch, auth):
+    client = TestClient(app)
+    owner, other = auth('history-owner'), auth('history-other')
+    baby_id, media_id = create_audio(client, owner)
+    monkeypatch.setattr('app.cry.routes.classify_audio', lambda _: normalize_predictions(RAW))
+    def analyze():
+        return client.post('/api/v1/cry-analyses', headers=owner, json={'baby_id': baby_id, 'media_id': media_id})
+    first = analyze().json()
+    assert first['id'] == analyze().json()['id']
+    assert len(client.get('/api/v1/cry-analyses', headers=owner, params={'baby_id': baby_id}).json()) == 1
+    assert client.get('/api/v1/cry-analyses', headers=other, params={'baby_id': baby_id}).status_code == 404
+    assert client.get('/api/v1/cry-analyses/' + first['id'], headers=other).status_code == 404
+    with SessionLocal() as db:
+        db.get(MediaAsset, media_id).expires_at = now() - timedelta(seconds=1)
+        db.commit()
+    purge_expired_cry_audio()
+    assert client.get('/api/v1/cry-analyses/' + first['id'], headers=owner).json()['candidates'] == first['candidates']
+    assert client.delete('/api/v1/cry-analyses/' + first['id'], headers=other).status_code == 404
+    assert client.delete('/api/v1/me', headers=owner).status_code == 204
+    from app.cry.models import CryAnalysis
+    with SessionLocal() as db:
+        assert db.get(CryAnalysis, first['id']) is None

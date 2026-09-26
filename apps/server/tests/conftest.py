@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import delete
 
+from app.cry.models import CryAnalysis
 from app.auth.models import Family, User
 from app.main import app
 from app.record.database import SessionLocal
@@ -35,7 +36,7 @@ def media_root_in_tmp(monkeypatch, tmp_path):
 def clean_database(monkeypatch):
     """清空记录侧与鉴权侧全部表，保证用例之间互不残留（否则第二个用例会撞 unique openid）。"""
     with SessionLocal() as db:
-        for model in (AiMessage, AiConversation, AiMemory, RecordMedia, RecordDraft, BabyRecord, MediaAsset, Baby, User, Family, RagChunk, RagDocument):
+        for model in (CryAnalysis, AiMessage, AiConversation, AiMemory, RecordMedia, RecordDraft, BabyRecord, MediaAsset, Baby, User, Family, RagChunk, RagDocument):
             db.execute(delete(model))
         db.commit()
     # 测试只用主机内存索引，不连接或清空开发中的 Qdrant。

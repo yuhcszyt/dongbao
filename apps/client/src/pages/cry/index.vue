@@ -97,8 +97,8 @@ function chooseAudio() {
 }
 
 function openResult(id?: string) {
-  if (id) cryAnalysisStore.select(id)
-  uni.navigateTo({ url: '/pages/cry/result' })
+  const selected = id ?? cryAnalysisStore.state.current?.id
+  if (selected) uni.navigateTo({ url: `/pages/cry/result?id=${encodeURIComponent(selected)}` })
 }
 
 async function analyze() {
@@ -124,7 +124,11 @@ async function analyze() {
   }
 }
 
-onShow(() => { if (!state.baby && !state.loading) void recordStore.load() })
+async function loadHistory(more = false) {
+  if (!state.baby) await recordStore.load()
+  if (state.baby) await cryAnalysisStore.load(state.baby.id, more)
+}
+onShow(() => void loadHistory())
 onHide(() => { operation++; busy.value = false; cancelRecording() })
 onBeforeUnmount(() => {
   alive = false
@@ -156,14 +160,17 @@ onBeforeUnmount(() => {
 
     <view class="section">
       <text class="card-title">最近分析</text>
-      <text v-if="!cryAnalysisStore.state.analyses.length" class="notice">暂无分析记录</text>
+      <text v-if="cryAnalysisStore.state.loading" class="notice">正在加载…</text>
+      <button v-if="cryAnalysisStore.state.error" class="outline" @click="loadHistory()">{{ cryAnalysisStore.state.error }}</button>
+      <text v-if="!cryAnalysisStore.state.loading && !cryAnalysisStore.state.error && !cryAnalysisStore.state.analyses.length" class="notice">暂无分析记录</text>
       <button v-for="item in cryAnalysisStore.state.analyses" :key="item.id" class="event" @click="openResult(item.id)">
         <text class="bubble">▷</text>
         <view>
-          <text class="event-title">{{ item.time }}</text>
+          <text class="event-title">{{ new Date(item.created_at).toLocaleString('zh-CN') }}</text>
           <text class="muted">{{ item.summary }}</text>
         </view>
       </button>
+      <button v-if="cryAnalysisStore.state.hasMore" class="outline" :disabled="cryAnalysisStore.state.loading" @click="loadHistory(true)">加载更多</button>
     </view>
   </view>
 </template>

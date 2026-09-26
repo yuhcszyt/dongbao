@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
 import { cryAnalysisStore } from '@/features/content/cryAnalysis'
 
-const result = computed(() => cryAnalysisStore.state.current ?? cryAnalysisStore.state.analyses[0] ?? null)
+const result = computed(() => cryAnalysisStore.state.current)
+
+onLoad((query) => { if (query?.id) void cryAnalysisStore.select(String(query.id)); else cryAnalysisStore.reset() })
 
 function askDongbao() {
   uni.switchTab({ url: '/pages/ai/index' })
@@ -36,9 +39,9 @@ function backToCry() {
       <text class="muted">匹配度是模型在五类样本中的相对分数，不等于实际原因发生概率。</text>
     </view>
 
-    <view v-else class="card"><text class="title">还没有分析结果</text></view>
+    <view v-else class="card"><text class="title">{{ cryAnalysisStore.state.loading ? '正在加载分析…' : cryAnalysisStore.state.error || '还没有分析结果' }}</text></view>
 
-    <button class="primary" @click="askDongbao">结合记录问懂宝</button>
+    <button class="primary" :disabled="!result" @click="askDongbao">结合记录问懂宝</button>
     <button class="outline" @click="backToCry">重新录音</button>
     <text class="notice">{{ result?.disclaimer || '仅供育儿参考，不用于医疗诊断' }}</text>
   </view>

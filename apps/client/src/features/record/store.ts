@@ -7,6 +7,7 @@
  * 这里只放「服务端状态 + 会话重试」，UI 状态（当前打开的弹层、当前筛选）留在页面里。
  */
 import { reactive } from 'vue'
+import { cryAnalysisStore } from '@/features/content/cryAnalysis'
 import { aiChatStore } from '@/features/content/aiChat'
 import { ApiError, api, session, SessionError } from '@/services/api'
 import { nowParts, type Baby, type DailySummary, type RecordInput, type RecordItem } from './domain'
@@ -240,6 +241,7 @@ const dismissUndo = () => {
 /** 注销后回到干净初始状态：本地不留上一位用户的任何数据。 */
 function reset() {
   aiChatStore.reset()
+  cryAnalysisStore.reset()
   lifecycle++
   loadRequest++
   summaryRequest++

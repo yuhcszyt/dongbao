@@ -7,6 +7,7 @@ from sqlalchemy import engine_from_config, pool
 from app.record.database import Base
 from app.record import models  # noqa: F401
 from app.auth import models as auth_models  # noqa: F401
+from app.cry import models as cry_models
 from app.ai import models as ai_models  # noqa: F401
 
 config = context.config

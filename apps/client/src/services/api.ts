@@ -118,6 +118,12 @@ export const api = {
   transcribe(mediaId: string) {
     return request<{ transcript: string }>(`/media/${mediaId}/transcript`, 'POST', undefined, 60_000)
   },
+  cryHistory(babyId: string, offset = 0) {
+    return request<import('@/features/content/cryAnalysis').CryAnalysisResult[]>(`/cry-analyses?baby_id=${encodeURIComponent(babyId)}&offset=${offset}&limit=20`)
+  },
+  cryDetail(id: string) {
+    return request<import('@/features/content/cryAnalysis').CryAnalysisResult>(`/cry-analyses/${encodeURIComponent(id)}`)
+  },
   analyzeCry(babyId: string, mediaId: string) {
     return request<import('@/features/content/cryAnalysis').CryAnalysisResult>('/cry-analyses', 'POST', {
       baby_id: babyId,

@@ -1,4 +1,5 @@
 from typing import Literal
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -20,6 +21,10 @@ class CryCandidate(BaseModel):
 
 
 class CryAnalysisResponse(BaseModel):
+    id: UUID | None = None
+    baby_id: UUID | None = None
+    created_at: datetime | None = None
+    explanation: dict | None = None
     status: Literal["experimental", "uncertain"]
     primary_category: CryCategory | None
     summary: str
