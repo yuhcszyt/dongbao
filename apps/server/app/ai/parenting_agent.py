@@ -186,8 +186,8 @@ def finalize_answer(scope: BabyScope, answer: ParentingAnswer) -> ParentingAnswe
     if not answer.related_record_ids and scope._last_record_ids:
         answer.related_record_ids = list(scope._last_record_ids)
     allowed = {str(s.chunk_id) for s in scope._last_sources if s.chunk_id}
-    if allowed:
-        answer.sources = [s for s in answer.sources if s.chunk_id and str(s.chunk_id) in allowed]
+    verified = {str(s.chunk_id): s for s in scope._last_sources if s.chunk_id}
+    answer.sources = [verified[str(s.chunk_id)] for s in answer.sources if s.chunk_id and str(s.chunk_id) in allowed]
     return answer
 
 

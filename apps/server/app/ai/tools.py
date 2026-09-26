@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from ..record.models import Baby, BabyRecord
 from .embedding import EmbeddingUnavailable, embed_query
-from .models import AiMemory, now
+from .models import AiMemory, RagChunk, RagDocument, now
 from .qdrant_store import search_approved
 from .schemas import ChunkWithSource, SourceRef
 
@@ -192,17 +192,15 @@ class BabyScope:
         chunks: list[ChunkWithSource] = []
         sources: list[SourceRef] = []
         for hit in hits:
-            payload = hit.payload or {}
-            chunk_id = UUID(str(hit.id))
-            published = payload.get("published_at")
-            published_at = date.fromisoformat(published) if published else None
+            # 不信任可能过期或写入中断的向量 payload，以数据库审核状态与原文为准。
+            stored = self.db.get(RagChunk, UUID(str(hit.id)))
+            document = self.db.get(RagDocument, stored.document_id) if stored else None
+            if not stored or not document or document.review_status != "approved":
+                continue
             chunk = ChunkWithSource(
-                chunk_id=chunk_id,
-                content=str(payload.get("content") or ""),
-                title=str(payload.get("title") or ""),
-                source_url=payload.get("source_url"),
-                publisher=str(payload.get("publisher") or ""),
-                published_at=published_at,
+                chunk_id=stored.id, content=stored.content, title=document.title,
+                source_url=document.source_url, publisher=document.publisher,
+                published_at=document.published_at,
                 score=float(hit.score) if hit.score is not None else None,
             )
             chunks.append(chunk)
@@ -219,28 +217,9 @@ class BabyScope:
         return [c.model_dump(mode="json") for c in chunks]
 
     def search_baby_memory(self, query: str = "", limit: int = 8) -> list[dict]:
-        """Postgres 长期记忆：文本匹配，不进公共知识库。"""
         self.baby()
-        q = (query or "").strip()
-        stmt = (
-            select(AiMemory)
-            .where(AiMemory.baby_id == self.baby_id, AiMemory.family_id == self.family_id)
-            .order_by(AiMemory.updated_at.desc())
-            .limit(limit)
-        )
-        if q:
-            stmt = stmt.where(AiMemory.content.ilike(f"%{q}%"))
-        rows = self.db.scalars(stmt).all()
-        return [
-            {
-                "id": str(r.id),
-                "content": r.content,
-                "category": r.category,
-                "source": r.source,
-                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
-            }
-            for r in rows
-        ]
+        from .memory_search import search
+        return search(self.db, self.family_id, self.baby_id, query, limit)
 
     def save_baby_memory(self, content: str, category: str | None = None) -> dict:
         """写入跨会话记忆。禁止把单次喂奶量等业务事实整段复制进来。"""
@@ -259,6 +238,8 @@ class BabyScope:
             created_at=now(),
             updated_at=now(),
         )
+        from .memory_search import index_memory
+        index_memory(row)
         self.db.add(row)
         self.db.flush()
         return {"id": str(row.id), "content": row.content, "category": row.category}

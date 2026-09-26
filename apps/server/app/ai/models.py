@@ -64,5 +64,8 @@ class AiMemory(Base):
     content: Mapped[str] = mapped_column(Text)
     category: Mapped[str | None] = mapped_column(String(64), nullable=True)
     source: Mapped[str] = mapped_column(String(32), default="agent")
+    embedding: Mapped[list[float] | None] = mapped_column(JsonType, nullable=True)
+    embedding_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    embedding_content: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)

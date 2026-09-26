@@ -1,6 +1,6 @@
 # P2 邀请、角色、共享宝宝、成员管理和审计
 
-Status: ready-for-agent
+Status: done
 
 ## 验收
 

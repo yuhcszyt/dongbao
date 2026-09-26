@@ -80,7 +80,7 @@ def seed_knowledge(db: Session, *, path: Path | None = None, force: bool = False
 
 def ensure_seeded(db: Session) -> None:
     """若库中尚无 approved 文档则自动 seed。无 embedding 时跳过（聊天仍可用宝宝 tools）。"""
-    has_any = db.scalar(select(RagDocument.id).where(RagDocument.review_status == "approved").limit(1))
+    has_any = db.scalar(select(RagDocument.id).limit(1))
     if has_any is not None:
         return
     try:
@@ -90,11 +90,7 @@ def ensure_seeded(db: Session) -> None:
 
 
 def reseed_all(db: Session) -> int:
-    """强制用当前 embedding 配置重建 PG + Qdrant 语料（换模型/维度后执行）。"""
-    from sqlalchemy import delete
+    """用当前 embedding 配置重建索引，保留运营导入的文档与审核状态。"""
+    from .knowledge import reindex_knowledge
 
-    wipe_collection()
-    db.execute(delete(RagChunk))
-    db.execute(delete(RagDocument))
-    db.commit()
-    return seed_knowledge(db, force=True)
+    return reindex_knowledge(db, reset=True)

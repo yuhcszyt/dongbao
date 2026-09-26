@@ -32,7 +32,7 @@ def reset_qdrant_client() -> None:
 
 
 def ensure_collection(client: QdrantClient | None = None) -> None:
-    """保证 collection 存在且维度与当前 embedding 配置一致；不一致则重建。"""
+    """保证 collection 存在且维度一致；维度变更要求运维显式重建。"""
     q = client or get_qdrant()
     dim = vector_dim()
     names = {c.name for c in q.get_collections().collections}
@@ -41,8 +41,7 @@ def ensure_collection(client: QdrantClient | None = None) -> None:
         params = info.config.params.vectors
         size = params.size if hasattr(params, "size") else None
         if size is not None and size != dim:
-            logger.warning("Qdrant collection 维度 %s ≠ 配置 %s，重建 %s", size, dim, COLLECTION)
-            q.delete_collection(COLLECTION)
+            raise ValueError("知识索引维度已变更，请执行 knowledge reindex --reset")
         else:
             return
     q.create_collection(

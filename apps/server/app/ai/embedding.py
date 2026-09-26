@@ -81,8 +81,12 @@ def _remote_embed(texts: list[str], base_url: str, model: str, api_key: str, tim
     response.raise_for_status()
     payload = response.json()
     data = sorted(payload["data"], key=lambda item: item["index"])
+    if len(data) != len(texts) or [item["index"] for item in data] != list(range(len(texts))):
+        raise ValueError("embedding 返回数量或索引不匹配")
     vectors = [item["embedding"] for item in data]
     for vec in vectors:
+        if not vec or not all(isinstance(value, (int, float)) and math.isfinite(value) for value in vec):
+            raise ValueError("embedding 包含无效数值")
         if dim and len(vec) != dim:
             raise ValueError(f"embedding 维度 {len(vec)} 与配置 dimensions={dim} 不一致（请改 providers.toml）")
     return vectors
