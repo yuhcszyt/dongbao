@@ -121,6 +121,9 @@ export const api = {
   cryHistory(babyId: string, offset = 0) {
     return request<import('@/features/content/cryAnalysis').CryAnalysisResult[]>(`/cry-analyses?baby_id=${encodeURIComponent(babyId)}&offset=${offset}&limit=20`)
   },
+  explainCry(id: string) {
+    return request<import('@/features/content/aiTypes').AiChatResponse>(`/cry-analyses/${encodeURIComponent(id)}/explanation`, 'POST', undefined, 120_000)
+  },
   cryDetail(id: string) {
     return request<import('@/features/content/cryAnalysis').CryAnalysisResult>(`/cry-analyses/${encodeURIComponent(id)}`)
   },

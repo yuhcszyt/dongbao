@@ -269,7 +269,7 @@ onShow(async () => {
             <text class="label">参考</text>
             <text v-for="(src, i) in msg.answer.sources" :key="i" class="line">· {{ src.title }}</text>
           </view>
-          <text v-if="msg.answer?.watch_for?.length && msg.answer?.medical_disclaimer" class="notice">{{ msg.answer.medical_disclaimer }}</text>
+          <text v-if="msg.answer?.medical_disclaimer" class="notice">{{ msg.answer.medical_disclaimer }}</text>
         </view>
       </view>
 

@@ -103,3 +103,12 @@ def detail(analysis_id: UUID, user: User = Depends(current_user), db: Session = 
 def delete_analysis(analysis_id: UUID, user: User = Depends(current_user), db: Session = Depends(get_db)):
     db.delete(analysis_for(db, analysis_id, user.family_id))
     db.commit()
+
+
+@router.post("/{analysis_id}/explanation")
+def explain_analysis(analysis_id: UUID, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    from .explanation import explain
+    row = db.scalar(select(CryAnalysis).where(CryAnalysis.id == analysis_id, CryAnalysis.family_id == user.family_id).with_for_update())
+    if not row:
+        raise api_error(404, "not_found", "没有找到这次分析")
+    return explain(db, row)

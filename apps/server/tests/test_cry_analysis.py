@@ -213,3 +213,43 @@ def test_history_is_idempotent_scoped_and_survives_audio_expiry(monkeypatch, aut
     from app.cry.models import CryAnalysis
     with SessionLocal() as db:
         assert db.get(CryAnalysis, first['id']) is None
+
+
+def test_explanation_uses_scoped_history_and_is_retry_safe(monkeypatch, auth):
+    client = TestClient(app)
+    owner = auth('explain-owner')
+    baby_id, media_id = create_audio(client, owner)
+    monkeypatch.setattr('app.cry.routes.classify_audio', lambda _: normalize_predictions(RAW))
+    analysis = client.post('/api/v1/cry-analyses', headers=owner, json={'baby_id': baby_id, 'media_id': media_id}).json()
+    url = '/api/v1/cry-analyses/' + analysis['id'] + '/explanation'
+    assert client.post(url, headers=auth('outsider')).status_code == 404
+    first = client.post(url, headers=owner)
+    assert first.status_code == 200, first.text
+    assert '缺少' in first.json()['answer']['summary']
+    assert '不用于医疗诊断' in first.json()['answer']['medical_disclaimer']
+    second = client.post(url, headers=owner).json()
+    assert second['message_id'] == first.json()['message_id']
+    history = client.get('/api/v1/ai/conversations/active', headers=owner, params={'baby_id': baby_id}).json()
+    assert len(history['messages']) == 2
+    assert history['messages'][0]['structured_payload']['cry_analysis_id'] == analysis['id']
+
+
+def test_explanation_model_receives_real_records(monkeypatch, auth):
+    from app.ai.schemas import ParentingAnswer
+    client = TestClient(app)
+    owner = auth('explain-records')
+    baby_id, media_id = create_audio(client, owner)
+    monkeypatch.setattr('app.cry.routes.classify_audio', lambda _: normalize_predictions(RAW))
+    record = client.post(f'/api/v1/babies/{baby_id}/records', headers=owner, json={'record_type': 'feeding', 'occurred_at': now().isoformat(), 'payload': {'kind': 'feeding', 'amount_ml': 120}})
+    assert record.status_code < 300, record.text
+    analysis = client.post('/api/v1/cry-analyses', headers=owner, json={'baby_id': baby_id, 'media_id': media_id}).json()
+    prompts = []
+    monkeypatch.setattr('app.cry.explanation.model_configured', lambda: True)
+    def model(scope, prompt):
+        prompts.append(prompt)
+        return ParentingAnswer(summary='结合记录看一看', related_record_ids=[record.json()['id']]), 'fake'
+    monkeypatch.setattr('app.cry.explanation.run_parenting_agent', model)
+    response = client.post('/api/v1/cry-analyses/' + analysis['id'] + '/explanation', headers=owner)
+    assert response.status_code == 200, response.text
+    assert '120' in prompts[0] and 'sound_candidates' in prompts[0]
+    assert response.json()['answer']['related_record_ids'] == [record.json()['id']]

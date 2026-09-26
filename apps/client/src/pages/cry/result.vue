@@ -1,14 +1,28 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import { api } from '@/services/api'
+import { errorText } from '@/features/record/store'
 import { cryAnalysisStore } from '@/features/content/cryAnalysis'
 
 const result = computed(() => cryAnalysisStore.state.current)
 
 onLoad((query) => { if (query?.id) void cryAnalysisStore.select(String(query.id)); else cryAnalysisStore.reset() })
 
-function askDongbao() {
-  uni.switchTab({ url: '/pages/ai/index' })
+const busy = ref(false)
+const error = ref('')
+async function askDongbao() {
+  if (!result.value || busy.value) return
+  const analysis = result.value
+  busy.value = true
+  error.value = ''
+  try {
+    const reply = await api.explainCry(analysis.id)
+    if (result.value?.id !== analysis.id) return
+    analysis.explanation = reply.answer
+    uni.switchTab({ url: '/pages/ai/index' })
+  } catch (reason) { error.value = errorText(reason) }
+  finally { busy.value = false }
 }
 
 function backToCry() {
@@ -41,7 +55,13 @@ function backToCry() {
 
     <view v-else class="card"><text class="title">{{ cryAnalysisStore.state.loading ? '正在加载分析…' : cryAnalysisStore.state.error || '还没有分析结果' }}</text></view>
 
-    <button class="primary" :disabled="!result" @click="askDongbao">结合记录问懂宝</button>
+    <view v-if="result?.explanation" class="card">
+      <text class="card-title">结合近期记录</text>
+      <text class="muted">{{ result.explanation.summary }}</text>
+      <text v-for="line in result.explanation.actions" :key="line" class="muted">{{ line }}</text>
+    </view>
+    <text v-if="error" class="notice">{{ error }}</text>
+    <button class="primary" :disabled="!result || busy" @click="askDongbao">{{ busy ? '正在结合记录…' : '结合记录问懂宝' }}</button>
     <button class="outline" @click="backToCry">重新录音</button>
     <text class="notice">{{ result?.disclaimer || '仅供育儿参考，不用于医疗诊断' }}</text>
   </view>
