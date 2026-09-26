@@ -99,6 +99,18 @@ const babyBody = (input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) => ({
 })
 
 export const api = {
+  family() { return request<import('@/features/content/family').FamilyOverview>('/family') },
+  renameFamily(name: string) { return request('/family/name', 'PUT', { name }) },
+  familyProfile(name: string) { return request('/family/profile', 'PUT', { name }) },
+  createInvite() { return request<{ id: string; token: string; expires_at: string }>('/family/invites', 'POST') },
+  revokeInvite(id: string) { return request(`/family/invites/${encodeURIComponent(id)}`, 'DELETE') },
+  previewInvite(token: string) { return request<{ family_name: string; expires_at: string }>('/family/invites/preview', 'POST', { token }) },
+  acceptInvite(token: string) { return request('/family/invites/accept', 'POST', { token }) },
+  switchFamily(id: string) { return request(`/family/switch/${encodeURIComponent(id)}`, 'POST') },
+  familyRole(id: string, role: 'admin' | 'member') { return request(`/family/members/${encodeURIComponent(id)}/role`, 'PUT', { role }) },
+  transferFamily(id: string) { return request(`/family/owner/${encodeURIComponent(id)}`, 'POST') },
+  removeFamilyMember(id: string) { return request(`/family/members/${encodeURIComponent(id)}`, 'DELETE') },
+  familyAudit(offset = 0) { return request<import('@/features/content/family').FamilyAudit[]>(`/family/audit?offset=${offset}`) },
   capture(babyId: string, mediaId: string, occurredAt: string) {
     return request<import('@/features/record/quickCapture').CaptureResult>('/record-drafts/capture', 'POST', {
       baby_id: babyId, media_id: mediaId, occurred_at: occurredAt, timezone: detectTimeZone(),

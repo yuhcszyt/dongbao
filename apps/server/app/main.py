@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from .family.routes import router as family_router
 from .auth.routes import router as auth_router
 from .auth.wechat import login_mode_message
 from .ai.routes import router as ai_router
@@ -83,3 +84,5 @@ app.include_router(auth_router)
 app.include_router(ai_router)
 app.include_router(capture_router)
 app.include_router(cry_router)
+
+app.include_router(family_router)

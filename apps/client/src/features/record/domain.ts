@@ -26,6 +26,7 @@ export interface Baby {
 }
 
 export interface RecordItem {
+  created_by_name?: string | null
   id: string
   baby_id: string
   record_type: RecordType

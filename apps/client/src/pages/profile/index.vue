@@ -19,6 +19,8 @@ async function save(input: Pick<Baby, 'nickname' | 'birth_date' | 'gender'>) {
   uni.showToast({ title: '已保存', icon: 'success' })
 }
 
+function openFamily() { uni.navigateTo({ url: '/pages/family/index' }) }
+
 function openStats() {
   uni.navigateTo({ url: '/pages/stats/index' })
 }
@@ -81,6 +83,7 @@ onShow(() => void recordStore.load())
       </view>
 
       <view class="card">
+        <button class="menu-row" @click="openFamily"><text>我的家庭</text><text class="chev">›</text></button>
         <button class="menu-row" @click="openStats"><text>数据统计</text><text class="chev">›</text></button>
         <button class="menu-row" @click="openRecords"><text>成长时间线</text><text class="chev">›</text></button>
         <button class="menu-row" @click="openFavorites"><text>我的收藏</text><text class="chev">›</text></button>
@@ -113,7 +116,7 @@ onShow(() => void recordStore.load())
       <view class="sheet" @click.stop>
         <view class="sheet-head"><text class="card-title">注销账号</text><button class="sheet-close" hover-class="none" aria-label="关闭" @tap.stop="deleteStep = 0" @click.stop="deleteStep = 0">×</button></view>
         <text class="muted">注销后将无法继续使用当前账号。</text>
-        <view class="warn">会永久删除宝宝档案、全部记录、语音和照片，且不可恢复。</view>
+        <view class="warn">会注销你的账号。仍有其他成员的家庭会保留共同记录；只有最后一位成员注销时，该家庭的档案、记录和媒体才会永久删除。</view>
         <button class="outline danger-btn" @click="deleteStep = 2">继续注销</button>
         <button class="cancel" @click="deleteStep = 0">暂不注销</button>
       </view>

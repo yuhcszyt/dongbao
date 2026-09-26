@@ -89,6 +89,12 @@
         "navigationBarTextStyle": "black",
         "backgroundColor": "#fbfaf7"
       }
+    },
+    {
+      "path": "pages/family/index",
+      "style": {
+        "navigationBarTitleText": "我的家庭"
+      }
     }
   ],
   "tabBar": {

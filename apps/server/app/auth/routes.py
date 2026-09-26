@@ -6,7 +6,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..erasure import erase_family
+from ..family.models import FamilyMember
+from ..family.service import erase_user
 from ..record.database import get_db
 from .dependencies import api_error, current_user
 from .models import Family, User
@@ -38,10 +39,12 @@ async def login_wechat(body: WeChatLoginIn, db: Session = Depends(get_db)):
         db.flush()
         user = User(openid=openid, family_id=family.id)
         db.add(user)
+        db.flush()
+        db.add(FamilyMember(family_id=family.id, user_id=user.id, role="owner"))
         db.commit()
     return TokenOut(token=issue_token(user.id, user.family_id), user_id=user.id)
 
 @router.delete("/me", status_code=204)
 def delete_me(user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """注销账号：该用户与整个家庭的数据一并消失（旧 token 随即 401，见 dependencies）。"""
-    erase_family(db, user.family_id)
+    """注销当前用户；共享家庭保留，最后一个成员注销时擦除家庭数据。"""
+    erase_user(db, user)

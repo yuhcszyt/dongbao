@@ -18,6 +18,7 @@ from ..config import get_config
 from .database import get_db
 from .models import Baby, BabyRecord, MediaAsset, RecordDraft, RecordMedia, now
 from .providers import ProviderUnavailable, extract_draft, transcribe_audio
+from ..family.service import require_manager
 from .schemas import BabyCreate, BabyOut, BabyUpdate, DailySummary, DraftConfirm, DraftOut, DraftRequest, MediaOut, RecordCreate, RecordOut, RecordUpdate, RecordType
 from .storage import media_path, media_root
 
@@ -51,7 +52,7 @@ def media_out(media: MediaAsset) -> MediaOut:
 def record_out(db: Session, record: BabyRecord) -> RecordOut:
     media = db.scalars(select(MediaAsset).join(RecordMedia, RecordMedia.media_id == MediaAsset.id).where(RecordMedia.record_id == record.id)).all()
     draft = db.scalar(select(RecordDraft).join(RecordMedia, RecordMedia.media_id == RecordDraft.media_id).where(RecordMedia.record_id == record.id)) if media else None
-    return RecordOut.model_validate(record, from_attributes=True).model_copy(update={"media": [media_out(item) for item in media], "transcript": draft.transcript if draft else None})
+    return RecordOut.model_validate(record, from_attributes=True).model_copy(update={"media": [media_out(item) for item in media], "transcript": draft.transcript if draft else None, "created_by_name": (db.get(User, record.created_by).display_name if record.created_by and db.get(User, record.created_by) else "家人")})
 
 @router.get("/health")
 def health():
@@ -60,6 +61,7 @@ def health():
 
 @router.post("/api/v1/babies", response_model=BabyOut, status_code=201)
 def create_baby(body: BabyCreate, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    require_manager(db, user)
     baby = Baby(family_id=user.family_id, **body.model_dump())
     db.add(baby); db.commit(); db.refresh(baby)
     return baby
@@ -76,6 +78,7 @@ def get_baby(baby_id: UUID, user: User = Depends(current_user), db: Session = De
 @router.put("/api/v1/babies/{baby_id}", response_model=BabyOut)
 def update_baby(baby_id: UUID, body: BabyUpdate, user: User = Depends(current_user), db: Session = Depends(get_db)):
     baby = baby_for(db, baby_id, user.family_id)
+    require_manager(db, user)
     for key, value in body.model_dump().items(): setattr(baby, key, value)
     db.commit(); db.refresh(baby)
     return baby

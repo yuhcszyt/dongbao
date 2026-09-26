@@ -129,6 +129,7 @@ class MediaOut(BaseModel):
     url: str
 
 class RecordOut(BaseModel):
+    created_by_name: str | None = None
     id: UUID
     baby_id: UUID
     record_type: RecordType

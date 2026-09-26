@@ -204,7 +204,7 @@ onShow(async () => {
         <text class="bubble">{{ typeMeta(record.record_type).icon }}</text>
         <view class="event-data">
           <text class="event-title">{{ typeMeta(record.record_type).label }} · {{ describeRecord(record) }}</text>
-          <text class="event-note">{{ record.note || '点击修改记录' }}</text>
+          <text class="event-note">{{ record.created_by_name || '家人' }}记录 · {{ record.note || '点击修改记录' }}</text>
           <view v-if="record.media?.length" class="media-row">
             <text v-for="(item, index) in record.media" :key="item.id" class="source" @click.stop="openMedia(record, item)">{{ mediaLabel(record, index) }}</text>
           </view>

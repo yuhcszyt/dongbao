@@ -5,7 +5,7 @@
 不再多引一层只转发 family_id 的依赖。
 
 家庭归属以**数据库里的 user.family_id** 为准，不信 token 里的 fid——token 只是身份的载体，
-换家庭（本 MVP 不做）时无需让旧 token 继续指向旧家庭。
+切换家庭后旧 token 也会使用当前家庭，并重新验证成员权限。
 """
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy import select
@@ -36,4 +36,7 @@ def current_user(authorization: str = Header(""), db: Session = Depends(get_db))
     user = db.scalar(select(User).where(User.id == user_id))
     if not user:
         raise api_error(401, "invalid_token", DELETED_ACCOUNT_MESSAGE)  # 注销后旧 token 立即失效
+    from ..family.models import FamilyMember
+    if not db.get(FamilyMember, (user.family_id, user.id)):
+        raise api_error(403, "family_access_denied", "家庭权限已变更，请重新进入")
     return user
