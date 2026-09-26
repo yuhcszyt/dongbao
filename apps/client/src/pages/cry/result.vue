@@ -46,10 +46,10 @@ function backToCry() {
 
 <style scoped>
 .page { padding: 18px 18px 40px; background: var(--db-background); color: var(--db-text); }
-.warn { border-radius: 12px; background: #fff0df; color: #b88346; padding: 10px 12px; font-size: 12px; }
-.notice { display: block; margin: 14px 0; color: var(--db-muted); font-size: 12px; line-height: 1.6; text-align: center; }
+.warn { border-radius: 12px; background: #fff0df; color: #b88346; padding: 10px 12px; font-size: 14px; }
+.notice { display: block; margin: 14px 0; color: var(--db-muted); font-size: 14px; line-height: 1.6; text-align: center; }
 .card { margin-top: 14px; border-radius: 19px; background: var(--db-surface); border: 1px solid var(--db-border); padding: 17px; }
-.tag { display: inline-block; padding: 4px 10px; border-radius: 20px; background: var(--db-soft); color: var(--db-primary); font-size: 11px; }
+.tag { display: inline-block; padding: 4px 10px; border-radius: 20px; background: var(--db-soft); color: var(--db-primary); font-size: 14px; }
 .title { display: block; margin: 14px 0 8px; font-size: 22px; font-weight: 800; }
 .muted { display: block; color: var(--db-muted); font-size: 13px; line-height: 1.55; }
 .card-title { display: block; font-size: 16px; font-weight: 800; margin-bottom: 10px; }
@@ -57,7 +57,7 @@ function backToCry() {
 .candidate:last-of-type { border-bottom: 0; }
 .candidate-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
 .candidate-label { font-size: 14px; font-weight: 700; }
-.candidate-score { color: var(--db-muted); font-size: 11px; text-align: right; }
+.candidate-score { color: var(--db-muted); font-size: 14px; text-align: right; }
 .track { height: 7px; margin-top: 8px; overflow: hidden; border-radius: 8px; background: var(--db-soft); }
 .fill { height: 100%; min-width: 2px; border-radius: inherit; background: var(--db-primary); }
 .primary { width: 100%; min-height: 52px; margin-top: 16px; border-radius: 14px; background: var(--db-primary); color: white; font-weight: 700; }

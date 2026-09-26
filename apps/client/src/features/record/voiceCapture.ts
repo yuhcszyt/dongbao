@@ -28,7 +28,8 @@ export function createVoiceCapture(handlers: {
   started: () => void
   stopped: (file: string | Blob, duration: number, capturedAt: string) => void
   failed: (message: string, stillRecording?: boolean) => void
-}) {
+}, options: { minimumMs?: number; shortMessage?: string } = {}) {
+  const minimumMs = options.minimumMs ?? 2000
   let generation = 0
   let startedAt = 0
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -71,7 +72,7 @@ export function createVoiceCapture(handlers: {
       const stamp = new Date(startedAt).toISOString()
       clean()
       generation++
-      if (duration < 2000) handlers.failed('没听完整，请再说一遍，至少说两秒。')
+      if (duration < minimumMs) handlers.failed(options.shortMessage ?? '没听完整，请再说一遍，至少说两秒。')
       else handlers.stopped(file, duration, stamp)
     }
     try {
@@ -108,7 +109,7 @@ export function createVoiceCapture(handlers: {
 
   function stop() {
     if (!recording) return
-    if (Date.now() - startedAt < 2000) { handlers.failed('请再说一会儿，说完点“说完了”。', true); return }
+    if (Date.now() - startedAt < minimumMs) { handlers.failed(options.shortMessage ?? '请再说一会儿，说完点“说完了”。', true); return }
     recording = false
     clearTimeout(timer)
     try { stopNative?.() } catch { cancel(); handlers.failed('录音没有完成，请重新说一遍。') }

@@ -166,7 +166,7 @@ onShow(() => void recordStore.load())
 .row-value { font-weight: 700; }
 .chev { color: var(--db-muted); }
 .account .card-title { display: block; margin-bottom: 4px; }
-.account-note { display: block; margin-top: 12px; color: var(--db-muted); font-size: 11px; line-height: 1.7; }
+.account-note { display: block; margin-top: 12px; color: var(--db-muted); font-size: 14px; line-height: 1.7; }
 .danger { color: #b86e62; }
 .error { margin: 12px 0; border-radius: 12px; background: #fff0ec; padding: 12px; color: #9a4c3e; }
 .error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: var(--db-surface); color: #9a4c3e; font-weight: 700; }

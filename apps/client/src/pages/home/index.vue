@@ -183,14 +183,14 @@ onShow(() => {
           <button class="link" @click="openRecord()">查看全部 ›</button>
         </view>
         <text v-if="!recent.length" class="muted empty-note">还没有记录，点上面开始第一条。</text>
-        <view v-for="item in recent" :key="item.id" class="timeline-item" @click="openRecord()">
+        <button v-for="item in recent" :key="item.id" class="timeline-item" @click="openRecord({ kind: 'edit', record_id: item.id })">
           <text class="time">{{ recordTimeText(item.occurred_at).slice(-5) }}</text>
           <text class="dot">{{ typeMeta(item.record_type).icon }}</text>
           <view class="timeline-body">
             <text class="timeline-title">{{ typeMeta(item.record_type).label }} · {{ describeRecord(item) }}</text>
             <text class="muted">点击修改记录</text>
           </view>
-        </view>
+        </button>
       </view>
 
       <view class="section">
@@ -242,7 +242,7 @@ onShow(() => {
 .card-head.sub { margin-top: 16px; }
 .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 13px; }
 .metric { background: var(--db-soft); border-radius: 11px; padding: 10px 4px; text-align: center; }
-.metric-label { display: block; font-size: 12px; color: var(--db-muted); }
+.metric-label { display: block; font-size: 14px; color: var(--db-muted); }
 .metric-value { display: block; font-size: 14px; font-weight: 800; margin-top: 4px; }
 .note, .empty-note { margin-top: 8px; color: var(--db-muted); font-size: 13px; }
 .inputfake { width: 100%; margin-top: 15px; border-radius: 24px; background: var(--db-surface); padding: 11px 15px; text-align: left; color: var(--db-muted); font-size: 14px; }
@@ -260,12 +260,12 @@ onShow(() => {
 .photo { background: var(--db-apricot); color: #6c5137; }
 .manual-link { width: 100%; margin-top: 8px; min-height: 44px; background: transparent; color: var(--db-primary); font-size: 15px; }
 .quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
-.quick-grid button { padding: 0; font-size: 12px; background: transparent; color: var(--db-text); }
+.quick-grid button { padding: 0; font-size: 14px; background: transparent; color: var(--db-text); }
 .ico { display: grid; place-items: center; width: 44px; height: 44px; margin: 0 auto 7px; border-radius: 13px; background: var(--db-soft); font-size: 22px; }
 .quick-grid button:nth-child(2n) .ico { background: var(--db-apricot); }
-.link { min-height: 40px; padding: 0 6px; background: transparent; color: var(--db-primary); font-size: 13px; }
-.timeline-item { display: flex; gap: 11px; padding: 14px 0; border-bottom: 1px solid var(--db-border); }
-.time { width: 43px; padding-top: 5px; font-size: 12px; color: var(--db-muted); }
+.link { min-height: 48px; padding: 0 6px; background: transparent; color: var(--db-primary); font-size: 13px; }
+.timeline-item { width: 100%; background: transparent; text-align: left; line-height: 1.55; display: flex; gap: 11px; padding: 14px 0; border-bottom: 1px solid var(--db-border); }
+.time { width: 43px; padding-top: 5px; font-size: 14px; color: var(--db-muted); }
 .dot { display: grid; place-items: center; width: 37px; height: 37px; border-radius: 50%; background: var(--db-soft); font-size: 18px; }
 .timeline-body { flex: 1; min-width: 0; }
 .timeline-title { display: block; font-size: 14px; font-weight: 700; }
@@ -276,4 +276,8 @@ onShow(() => {
 .error .retry { margin-top: 10px; min-height: 44px; border-radius: 10px; background: var(--db-surface); color: #9a4c3e; font-weight: 700; }
 .overlay { position: fixed; z-index: 200; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: var(--db-overlay); }
 .sheet { width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; background: var(--db-background); padding: 21px 18px calc(22px + env(safe-area-inset-bottom)); }
+</style>
+
+<style scoped>
+@media (max-width: 360px) { .metrics { grid-template-columns: repeat(2, 1fr); } .quick-grid { grid-template-columns: repeat(2, 1fr); } }
 </style>

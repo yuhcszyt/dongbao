@@ -39,8 +39,10 @@ picker {
 
 button {
   margin: 0;
-  min-height: 44px;
+  min-height: 48px;
 }
+
+.page { overflow-wrap: anywhere; }
 
 button[disabled] { opacity: .6; }
 button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--db-primary); outline-offset: 3px; }

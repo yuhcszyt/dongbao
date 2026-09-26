@@ -64,7 +64,7 @@ onShow(() => void recordStore.load(nowParts().date))
 .card { margin-top: 16px; border-radius: 19px; background: var(--db-surface); border: 1px solid var(--db-border); padding: 17px; }
 .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; }
 .num { display: block; font-size: 18px; font-weight: 800; color: var(--db-primary); }
-.label { display: block; margin-top: 4px; font-size: 11px; color: var(--db-muted); }
+.label { display: block; margin-top: 4px; font-size: 14px; color: var(--db-muted); }
 .card-title { display: block; font-size: 16px; font-weight: 800; margin-bottom: 14px; }
 .bars { display: flex; align-items: flex-end; gap: 8px; height: 130px; padding-bottom: 36px; }
 .bar-wrap { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; position: relative; }

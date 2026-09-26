@@ -169,7 +169,7 @@ onShow(async () => {
 
       <view class="capture-entry">
         <text class="card-title">快速记录</text>
-        <text class="lead">语音、拍照都先经 AI 识别，确认后写入今日记录</text>
+        <text class="lead">说一说，拍一张；信息清楚时自动记好，不清楚时再问你</text>
         <button class="voice" @click="openCapture('voice')">
           <text class="cap-icon">♩</text>
           <text class="cap-title">语音记录</text>

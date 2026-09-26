@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onHide, onShow } from '@dcloudio/uni-app'
 import { cryAnalysisStore } from '@/features/content/cryAnalysis'
 import { recordStore, errorText } from '@/features/record/store'
+import { createVoiceCapture } from '@/features/record/voiceCapture'
 import { api } from '@/services/api'
 
 const recording = ref(false)
@@ -12,88 +13,54 @@ const busy = ref(false)
 const message = ref('')
 const { state } = recordStore
 let ticker: ReturnType<typeof setInterval> | null = null
-let h5Recorder: MediaRecorder | null = null
-let h5Stream: MediaStream | null = null
-let h5Chunks: Blob[] = []
 let h5Blob: Blob | null = null
-let mpRecorder: ReturnType<typeof uni.getRecorderManager> | null = null
-
-const clearTicker = () => {
-  if (ticker) clearInterval(ticker)
-  ticker = null
+const starting = ref(false)
+let operation = 0
+let alive = true
+const clearTicker = () => { if (ticker) clearInterval(ticker); ticker = null }
+function clearAudio() {
+  if (audioPath.value.startsWith('blob:')) URL.revokeObjectURL(audioPath.value)
+  audioPath.value = ''
+  h5Blob = null
 }
-
-function stopRecording() {
-  clearTicker()
-  recording.value = false
-  if (h5Recorder?.state === 'recording') h5Recorder.stop()
-  else h5Stream?.getTracks().forEach((track) => track.stop())
-  mpRecorder?.stop()
-}
-
-async function startH5() {
-  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-    uni.showToast({ title: '请改用上传音频', icon: 'none' })
-    return
-  }
-  busy.value = true
-  try {
-    h5Stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    h5Chunks = []
-    h5Recorder = new MediaRecorder(h5Stream)
-    h5Recorder.ondataavailable = (event) => {
-      if (event.data.size) h5Chunks.push(event.data)
-    }
-    h5Recorder.onstop = () => {
-      h5Stream?.getTracks().forEach((track) => track.stop())
-      const blob = new Blob(h5Chunks, { type: h5Recorder?.mimeType || 'audio/webm' })
-      h5Blob = blob
-      audioPath.value = URL.createObjectURL(blob)
-    }
-    h5Recorder.start()
+const voice = createVoiceCapture({
+  started() {
+    starting.value = false
     recording.value = true
     seconds.value = 0
-    ticker = setInterval(() => {
-      seconds.value += 1
-      if (seconds.value >= 60) stopRecording()
-    }, 1000)
-  } catch {
-    uni.showToast({ title: '无法访问麦克风', icon: 'none' })
-  } finally {
-    busy.value = false
-  }
+    clearTicker()
+    ticker = setInterval(() => { seconds.value += 1 }, 1000)
+  },
+  stopped(file, duration) {
+    clearTicker()
+    recording.value = false
+    seconds.value = Math.round(duration / 1000)
+    if (typeof file === 'string') audioPath.value = file
+    else { h5Blob = file; audioPath.value = URL.createObjectURL(file) }
+  },
+  failed(error, stillRecording) {
+    starting.value = false
+    if (!stillRecording) { clearTicker(); recording.value = false }
+    message.value = error
+  },
+}, { minimumMs: 2000, shortMessage: '请至少录制两秒清晰哭声，再点击停止。' })
+function cancelRecording() {
+  voice.cancel()
+  clearTicker()
+  starting.value = false
+  recording.value = false
 }
-
-function startMp() {
-  mpRecorder = uni.getRecorderManager()
-  mpRecorder.onStop((result) => {
-    audioPath.value = result.tempFilePath
-  })
-  mpRecorder.onError(() => uni.showToast({ title: '录音失败', icon: 'none' }))
-  mpRecorder.start({ format: 'mp3', duration: 60_000 })
-  recording.value = true
-  seconds.value = 0
-  ticker = setInterval(() => {
-    seconds.value += 1
-    if (seconds.value >= 60) stopRecording()
-  }, 1000)
-}
-
-function toggleRecording() {
-  if (busy.value) return
-  if (recording.value) {
-    stopRecording()
-    return
-  }
-  // #ifdef H5
-  void startH5()
-  // #endif
-  // #ifndef H5
-  startMp()
-  // #endif
+async function toggleRecording() {
+  if (busy.value || starting.value) return
+  if (recording.value) { voice.stop(); return }
+  clearAudio()
+  message.value = ''
+  starting.value = true
+  await voice.start()
 }
 
 function chooseAudio() {
+  if (busy.value || starting.value || recording.value) return
   // #ifndef H5
   uni.chooseMessageFile?.({
     count: 1,
@@ -101,7 +68,7 @@ function chooseAudio() {
     extension: ['mp3', 'wav', 'm4a', 'aac', 'ogg'],
     success: (result) => {
       const file = result.tempFiles[0]
-      if (file) audioPath.value = file.path
+      if (file && alive) { clearAudio(); seconds.value = 0; audioPath.value = file.path }
     },
     fail: () => {
       // H5 / 无 chooseMessageFile 时用 chooseFile 或提示
@@ -115,8 +82,8 @@ function chooseAudio() {
   input.accept = 'audio/*'
   input.onchange = () => {
     const file = input.files?.[0]
-    if (!file) return
-    if (audioPath.value.startsWith('blob:')) URL.revokeObjectURL(audioPath.value)
+    if (!file || !alive) return
+    clearAudio()
     h5Blob = file
     audioPath.value = URL.createObjectURL(file)
     const probe = new Audio(audioPath.value)
@@ -135,7 +102,8 @@ function openResult(id?: string) {
 }
 
 async function analyze() {
-  if (!audioPath.value || busy.value) return
+  if (!audioPath.value || busy.value || recording.value || starting.value) return
+  const version = operation
   busy.value = true
   message.value = ''
   try {
@@ -145,18 +113,23 @@ async function analyze() {
     const media = h5Blob
       ? await api.uploadBlob(h5Blob, state.baby.id, 'audio', duration, 'cry_analysis')
       : await api.uploadPath(audioPath.value, state.baby.id, 'audio', duration, 'cry_analysis')
-    cryAnalysisStore.add(await api.analyzeCry(state.baby.id, media.id))
+    const result = await api.analyzeCry(state.baby.id, media.id)
+    if (!alive || version !== operation) return
+    cryAnalysisStore.add(result)
     openResult()
   } catch (reason) {
-    message.value = errorText(reason)
+    if (alive && version === operation) message.value = errorText(reason)
   } finally {
-    busy.value = false
+    if (alive && version === operation) busy.value = false
   }
 }
 
 onShow(() => { if (!state.baby && !state.loading) void recordStore.load() })
+onHide(() => { operation++; busy.value = false; cancelRecording() })
 onBeforeUnmount(() => {
-  stopRecording()
+  alive = false
+  operation++
+  cancelRecording()
   if (audioPath.value.startsWith('blob:')) URL.revokeObjectURL(audioPath.value)
 })
 </script>
@@ -166,17 +139,18 @@ onBeforeUnmount(() => {
     <text class="title">听一听，宝宝想说什么</text>
     <text class="muted">一起了解哭声背后的可能需求</text>
 
-    <button class="mic" :class="{ recording }" @click="toggleRecording">{{ recording ? '■' : '♩' }}</button>
-    <text class="status">{{ recording ? `录音中 ${seconds} 秒 · 点击停止` : '点击开始录音' }}</text>
+    <button class="mic" aria-label="开始或停止录音" :disabled="busy || starting" :class="{ recording }" @click="toggleRecording">{{ recording ? '■' : '♩' }}</button>
+    <text class="status">{{ recording ? `录音中 ${seconds} 秒 · 点击停止` : starting ? '正在申请麦克风权限…' : '点击开始录音' }}</text>
 
+    <button v-if="recording || starting" class="outline" @click="cancelRecording">取消录音</button>
     <view v-if="audioPath" class="audio-box">
       <!-- #ifdef H5 -->
       <audio class="audio" :src="audioPath" controls />
       <!-- #endif -->
-      <button class="primary" :disabled="busy" @click="analyze">{{ busy ? '正在分析…' : '分析哭声' }}</button>
+      <button class="primary" :disabled="busy || recording || starting" @click="analyze">{{ busy ? '正在分析…' : '分析哭声' }}</button>
     </view>
 
-    <button class="outline" @click="chooseAudio">↥ 上传音频</button>
+    <button class="outline" :disabled="busy || recording || starting" @click="chooseAudio">↥ 上传音频</button>
     <text v-if="message" class="error">{{ message }}</text>
     <text class="notice">音频会上传用于实验性分析。结果只表示声音与样本的匹配程度，不能确定宝宝哭泣的真实原因。</text>
 
@@ -207,7 +181,7 @@ onBeforeUnmount(() => {
 .primary[disabled] { opacity: .55; }
 .outline { width: 100%; min-height: 50px; margin-top: 12px; border-radius: 14px; border: 1px solid var(--db-border); background: var(--db-surface); color: var(--db-primary); }
 .error { display: block; margin-top: 14px; color: #b35d52; font-size: 13px; }
-.notice { display: block; margin-top: 14px; color: var(--db-muted); font-size: 12px; line-height: 1.6; }
+.notice { display: block; margin-top: 14px; color: var(--db-muted); font-size: 14px; line-height: 1.6; }
 .section { margin-top: 28px; text-align: left; }
 .card-title { display: block; font-size: 17px; font-weight: 800; margin-bottom: 10px; }
 .event { width: 100%; display: flex; gap: 12px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--db-border); background: transparent; text-align: left; }

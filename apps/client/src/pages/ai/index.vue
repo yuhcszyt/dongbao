@@ -296,8 +296,8 @@ onShow(async () => {
 .cloud { width: 40px; height: 32px; border-radius: 50%; background: var(--db-soft); color: var(--db-text); font-size: 16px; letter-spacing: 3px; text-align: center; line-height: 32px; }
 .title { display: block; font-size: 18px; font-weight: 800; }
 .muted { display: block; color: var(--db-muted); font-size: 13px; line-height: 1.5; margin-top: 4px; }
-.link { background: transparent; color: var(--db-primary); font-size: 12px; }
-.warn { margin: 14px 0; border-radius: 12px; background: #fff0df; color: #b88346; padding: 10px 12px; font-size: 12px; }
+.link { background: transparent; color: var(--db-primary); font-size: 14px; }
+.warn { margin: 14px 0; border-radius: 12px; background: #fff0df; color: #b88346; padding: 10px 12px; font-size: 14px; }
 .welcome { margin-top: 18px; }
 .welcome .title { font-size: 23px; }
 .card { margin-top: 16px; border-radius: 19px; background: var(--db-surface); border: 1px solid var(--db-border); padding: 16px; }
@@ -307,11 +307,11 @@ onShow(async () => {
 .user-photo { display: block; width: 120px; height: 120px; border-radius: 10px; margin-bottom: 8px; }
 .answer { margin: 12px 0; padding: 16px; border-radius: 4px 18px 18px 18px; background: var(--db-surface); border: 1px solid var(--db-border); }
 .block { margin-top: 10px; }
-.label { display: block; font-size: 12px; font-weight: 700; color: var(--db-primary); margin-bottom: 4px; }
+.label { display: block; font-size: 14px; font-weight: 700; color: var(--db-primary); margin-bottom: 4px; }
 .line { display: block; font-size: 16px; line-height: 1.7; color: var(--db-text); }
 .followup .card-title { font-size: 20px; }
 .followup .outline { min-height: 56px; font-size: 20px; }
-.notice { display: block; margin-top: 10px; color: var(--db-muted); font-size: 11px; }
+.notice { display: block; margin-top: 10px; color: var(--db-muted); font-size: 14px; }
 .pending { display: flex; align-items: center; gap: 10px; margin: 12px 0; padding: 10px 12px; border-radius: 12px; background: var(--db-soft); }
 .pending-photo { width: 48px; height: 48px; border-radius: 8px; flex-shrink: 0; }
 .composer { position: fixed; left: 0; right: 0; bottom: var(--window-bottom); display: flex; align-items: center; gap: 8px; padding: 10px 15px; background: var(--db-surface); border-top: 1px solid var(--db-border); }
