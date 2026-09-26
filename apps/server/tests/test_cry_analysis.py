@@ -152,3 +152,40 @@ def test_cry_endpoint_reports_unavailable_model(monkeypatch, auth):
 
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "cry_model_unavailable"
+
+
+def test_pure_tone_is_rejected_before_models(tmp_path, monkeypatch):
+    import numpy as np
+    from app.cry.classifier import classify_audio
+    path = tmp_path / "tone.wav"
+    with wave.open(str(path), "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(16_000)
+        tone = np.sin(2 * np.pi * 440 * np.arange(32_000) / 16_000)
+        audio.writeframes((tone * 10_000).astype("<i2").tobytes())
+    monkeypatch.setattr("app.cry.classifier._pipeline", lambda: pytest.fail("must not classify a tone"))
+    with pytest.raises(InvalidCryAudio, match="提示音"):
+        classify_audio(path)
+
+
+def test_non_cry_detection_is_required(monkeypatch):
+    import numpy as np
+    from app.cry.detector import ensure_cry, CRY_LABEL
+    monkeypatch.setattr("app.cry.detector.detector_pipeline", lambda: lambda *a, **kw: [
+        {"label": "Speech", "score": 0.9}, {"label": CRY_LABEL, "score": 0.01}])
+    with pytest.raises(InvalidCryAudio, match="婴儿哭声"):
+        ensure_cry(np.zeros(32_000, dtype=np.float32))
+
+
+def test_detector_checks_later_windows(monkeypatch):
+    import numpy as np
+    from app.cry.detector import ensure_cry, CRY_LABEL
+    results = iter([[{"label": "Music", "score": 0.9}], [{"label": CRY_LABEL, "score": 0.8}]])
+    monkeypatch.setattr("app.cry.detector.detector_pipeline", lambda: lambda *a, **kw: next(results))
+    ensure_cry(np.zeros(320_000, dtype=np.float32))
+
+
+def test_invalid_model_scores_are_not_presented_as_certainty():
+    with pytest.raises(CryModelUnavailable):
+        normalize_predictions([{"label": "hungry", "score": float("nan")}])

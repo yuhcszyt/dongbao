@@ -21,6 +21,7 @@ x-server-environment: &server-environment
   TENCENT_SECRET_ID: ${TENCENT_SECRET_ID:-}
   TENCENT_SECRET_KEY: ${TENCENT_SECRET_KEY:-}
   MODEL_API_KEY: ${MODEL_API_KEY:-}
+  CRY_DETECTOR_PATH: ${CRY_DETECTOR_PATH:-/app/data/models/cry-detector}
   CRY_MODEL_PATH: ${CRY_MODEL_PATH:-/app/data/models/babycry-v7}
   EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
   QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}

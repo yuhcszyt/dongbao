@@ -19,6 +19,7 @@ SERVER_ENV = DATABASE_URL=$(TEST_DATABASE_URL) \
 	APP_CONFIG=$(CURDIR)/config/providers.toml \
 	MEDIA_ROOT=$(CURDIR)/data/media \
 	CRY_MODEL_PATH=$(CURDIR)/data/models/babycry-v7 \
+	CRY_DETECTOR_PATH=$(CURDIR)/data/models/cry-detector \
 	QDRANT_URL=$(QDRANT_URL) \
 	EMBEDDING_ALLOW_HASH=1 \
 	DEV_LOGIN=$(DEV_LOGIN)

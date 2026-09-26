@@ -18,6 +18,12 @@ def main() -> None:
         local_dir=args.output,
         allow_patterns=["config.json", "preprocessor_config.json", "model.safetensors"],
     )
+    snapshot_download(
+        repo_id="MIT/ast-finetuned-audioset-10-10-0.4593",
+        revision="f826b80d28226b62986cc218e5cec390b1096902",
+        local_dir=args.output.parent / "cry-detector",
+        allow_patterns=["config.json", "preprocessor_config.json", "model.safetensors"],
+    )
     print(f"cry model ready: {args.output}")
 
 
