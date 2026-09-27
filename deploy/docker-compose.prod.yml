@@ -1,8 +1,8 @@
-# 在仓库根目录执行：
-#   export DOMAIN=api.example.com
+# 家庭业务机（Ubuntu）仓库根目录执行：
 #   docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d --build
 #
-# 只需对公网开放 80/443。DEV_LOGIN 必须为空。
+# 仅对外映射 8000（供腾讯云经 Tailscale 反代）。DEV_LOGIN 必须为空。
+# Postgres / Qdrant 不映射宿主机端口。
 
 name: dongbao-prod
 
@@ -30,6 +30,8 @@ services:
 
   server:
     build: ./apps/server
+    ports:
+      - "8000:8000"
     environment:
       PYTHONPATH: /app
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-dongbao}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-dongbao}
@@ -44,9 +46,12 @@ services:
       MODEL_API_KEY: ${MODEL_API_KEY:-}
       EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
       QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      CRY_MODEL_PATH: ${CRY_MODEL_PATH:-/app/data/models/babycry-v7}
+      CRY_DETECTOR_PATH: ${CRY_DETECTOR_PATH:-/app/data/models/cry-detector}
     volumes:
       - ./config:/app/config:ro
-      - media_data:/app/data/media
+      - ./data/media:/app/data/media
+      - ./data/models:/app/data/models:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,24 +60,6 @@ services:
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     restart: unless-stopped
 
-  caddy:
-    image: caddy:2.8-alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      DOMAIN: ${DOMAIN:?set DOMAIN=api.example.com}
-    volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - server
-    restart: unless-stopped
-
 volumes:
   postgres_data:
   qdrant_data:
-  media_data:
-  caddy_data:
-  caddy_config:

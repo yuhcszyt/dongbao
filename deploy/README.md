@@ -1,59 +1,63 @@
-# 懂宝 · 体验版上云（腾讯云 HTTPS）
+# 懂宝 · 混合部署（腾讯云入口 + 家庭业务机）
 
-目标：手机微信打开**体验版**小程序，语音/拍照打到公网 `https://api.<域名>/api/v1`。
+微信小程序只访问公网 HTTPS；腾讯云做 Nginx / SSL / Tailscale；FastAPI、Postgres、Qdrant 跑在家庭 Ubuntu。
 
-## 你先买这两样
-
-1. **轻量应用服务器**（推荐）
-   - 镜像：Ubuntu 22.04 LTS
-   - 规格：2 核 2G 起
-   - 防火墙放行：22 / 80 / 443
-2. **域名**（必须）
-   - 解析：`api.<你的域名>` → 服务器公网 IP（A 记录）
-   - 国内机器对外服务通常要 **ICP 备案**；未备案时微信合法域名可能配不上。按腾讯云提示备案（几天级）。
-
-买完把下面发我（密码可私聊/打码）：
-- 公网 IP
-- SSH 用户（一般 `ubuntu` / `root`）
-- 域名（例如 `example.com`，我们用 `api.example.com`）
-- 备案是否已通过（或进行中）
-
-## 机器上跑什么
-
-本目录配合仓库根的 compose：
-
-```bash
-# 在服务器上 clone 本仓库后，于仓库根目录：
-cp .env.example .env   # 填密钥；DEV_LOGIN 留空；JWT_SECRET 换强随机串
-export DOMAIN=api.你的域名
-docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d --build
-curl -fsS https://$DOMAIN/health
+```text
+微信 → https://api.xiaomizhoubaobao.cn → 腾讯云 Nginx
+                                         ↓ Tailscale
+                                   家庭 Ubuntu :8000
+                                   (postgres + qdrant + server)
 ```
 
-| 服务 | 作用 |
-|---|---|
-| `postgres` | 业务库 |
-| `qdrant` | RAG 向量库（容器内 6333，不对公网暴露） |
-| `server` | FastAPI（容器内 8000，不对公网暴露） |
-| `caddy` | 80/443，自动签 Let’s Encrypt，反代到 server |
+架构说明见 [`docs/deploy-architecture.md`](../docs/deploy-architecture.md)。
 
-## 微信侧（域名 HTTPS 通了之后）
+## 职责拆分
+
+| 机器 | 跑什么 | 不跑什么 |
+|---|---|---|
+| 腾讯云 | Nginx、Let’s Encrypt、Tailscale | Docker、业务数据、模型 |
+| 家庭 Ubuntu | Docker Compose：postgres / qdrant / server；`data/media`、`data/models` | 公网 80/443 |
+
+生产只开放边缘 `22` / `80` / `443`。Postgres、Qdrant 不映射公网。
+
+## 家庭业务机
+
+```bash
+# 仓库根目录
+cp .env.example .env   # 填密钥；DEV_LOGIN 留空；JWT_SECRET 换强随机串
+mkdir -p data/media data/models
+# 哭声模型放到 data/models/babycry-v7 与 data/models/cry-detector
+docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d --build
+curl -fsS http://127.0.0.1:8000/health
+```
+
+`QDRANT_URL` 在 compose 内默认 `http://qdrant:6333`。
+
+## 腾讯云边缘
+
+1. 安装 Tailscale，确认能访问家庭机：`curl -fsS http://100.71.108.114:8000/health`
+2. 安装 Nginx + certbot
+3. DNS：`api.xiaomizhoubaobao.cn` A → 腾讯云公网 IP
+4. 参考 [`nginx.edge.conf.example`](nginx.edge.conf.example)，签发证书后启用 HTTPS
+5. `curl -fsS https://api.xiaomizhoubaobao.cn/health`
+
+## 微信侧（HTTPS 通之后）
 
 1. [微信公众平台](https://mp.weixin.qq.com/) → 开发管理 → 开发设置 → **服务器域名**
-   - request 合法域名：`https://api.<域名>`（不要带路径）
+   - request 合法域名：`https://api.xiaomizhoubaobao.cn`（不要带路径）
 2. 本地打包：
    ```bash
    cd apps/client
-   VITE_API_BASE_URL=https://api.<域名>/api/v1 npm run build:mp-weixin
+   VITE_API_BASE_URL=https://api.xiaomizhoubaobao.cn/api/v1 npm run build:mp-weixin
    ```
-3. 微信开发者工具打开 `apps/client/dist/build/mp-weixin` → **上传**
-4. 公众平台 → 管理 → 版本管理 → 选开发版本 → **选为体验版**
-5. 成员管理里把自己/测试号加成体验成员，扫体验版码
+3. 微信开发者工具打开 `apps/client/dist/build/mp-weixin` → **上传** → 选为体验版
+
+国内机对外服务通常要 ICP 备案；未备案时微信合法域名可能配不上。
 
 ## 本机联调 vs 体验版
 
 | | 本机 | 体验版 |
 |---|---|---|
-| API | 127.0.0.1 / 隧道 | `https://api.<域名>` |
+| API | 127.0.0.1 / 隧道 | `https://api.xiaomizhoubaobao.cn` |
 | 合法域名 | 可勾「不校验」 | **必须**配置 |
 | DEV_LOGIN | 仅 H5 可开 | **禁止** |

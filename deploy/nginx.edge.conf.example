@@ -1,0 +1,41 @@
+# 腾讯云边缘 Nginx 示例。
+# 复制到 /etc/nginx/sites-available/dongbao 并 symlink 到 sites-enabled。
+# 替换：证书由 certbot 写入；upstream 为家庭机 Tailscale IP。
+
+upstream dongbao_app {
+    server 100.71.108.114:8000;
+}
+
+server {
+    listen 80;
+    server_name api.xiaomizhoubaobao.cn;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name api.xiaomizhoubaobao.cn;
+
+    ssl_certificate     /etc/letsencrypt/live/api.xiaomizhoubaobao.cn/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.xiaomizhoubaobao.cn/privkey.pem;
+
+    client_max_body_size 32m;
+
+    location / {
+        proxy_pass http://dongbao_app;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 180s;
+        proxy_send_timeout 180s;
+    }
+}
