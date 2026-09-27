@@ -33,6 +33,7 @@ curl -fsS https://$DOMAIN/health
 | 服务 | 作用 |
 |---|---|
 | `postgres` | 业务库 |
+| `qdrant` | RAG 向量库（容器内 6333，不对公网暴露） |
 | `server` | FastAPI（容器内 8000，不对公网暴露） |
 | `caddy` | 80/443，自动签 Let’s Encrypt，反代到 server |
 

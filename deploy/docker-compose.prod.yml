@@ -22,6 +22,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
 
+  qdrant:
+    image: qdrant/qdrant:v1.13.2
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
   server:
     build: ./apps/server
     environment:
@@ -36,12 +42,16 @@ services:
       TENCENT_SECRET_ID: ${TENCENT_SECRET_ID:-}
       TENCENT_SECRET_KEY: ${TENCENT_SECRET_KEY:-}
       MODEL_API_KEY: ${MODEL_API_KEY:-}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
     volumes:
       - ./config:/app/config:ro
       - media_data:/app/data/media
     depends_on:
       postgres:
         condition: service_healthy
+      qdrant:
+        condition: service_started
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     restart: unless-stopped
 
@@ -62,6 +72,7 @@ services:
 
 volumes:
   postgres_data:
+  qdrant_data:
   media_data:
   caddy_data:
   caddy_config:
