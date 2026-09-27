@@ -29,6 +29,7 @@ mkdir -p data/media data/models
 # 哭声模型放到 data/models/babycry-v7 与 data/models/cry-detector
 # compose 路径相对 deploy/；在仓库根执行并带上根目录 .env
 # compose 路径相对 deploy/；在仓库根执行并带上根目录 .env
+# compose 路径相对 deploy/；在仓库根执行并带上根目录 .env
 docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d --build
 curl -fsS http://127.0.0.1:8000/health
 ```
