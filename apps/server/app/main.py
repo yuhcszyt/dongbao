@@ -1,4 +1,5 @@
 import logging
+import os
 import asyncio
 from contextlib import asynccontextmanager
 from contextlib import suppress
@@ -60,7 +61,9 @@ async def lifespan(_: FastAPI):
             await retention_task
 
 app = FastAPI(title="懂宝 API", version="1.0.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False, allow_methods=["*"], allow_headers=["*"])
+# CORS：生产用 CORS_ALLOW_ORIGINS 收紧（逗号分隔）；默认为 "*" 仅适合开发
+_cors_origins = [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",") if o.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=_cors_origins or ["*"], allow_credentials=False, allow_methods=["*"], allow_headers=["*"])
 
 @app.middleware("http")
 async def request_id(request: Request, call_next):

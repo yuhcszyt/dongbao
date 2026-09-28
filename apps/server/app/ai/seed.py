@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import date, datetime, timezone
 from pathlib import Path
 from uuid import UUID
@@ -13,7 +14,11 @@ from .embedding import EmbeddingUnavailable, embed_texts
 from .models import RagChunk, RagDocument, now
 from .qdrant_store import ensure_collection, upsert_chunk, wipe_collection
 
-SEED_PATH = Path(__file__).resolve().parents[4] / "data" / "rag" / "parenting_seed.json"
+# 开发态：apps/server/app/ai/seed.py → parents[4] 是仓库根
+# 容器态：/app/app/ai/seed.py → parents[4] 不存在，回落到 /app，配合 SEED_PATH 环境变量
+_parts = Path(__file__).resolve().parents
+_repo_root = _parts[4] if len(_parts) > 4 else Path("/app")
+SEED_PATH = Path(os.environ.get("SEED_PATH", _repo_root / "data" / "rag" / "parenting_seed.json"))
 
 
 def load_seed_file(path: Path | None = None) -> list[dict]:

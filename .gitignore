@@ -13,3 +13,7 @@ apps/client/project.private.config.json
 data/media/*
 !data/media/.gitkeep
 data/models/
+
+# vite 本机个性化环境
+.env.local
+.env.*.local
