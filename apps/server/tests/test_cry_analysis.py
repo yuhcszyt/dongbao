@@ -73,6 +73,19 @@ def test_silent_audio_is_rejected_before_classification(tmp_path):
         ensure_audible(path)
 
 
+def test_missing_ffmpeg_is_service_unavailable_not_user_error(monkeypatch, tmp_path):
+    """服务器缺 ffmpeg 属于环境问题：应报 503 可用性，而不是 422 怪用户录音。"""
+    path = tmp_path / "cry.wav"
+    path.write_bytes(wav_bytes())
+
+    def no_ffmpeg(*_args, **_kwargs):
+        raise FileNotFoundError("ffmpeg")
+
+    monkeypatch.setattr("app.cry.classifier.subprocess.run", no_ffmpeg)
+    with pytest.raises(CryModelUnavailable):
+        ensure_audible(path)
+
+
 def test_cry_endpoint_returns_five_candidates(monkeypatch, auth):
     client = TestClient(app)
     headers = auth()

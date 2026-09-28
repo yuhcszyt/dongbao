@@ -80,7 +80,10 @@ def ensure_audible(path: Path) -> np.ndarray:
             capture_output=True,
             timeout=15,
         ).stdout
-    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+    except FileNotFoundError as exc:
+        # 服务器没有 ffmpeg 属于环境问题：不能报成「录音读不了」把责任推给用户。
+        raise CryModelUnavailable("哭声分析暂时不可用，请稍后重试") from exc
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
         raise InvalidCryAudio("无法读取这段录音，请重新录制") from exc
     samples = np.frombuffer(converted, dtype="<i2").astype(np.float32) / 32768
     if len(samples) < 16_000:
