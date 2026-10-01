@@ -1,0 +1,46 @@
+{
+  "projects": [
+    {
+      "id": "proj_tide_echo",
+      "name": "潮声未歇",
+      "type": "电影",
+      "stage": "选角",
+      "budget": 120000000,
+      "director": "陈予安",
+      "producer": "何岚",
+      "cast": {
+        "female_lead_candidates": ["liu_haocun", "fang_zhixia"],
+        "confirmed": []
+      },
+      "priority": "high",
+      "problems": [
+        "女主人选未定",
+        "投资方希望尽快锁档期"
+      ],
+      "upcoming_events": [
+        "女主候选沟通会",
+        "剧本围读（待定）"
+      ],
+      "notes": "都市情感题材，后半段情绪戏重，适合检验演技。"
+    },
+    {
+      "id": "proj_brand_spring",
+      "name": "春序护肤年度代言洽谈",
+      "type": "品牌代言",
+      "stage": "筹备",
+      "budget": 8000000,
+      "director": null,
+      "cast": {
+        "talent_candidates": ["liu_haocun", "su_qingran"]
+      },
+      "priority": "medium",
+      "problems": [
+        "品牌方临时提出希望更『松弛感』形象"
+      ],
+      "upcoming_events": [
+        "商务见面"
+      ],
+      "notes": "可能与电影档期冲突。"
+    }
+  ]
+}

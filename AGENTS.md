@@ -215,6 +215,10 @@ alembic upgrade head
 
 ## Agent skills
 
+### Entertainment Galgame
+
+When the user says `开始 Galgame` / `继续 Galgame` / `继续刘浩存 Galgame`, load `.cursor/skills/galgame-entertainment/SKILL.md` and follow its strict file-load order under `galgame/`. Player = entertainment company founder; 刘浩存 = signed lead actress at S0. Do not use `.scratch/gal-tavern-play/` for this mode.
+
 ### Issue tracker
 
 Issues live as markdown files under `.scratch/<feature>/` in this repo. See `docs/agents/issue-tracker.md`.

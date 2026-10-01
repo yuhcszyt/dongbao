@@ -1,0 +1,20 @@
+{
+  "name": "星衡影业",
+  "cash": 28000000,
+  "currency": "CNY",
+  "reputation": 62,
+  "industry_influence": 48,
+  "focus": ["电影", "电视剧", "艺人经纪", "品牌商务"],
+  "signed_artists": ["liu_haocun", "su_qingran"],
+  "employees": [
+    {"name": "周曼", "role": "艺人经纪人", "notes": "刘浩存经纪人"},
+    {"name": "何岚", "role": "制片人", "notes": "《潮声未歇》制片"},
+    {"name": "赵屿", "role": "商务总监", "notes": "品牌与代言"}
+  ],
+  "status_summary": "中型娱乐公司，现金流尚可，需要一部口碑作打开上升通道。",
+  "story_hooks": [
+    "新电影需要定女主",
+    "品牌方在观望头部女星档期",
+    "竞争公司近期高调挖人"
+  ]
+}

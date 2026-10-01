@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "game": "entertainment-galgame",
+  "updated_at": "2026-03-12T10:30:00+08:00",
+  "time": "2026 年 3 月 12 日 10:30",
+  "location": "北京 · 星衡影业总部 小会议室",
+  "active_characters": ["liu_haocun"],
+  "player": {
+    "identity": "娱乐公司老板 / 创始人",
+    "company": "星衡影业",
+    "current_goal": "敲定《潮声未歇》女主人选，并稳住公司上升势头",
+    "current_status": "会前刚看完两版试镜资料",
+    "recent_decisions": []
+  },
+  "company": {
+    "name": "星衡影业",
+    "cash": 28000000,
+    "reputation": 62,
+    "industry_influence": 48,
+    "status_summary": "中型公司，需要一部口碑作"
+  },
+  "characters": {
+    "liu_haocun": {
+      "name": "刘浩存",
+      "identity": "公司旗下重点女演员",
+      "company_status": "星衡影业签约艺人 · 重点培养",
+      "career_level": "上升期一线潜力",
+      "personality": ["礼貌克制", "先观察", "专业较真", "熟后轻微鬼马", "边界清晰"],
+      "current_goal": "认真准备《潮声未歇》女主沟通，证明演技厚度",
+      "current_project": "潮声未歇",
+      "relationship_stage": "S0",
+      "affection": 0,
+      "trust": 5,
+      "comfort": 0,
+      "curiosity": 10,
+      "jealousy": 0,
+      "boundary_pressure": 0,
+      "relationship_with_player": "老板与旗下艺人",
+      "relationships_with_others": {
+        "陈予安": "合作导演候选人 · 专业敬重",
+        "周曼": "经纪人 · 高信任",
+        "苏清然": "同公司女演员 · 普通同事",
+        "方知夏": "竞争公司女星 · 客气有戒心"
+      },
+      "shared_memories": [],
+      "important_events": [],
+      "important_promises": [],
+      "unresolved_threads": [],
+      "current_mood": "礼貌、略紧、工作模式"
+    },
+    "su_qingran": {
+      "name": "苏清然",
+      "identity": "同公司女演员（背景 NPC）",
+      "fiction": true,
+      "company_status": "星衡影业签约",
+      "career_level": "稳定中坚",
+      "relationship_stage": "S0",
+      "affection": 0,
+      "trust": 5,
+      "comfort": 0,
+      "curiosity": 5,
+      "jealousy": 0,
+      "boundary_pressure": 0,
+      "relationship_with_player": "老板与旗下艺人",
+      "relationships_with_others": {
+        "刘浩存": "普通同事 · 偶有比较"
+      },
+      "current_goal": "争取春序护肤代言",
+      "current_project": "春序护肤年度代言洽谈",
+      "current_mood": "外表从容",
+      "shared_memories": [],
+      "important_events": [],
+      "important_promises": [],
+      "unresolved_threads": [],
+      "note": "完整 Skill 未建；需要出场时按模板扩写"
+    },
+    "fang_zhixia": {
+      "name": "方知夏",
+      "identity": "竞争公司女星（背景 NPC）",
+      "fiction": true,
+      "company_status": "对手公司",
+      "career_level": "热度高",
+      "relationship_stage": "S0",
+      "affection": 0,
+      "trust": 0,
+      "comfort": 0,
+      "curiosity": 5,
+      "jealousy": 0,
+      "boundary_pressure": 0,
+      "relationship_with_player": "商务场合认识有限",
+      "relationships_with_others": {
+        "刘浩存": "竞争 · 公开客气"
+      },
+      "current_goal": "拿下《潮声未歇》女主",
+      "current_project": "潮声未歇",
+      "current_mood": "锋利、礼貌",
+      "shared_memories": [],
+      "important_events": [],
+      "important_promises": [],
+      "unresolved_threads": [],
+      "note": "完整 Skill 未建；需要出场时按模板扩写"
+    }
+  },
+  "active_projects": [
+    {
+      "id": "proj_tide_echo",
+      "name": "潮声未歇",
+      "stage": "选角",
+      "priority": "high"
+    },
+    {
+      "id": "proj_brand_spring",
+      "name": "春序护肤年度代言洽谈",
+      "stage": "筹备",
+      "priority": "medium"
+    }
+  ],
+  "recent_events": [
+    "《潮声未歇》进入女主候选沟通阶段",
+    "投资方要求两周内给出倾向人选"
+  ],
+  "next_possible_hooks": [
+    "会议室里听刘浩存讲对剧本后半段的理解",
+    "周曼会后单独提醒档期与品牌冲突",
+    "何岚希望老板表态是否倾向内部签约艺人",
+    "方知夏阵营放出愿意提前试镜的消息"
+  ],
+  "pending_scene": {
+    "summary": "《潮声未歇》女主候选沟通会开始，刘浩存在座",
+    "present": ["player", "liu_haocun", "何岚", "陈予安", "周曼"]
+  }
+}
