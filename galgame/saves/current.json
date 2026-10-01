@@ -1,16 +1,16 @@
 {
   "version": 2,
   "game": "entertainment-galgame",
-  "updated_at": "2026-10-01T15:20:00+08:00",
+  "updated_at": "2026-10-01T15:35:00+08:00",
   "reality_sync_note": "事业字段对齐 galgame/skills/liu-haocun/anchors.md（校准 2026-10-01）",
-  "time": "2026 年 10 月 1 日 15:20",
+  "time": "2026 年 10 月 1 日 15:35",
   "location": "北京 · 星衡影业总部 小会议室",
   "active_characters": ["liu_haocun"],
   "player": {
     "identity": "娱乐公司老板 / 创始人",
     "company": "星衡影业",
     "current_goal": "在不透支艺人的前提下，卡住《美顺与长生》宣发与在拍电影的协同节奏",
-    "current_status": "刚看完四季度公开片单对照表",
+    "current_status": "四季度协同会进行中，等待表态",
     "recent_decisions": []
   },
   "company": {
@@ -33,7 +33,7 @@
       "affection": 0,
       "trust": 5,
       "comfort": 0,
-      "curiosity": 10,
+      "curiosity": 12,
       "jealousy": 0,
       "boundary_pressure": 0,
       "relationship_with_player": "老板与重点合作艺人",
@@ -53,9 +53,10 @@
       ],
       "important_promises": [],
       "unresolved_threads": [
-        "四季度公开行程已满，星衡侧新戏提案如何插队或等待"
+        "四季度公开行程已满，星衡侧新戏提案如何插队或等待",
+        "《美顺与长生》宣发与电影补拍窗口是否冲突"
       ],
-      "current_mood": "礼貌、克制、工作模式；略显行程紧"
+      "current_mood": "礼貌、克制；听完周曼汇报后在等老板开口"
     },
     "su_qingran": {
       "name": "苏清然",
@@ -120,16 +121,18 @@
     "《主角》《消失的人》带动公开讨论回升",
     "下半年多部电影公开进组信息流传",
     "《美顺与长生》暖冬海报与过审消息公开",
-    "时尚芭莎十月刊封面宣发落地"
+    "时尚芭莎十月刊封面宣发落地",
+    "2026-10-01 星衡四季度档期协同会开始"
   ],
   "next_possible_hooks": [
-    "会议室对齐《美顺与长生》宣发与电影补拍是否冲突",
-    "她提起角色训练或「有一点倔」的专业坚持",
-    "周曼提醒商务杂志义务已经排满",
-    "星衡想塞新本子，被档期现实卡住"
+    "老板表态：宣发优先 / 补拍优先 / 强制塞新本",
+    "周曼私下提醒商务已排满",
+    "她可能主动问《无孔不入》敏感题材口径",
+    "会后苏清然打听《美顺与长生》资源倾斜"
   ],
   "pending_scene": {
-    "summary": "四季度档期协同会，刘浩存在座",
+    "summary": "四季度协同会中段，等待玩家表态",
     "present": ["player", "liu_haocun", "周曼"]
-  }
+  },
+  "turn": 1
 }
