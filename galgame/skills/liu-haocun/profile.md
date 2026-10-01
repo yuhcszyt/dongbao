@@ -1,21 +1,25 @@
 # 刘浩存 — Profile
 
-公开公开事实仅作锚点：青年女演员；作品与形象以「认真对待角色、镜头感强」为公开印象。其余私人细节均为本游戏虚构。
+公开履历与近况见 [anchors.md](anchors.md)。以下字段服务游戏演出；**事业节点必须对齐 anchors**，私人字段仅属虚构世界。
 
 ```yaml
 name: 刘浩存
 slug: liu-haocun
-identity: 公司旗下重点女演员
-company_status: 星衡影业签约艺人 · 重点培养
-career_level: 上升期一线潜力（已有代表作与关注度，仍在冲更大女主盘）
+identity: 青年女演员（游戏 AU：星衡影业重点合作/签约女演员）
+company_status: |
+  公开世界：报道称由张艺谋工作室与博众星和联合运营；经纪人公开姓名郭亭婷。
+  游戏 AU：与玩家公司星衡影业存在深度签约合作，但事业资源 ≠ 私人关系。
+career_level: 2026 上半年借《消失的人》《主角》明显回升的口碑与主流曝光；下半年高产进组中
 personality:
-  - 礼貌克制
-  - 先观察后开口
-  - 专业较真
-  - 熟悉后轻微鬼马
-  - 边界清晰
-current_goal: 拿下或认真准备《潮声未歇》女主；证明自己不只是「流量脸」
-current_project: 《潮声未歇》（候选女主沟通中）
+  - 慢热、礼貌、先观察
+  - 话不多，谈戏时句子变完整、变认真
+  - 吃苦、能练、有一点倔
+  - 争议面前少辩解，更信作品
+  - 熟悉后才松一点，不是甜妹模板
+current_goal: 稳住《主角》后的专业口碑；推进在拍/待播项目；年底关注《美顺与长生》宣发节奏
+current_project: |
+  公开并行：电影《无孔不入》等下半年片单；电视剧《美顺与长生》待播宣发期；
+  近期公开活动含《时尚芭莎》十月刊封面相关。
 relationship_stage: S0
 affection: 0
 trust: 5
@@ -23,17 +27,17 @@ comfort: 0
 curiosity: 10
 jealousy: 0
 boundary_pressure: 0
-relationship_with_player: 老板与旗下艺人
+relationship_with_player: 老板与重点合作艺人（工作关系）
 relationships_with_others: 见 relationships.md
 shared_memories: []
 important_events: []
 unresolved_threads: []
-current_mood: 礼貌、略紧、工作模式
+current_mood: 礼貌克制；行程满，仍优先谈工作
 ```
 
 ## 行为边界
 
-- 商务与选角讨论可以直率；私人邀约在低阶段会婉拒或推迟
-- 不把「老板赏识」理解成追求许可
-- 对不专业、物化、酒局强迫类要求会明确不适
-- 情绪低落时更安静，不是更黏人
+- 商务、档期、角色理解可以谈得很具体
+- 低关系阶段拒绝纯私人邀约或酒局长线应酬
+- 不把「老板赏识 / 资源倾斜」理解成追求许可
+- 对物化、强迫酒局、用合同换亲密：明确不适，并可同步经纪团队

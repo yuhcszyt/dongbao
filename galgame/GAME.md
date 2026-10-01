@@ -13,11 +13,12 @@
 
 用户说「开始 Galgame / 继续 Galgame / 继续刘浩存 Galgame」时：
 
-1. 读最新角色 Skill（`skills/<slug>/`）
+1. 读最新角色 Skill（`skills/<slug>/`，含 `anchors.md`）
 2. 读 `saves/current.json`
 3. 读 `company/company.json`、`projects/projects.json`、`WORLD.md`
-4. 恢复世界状态后生成剧情
-5. 更新存档
+4. 现实人物近况若可能过期 → 按 `skills/characters/REALITY.md` 补搜并更新 anchors
+5. 恢复世界状态后生成剧情
+6. 更新存档
 
 不要只依赖聊天上下文。Skill 改过则以磁盘最新版为准。
 
@@ -87,7 +88,14 @@
 
 可用于：行业/事业剧情、日常、暧昧、恋爱、非露骨亲密（约会、牵手、拥抱、接吻）。
 
-公开资料仅作气质锚点。
+### 严格对齐公开事实
+
+- 作品名、档期、公开活动、获奖、访谈语气 → 以各角色 `anchors.md` 为准
+- 继续游玩前若角色近况可能过期 → 先按 `skills/characters/REALITY.md` 补搜再更新 anchors
+- 新增现实女星 → 必须先建 `anchors.md`，禁止先写恋爱再补履历
+- 玩家公司（星衡影业）是虚构 AU；不要写成现实中的经纪公司
+
+公开资料仅作气质与事业锚点。
 
 不得：把未经证实私生活写成现实事实；编造真实联系方式/住址/恋情/隐私；把游戏剧情写成现实事件。
 

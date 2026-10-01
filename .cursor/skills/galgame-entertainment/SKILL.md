@@ -19,13 +19,14 @@ description: >-
 3. 读 [`galgame/saves/current.json`](../../../galgame/saves/current.json) — 当前存档
 4. 读 [`galgame/company/company.json`](../../../galgame/company/company.json)
 5. 读 [`galgame/projects/projects.json`](../../../galgame/projects/projects.json)
-6. 按存档 `active_characters` / 用户点名，读对应角色 Skill（例：[`galgame/skills/liu-haocun/SKILL.md`](../../../galgame/skills/liu-haocun/SKILL.md) 及其同目录引用）
-7. 若 Skill / `GAME.md` / `WORLD.md` 比上次会话更新，**以磁盘最新版为准**，不要沿用旧上下文设定
-8. 生成一轮剧情（输出格式见 `GAME.md`）
-9. 写回 `galgame/saves/current.json`；重大节点可另存 `galgame/saves/history/YYYYMMDD-HHmm.json`
-10. 需要时同步 `company.json` / `projects.json`
+6. 按存档 `active_characters` / 用户点名，读对应角色 Skill（例：[`galgame/skills/liu-haocun/SKILL.md`](../../../galgame/skills/liu-haocun/SKILL.md) 及同目录 `anchors.md` 等）
+7. 现实人物：核对 `anchors.md` 是否覆盖近况；过期则先按 [`REALITY.md`](../../../galgame/skills/characters/REALITY.md) 补搜再开演
+8. 若 Skill / `GAME.md` / `WORLD.md` 比上次会话更新，**以磁盘最新版为准**
+9. 生成一轮剧情（输出格式见 `GAME.md`）
+10. 写回 `galgame/saves/current.json`；重大节点可另存 `galgame/saves/history/`
+11. 需要时同步 `company.json` / `projects.json`
 
-未完成 1–6 前，禁止开写剧情。
+未完成加载前，禁止开写剧情。事业线必须对齐各角色 `anchors.md` 的公开事实。
 
 ## 核心身份（覆盖旧设定）
 

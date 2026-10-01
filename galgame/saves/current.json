@@ -1,33 +1,34 @@
 {
-  "version": 1,
+  "version": 2,
   "game": "entertainment-galgame",
-  "updated_at": "2026-03-12T10:30:00+08:00",
-  "time": "2026 年 3 月 12 日 10:30",
+  "updated_at": "2026-10-01T15:20:00+08:00",
+  "reality_sync_note": "事业字段对齐 galgame/skills/liu-haocun/anchors.md（校准 2026-10-01）",
+  "time": "2026 年 10 月 1 日 15:20",
   "location": "北京 · 星衡影业总部 小会议室",
   "active_characters": ["liu_haocun"],
   "player": {
     "identity": "娱乐公司老板 / 创始人",
     "company": "星衡影业",
-    "current_goal": "敲定《潮声未歇》女主人选，并稳住公司上升势头",
-    "current_status": "会前刚看完两版试镜资料",
+    "current_goal": "在不透支艺人的前提下，卡住《美顺与长生》宣发与在拍电影的协同节奏",
+    "current_status": "刚看完四季度公开片单对照表",
     "recent_decisions": []
   },
   "company": {
     "name": "星衡影业",
     "cash": 28000000,
-    "reputation": 62,
-    "industry_influence": 48,
-    "status_summary": "中型公司，需要一部口碑作"
+    "reputation": 64,
+    "industry_influence": 50,
+    "status_summary": "虚构中型公司；正借重点女演员公开高光期谈协同，而非伪造其现实作品"
   },
   "characters": {
     "liu_haocun": {
       "name": "刘浩存",
-      "identity": "公司旗下重点女演员",
-      "company_status": "星衡影业签约艺人 · 重点培养",
-      "career_level": "上升期一线潜力",
-      "personality": ["礼貌克制", "先观察", "专业较真", "熟后轻微鬼马", "边界清晰"],
-      "current_goal": "认真准备《潮声未歇》女主沟通，证明演技厚度",
-      "current_project": "潮声未歇",
+      "identity": "青年女演员（AU：星衡重点合作/签约）",
+      "company_status": "公开：张艺谋工作室与博众星和联合运营报道；游戏：与星衡深度合作",
+      "career_level": "2026上半年口碑明显回升后的高产阶段",
+      "personality": ["慢热礼貌", "先观察", "专业较真", "有一点倔", "少辩解多用作品说话"],
+      "current_goal": "稳住《主角》后的专业评价；推进电影拍摄与《美顺与长生》宣发",
+      "current_project": "无孔不入（电影）+ 美顺与长生（待播）+ 芭莎十月刊长尾",
       "relationship_stage": "S0",
       "affection": 0,
       "trust": 5,
@@ -35,18 +36,26 @@
       "curiosity": 10,
       "jealousy": 0,
       "boundary_pressure": 0,
-      "relationship_with_player": "老板与旗下艺人",
+      "relationship_with_player": "老板与重点合作艺人",
       "relationships_with_others": {
-        "陈予安": "合作导演候选人 · 专业敬重",
-        "周曼": "经纪人 · 高信任",
-        "苏清然": "同公司女演员 · 普通同事",
-        "方知夏": "竞争公司女星 · 客气有戒心"
+        "郭亭婷": "公开经纪信息锚点",
+        "周曼": "游戏AU·星衡侧对接",
+        "苏清然": "虚构同事",
+        "方知夏": "虚构竞争者"
       },
       "shared_memories": [],
-      "important_events": [],
+      "important_events": [
+        "2026五一档《消失的人》公开上映并取得较强档期表现",
+        "2026-05《主角》央视一套播出，饰演忆秦娥",
+        "2026-06起公开进组《无孔不入》等电影",
+        "2026-09《美顺与长生》宣发物料与过审消息公开",
+        "2026-09末时尚芭莎十月刊封面相关公开活动"
+      ],
       "important_promises": [],
-      "unresolved_threads": [],
-      "current_mood": "礼貌、略紧、工作模式"
+      "unresolved_threads": [
+        "四季度公开行程已满，星衡侧新戏提案如何插队或等待"
+      ],
+      "current_mood": "礼貌、克制、工作模式；略显行程紧"
     },
     "su_qingran": {
       "name": "苏清然",
@@ -65,14 +74,14 @@
       "relationships_with_others": {
         "刘浩存": "普通同事 · 偶有比较"
       },
-      "current_goal": "争取春序护肤代言",
-      "current_project": "春序护肤年度代言洽谈",
+      "current_goal": "争取品牌商务",
+      "current_project": null,
       "current_mood": "外表从容",
       "shared_memories": [],
       "important_events": [],
       "important_promises": [],
       "unresolved_threads": [],
-      "note": "完整 Skill 未建；需要出场时按模板扩写"
+      "note": "虚构；完整 Skill 未建"
     },
     "fang_zhixia": {
       "name": "方知夏",
@@ -91,42 +100,36 @@
       "relationships_with_others": {
         "刘浩存": "竞争 · 公开客气"
       },
-      "current_goal": "拿下《潮声未歇》女主",
-      "current_project": "潮声未歇",
+      "current_goal": "抢同类型女主盘",
+      "current_project": null,
       "current_mood": "锋利、礼貌",
       "shared_memories": [],
       "important_events": [],
       "important_promises": [],
       "unresolved_threads": [],
-      "note": "完整 Skill 未建；需要出场时按模板扩写"
+      "note": "虚构；完整 Skill 未建"
     }
   },
   "active_projects": [
-    {
-      "id": "proj_tide_echo",
-      "name": "潮声未歇",
-      "stage": "选角",
-      "priority": "high"
-    },
-    {
-      "id": "proj_brand_spring",
-      "name": "春序护肤年度代言洽谈",
-      "stage": "筹备",
-      "priority": "medium"
-    }
+    { "id": "proj_meishun", "name": "美顺与长生", "stage": "待播宣发", "priority": "high", "source": "public" },
+    { "id": "proj_ubiquitous", "name": "无孔不入", "stage": "拍摄/后期过渡", "priority": "high", "source": "public" },
+    { "id": "proj_bazaar_oct", "name": "时尚芭莎十月刊", "stage": "宣发", "priority": "medium", "source": "public" },
+    { "id": "proj_xingheng_q4_sync", "name": "星衡四季度协同会", "stage": "进行中", "priority": "high", "source": "game_au" }
   ],
   "recent_events": [
-    "《潮声未歇》进入女主候选沟通阶段",
-    "投资方要求两周内给出倾向人选"
+    "《主角》《消失的人》带动公开讨论回升",
+    "下半年多部电影公开进组信息流传",
+    "《美顺与长生》暖冬海报与过审消息公开",
+    "时尚芭莎十月刊封面宣发落地"
   ],
   "next_possible_hooks": [
-    "会议室里听刘浩存讲对剧本后半段的理解",
-    "周曼会后单独提醒档期与品牌冲突",
-    "何岚希望老板表态是否倾向内部签约艺人",
-    "方知夏阵营放出愿意提前试镜的消息"
+    "会议室对齐《美顺与长生》宣发与电影补拍是否冲突",
+    "她提起角色训练或「有一点倔」的专业坚持",
+    "周曼提醒商务杂志义务已经排满",
+    "星衡想塞新本子，被档期现实卡住"
   ],
   "pending_scene": {
-    "summary": "《潮声未歇》女主候选沟通会开始，刘浩存在座",
-    "present": ["player", "liu_haocun", "何岚", "陈予安", "周曼"]
+    "summary": "四季度档期协同会，刘浩存在座",
+    "present": ["player", "liu_haocun", "周曼"]
   }
 }

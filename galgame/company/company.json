@@ -1,20 +1,21 @@
 {
   "name": "星衡影业",
+  "fiction": true,
   "cash": 28000000,
   "currency": "CNY",
-  "reputation": 62,
-  "industry_influence": 48,
+  "reputation": 64,
+  "industry_influence": 50,
   "focus": ["电影", "电视剧", "艺人经纪", "品牌商务"],
   "signed_artists": ["liu_haocun", "su_qingran"],
   "employees": [
-    {"name": "周曼", "role": "艺人经纪人", "notes": "刘浩存经纪人"},
-    {"name": "何岚", "role": "制片人", "notes": "《潮声未歇》制片"},
-    {"name": "赵屿", "role": "商务总监", "notes": "品牌与代言"}
+    {"name": "周曼", "role": "艺人经纪人（游戏AU·星衡侧对接）", "notes": "对接刘浩存日程；公开经纪信息见角色anchors中的郭亭婷"},
+    {"name": "何岚", "role": "制片人", "notes": "负责星衡侧联合出品沟通"},
+    {"name": "赵屿", "role": "商务总监", "notes": "品牌与杂志协同"}
   ],
-  "status_summary": "中型娱乐公司，现金流尚可，需要一部口碑作打开上升通道。",
+  "status_summary": "虚构中型公司。重点女演员的公开作品与活动对齐现实；公司会议与内部提案为AU。",
   "story_hooks": [
-    "新电影需要定女主",
-    "品牌方在观望头部女星档期",
-    "竞争公司近期高调挖人"
+    "公开片单已满，星衡新提案难插队",
+    "《美顺与长生》宣发窗口临近",
+    "敏感题材电影的口径管理"
   ]
 }

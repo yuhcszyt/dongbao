@@ -18,10 +18,12 @@ Agent 会按 `.cursor/skills/galgame-entertainment/SKILL.md` 严格加载本目�
 |------|------|
 | `GAME.md` | 总规则、状态机、输出格式、写回约定 |
 | `WORLD.md` | 世界与公司设定、事件池、开局建议 |
-| `skills/liu-haocun/` | 刘浩存角色 Skill |
-| `skills/characters/_template/` | 新角色模板 |
-| `company/company.json` | 轻量公司状态 |
-| `projects/projects.json` | 项目列表 |
+| `skills/liu-haocun/` | 刘浩存角色 Skill（含 `anchors.md` 公开近况） |
+| `skills/characters/REALITY.md` | 现实女星检索与建卡硬规则 |
+| `skills/characters/ROSTER.md` | 角色名册与扩容占位 |
+| `skills/characters/_template/` | 新角色模板（含 anchors） |
+| `company/company.json` | 轻量公司状态（虚构 AU） |
+| `projects/projects.json` | 项目列表（`public` / `game_au`） |
 | `saves/current.json` | 当前存档（权威状态） |
 | `saves/history/` | 节点备份 |
 

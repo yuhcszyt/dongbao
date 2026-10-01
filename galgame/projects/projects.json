@@ -1,46 +1,95 @@
 {
   "projects": [
     {
-      "id": "proj_tide_echo",
-      "name": "潮声未歇",
+      "id": "proj_vanished",
+      "name": "消失的人",
       "type": "电影",
-      "stage": "选角",
-      "budget": 120000000,
-      "director": "陈予安",
-      "producer": "何岚",
-      "cast": {
-        "female_lead_candidates": ["liu_haocun", "fang_zhixia"],
-        "confirmed": []
-      },
-      "priority": "high",
-      "problems": [
-        "女主人选未定",
-        "投资方希望尽快锁档期"
-      ],
-      "upcoming_events": [
-        "女主候选沟通会",
-        "剧本围读（待定）"
-      ],
-      "notes": "都市情感题材，后半段情绪戏重，适合检验演技。"
+      "stage": "上映后长尾 / 口碑期",
+      "source": "public",
+      "budget": null,
+      "director": null,
+      "cast": { "confirmed": ["liu_haocun"] },
+      "priority": "medium",
+      "problems": [],
+      "upcoming_events": ["零星商务联动、长尾访谈"],
+      "notes": "2026五一档公开上映；悬疑；角色林雨彤。公开票房与口碑表现较好。"
     },
     {
-      "id": "proj_brand_spring",
-      "name": "春序护肤年度代言洽谈",
-      "type": "品牌代言",
-      "stage": "筹备",
-      "budget": 8000000,
+      "id": "proj_protagonist",
+      "name": "主角",
+      "type": "电视剧",
+      "stage": "播毕 / 余热",
+      "source": "public",
+      "budget": null,
       "director": null,
-      "cast": {
-        "talent_candidates": ["liu_haocun", "su_qingran"]
-      },
+      "cast": { "confirmed": ["liu_haocun"] },
+      "role": "忆秦娥",
       "priority": "medium",
-      "problems": [
-        "品牌方临时提出希望更『松弛感』形象"
-      ],
-      "upcoming_events": [
-        "商务见面"
-      ],
-      "notes": "可能与电影档期冲突。"
+      "problems": [],
+      "upcoming_events": ["奖项季/二创讨论可能持续"],
+      "notes": "2026-05-10央视一套开播；秦腔名伶跨年龄段。公开报道强调封闭训练与戏曲功法。"
+    },
+    {
+      "id": "proj_ubiquitous",
+      "name": "无孔不入",
+      "type": "电影",
+      "stage": "拍摄 / 后期过渡（以组讯为准）",
+      "source": "public",
+      "budget": null,
+      "director": "沙漠",
+      "cast": { "confirmed": ["liu_haocun", "peng_yuchang"] },
+      "priority": "high",
+      "problems": ["题材敏感，宣发口径需谨慎"],
+      "upcoming_events": ["补拍或后期沟通", "概念物料"],
+      "notes": "2026-06深圳开机公开组讯；反偷拍/网络隐私向。"
+    },
+    {
+      "id": "proj_meishun",
+      "name": "美顺与长生",
+      "type": "电视剧",
+      "stage": "待播宣发",
+      "source": "public",
+      "budget": null,
+      "director": "李路",
+      "cast": { "confirmed": ["liu_haocun", "huang_xuan"] },
+      "priority": "high",
+      "problems": ["年底窗口与电影档期可能打架"],
+      "upcoming_events": ["海报/预告", "平台宣发会"],
+      "notes": "公开信息指向湖南卫视+芒果TV；2026-09有暖冬海报与过审集数调整报道。"
+    },
+    {
+      "id": "proj_detective_chinatown_spin",
+      "name": "唐探番外：王者归来",
+      "type": "电影",
+      "stage": "拍摄相关（公开组讯级）",
+      "source": "public",
+      "cast": { "confirmed": ["liu_haocun", "xiao_yang"] },
+      "priority": "medium",
+      "problems": [],
+      "upcoming_events": [],
+      "notes": "2026下半年公开进组信息之一；细节以后续官宣为准。"
+    },
+    {
+      "id": "proj_bazaar_oct",
+      "name": "时尚芭莎十月刊封面",
+      "type": "杂志",
+      "stage": "宣发进行中",
+      "source": "public",
+      "priority": "medium",
+      "problems": [],
+      "upcoming_events": ["封面销量与话题长尾"],
+      "notes": "2026-09末公开「来自中国」主题/40周年银十相关物料。"
+    },
+    {
+      "id": "proj_xingheng_q4_sync",
+      "name": "星衡四季度艺人协同会",
+      "type": "公司活动",
+      "stage": "进行中",
+      "source": "game_au",
+      "priority": "high",
+      "problems": ["公开片单已满，星衡侧新提案空间有限"],
+      "upcoming_events": ["与刘浩存对齐宣发边界与休息窗口"],
+      "notes": "纯游戏 AU：用来产生老板与艺人互动，不冒充现实项目。"
     }
   ]
 }
