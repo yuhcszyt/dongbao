@@ -1,0 +1,56 @@
+# 基础层：给所有 agent 共用的知识库（Qdrant + kb-mcp）
+#
+# 只做两件事：存向量、按语义检索。不做会话记忆——那是 hindsight 的事，单独一个 compose。
+# 2C2G 上跑，内存预算约 1G，故意不放任何 embedding 模型（全走 API）。
+
+name: base-layer
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.13.2
+    container_name: qdrant
+    restart: unless-stopped
+    environment:
+      # 必须非空：Qdrant 把空字符串当成「已启用鉴权但 key 为空」，会拒绝所有请求
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?set QDRANT_API_KEY in .env}
+      QDRANT__TELEMETRY_DISABLED: "true"
+      QDRANT__LOG_LEVEL: WARN
+    volumes:
+      - qdrant-data:/qdrant/storage
+    ports:
+      # 默认只听 127.0.0.1；上服务器时改成 Tailscale IP，例如 QDRANT_BIND=100.x.x.x
+      - "${QDRANT_BIND:-127.0.0.1}:6333:6333"
+    mem_limit: 640m
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/6333'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  kb-mcp:
+    build: ./kb-mcp
+    container_name: kb-mcp
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY:?set QDRANT_API_KEY in .env}
+      KB_PORT: "8800"
+      KB_TRANSPORT: streamable-http
+    ports:
+      - "${KB_BIND:-127.0.0.1}:8800:8800"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    mem_limit: 320m
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8800'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  qdrant-data:
