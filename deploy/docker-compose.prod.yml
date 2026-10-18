@@ -50,10 +50,11 @@ services:
       CRY_DETECTOR_PATH: ${CRY_DETECTOR_PATH:-/app/data/models/cry-detector}
       SEED_PATH: ${SEED_PATH:-/app/data/rag/parenting_seed.json}
     volumes:
-      - ./config:/app/config:ro
-      - ./data/media:/app/data/media
-      - ./data/models:/app/data/models:ro
-      - ./data/rag:/app/data/rag:ro
+      # 相对路径基于本文件所在目录（deploy/），真实 config/data 在仓库根
+      - ../config:/app/config:ro
+      - ../data/media:/app/data/media
+      - ../data/models:/app/data/models:ro
+      - ../data/rag:/app/data/rag:ro
     depends_on:
       postgres:
         condition: service_healthy
