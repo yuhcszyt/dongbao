@@ -20,9 +20,7 @@ services:
       - "100.91.158.117:8888:8888"
       - "100.91.158.117:9999:9999"
     environment:
-      HINDSIGHT_API_MCP_EXTENSION: global_memory:GlobalMCP
       HINDSIGHT_API_OPERATION_VALIDATOR_EXTENSION: global_memory:GlobalHooks
-      GLOBAL_MEMORY_DB: /home/hindsight/.pg0/global-memory.sqlite3
       GLOBAL_MEMORY_BANK: global
       HINDSIGHT_API_WORKER_ID: ${HINDSIGHT_API_WORKER_ID:-hindsight-ali-edge}
       HINDSIGHT_API_LOG_LEVEL: ${HINDSIGHT_API_LOG_LEVEL:-info}
@@ -30,7 +28,7 @@ services:
       # ---- MCP：客户端统一连 http://<host>:8888/mcp/ （不带 bank 路径）= multi-bank 模式 ----
       # 该模式下所有工具都带 bank_id 参数，一套工具服务任意多个 bank，不会随 bank 数量线性膨胀。
       # 对比：连 /mcp/<bank>/ 是 single-bank 模式，每个 bank 会重复挂一整套工具，bank 一多就撑爆上下文。
-      HINDSIGHT_API_MCP_INSTRUCTIONS: "每次开始项目任务主动 recall，完成有价值工作后 retain。bank_id 使用当前 Git 仓库名；不确定才用 default。服务端 recall/reflect 自动参考项目与 global，项目成功写入后自动提炼可复用经验到 global。无需用户指定 bank。项目内容要去除密钥和个人敏感信息，更新同一事实使用稳定 document_id 与 replace。工具描述是行为建议，不代表客户端自动 hooks。"
+      HINDSIGHT_API_MCP_INSTRUCTIONS: "每次开始项目任务主动 recall，完成有价值工作后 retain。bank_id 使用当前 Git 仓库名；不确定才用 default。需要跨项目可复用经验时，再调一次 recall 并传 bank_id=global。项目 retain 成功后服务端会内联判断并提炼可复用经验到 global，无定时任务、无后台轮询。无需用户指定 bank。项目内容要去除密钥和个人敏感信息，更新同一事实使用稳定 document_id 与 replace。工具描述是行为建议，不代表客户端自动 hooks。"
 
       # ---- LLM：腾讯 tokenhub ----
       HINDSIGHT_API_LLM_PROVIDER: ${HINDSIGHT_API_LLM_PROVIDER:-openai}

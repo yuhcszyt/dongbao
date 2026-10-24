@@ -1,7 +1,6 @@
-"""Live test driver: python e2e.py prepare|query|repeat|cleanup. No credentials."""
+"""Live test driver: python e2e.py prepare|query|repeat|cleanup|purge. No credentials."""
 import json
 import sys
-import time
 from urllib.request import Request, urlopen
 
 BASE = 'http://100.91.158.117:8888'
@@ -15,7 +14,7 @@ TEXT = '''测试项目 A 完成了一次 Docker DNS 排错，已验证修复：�
 def http(method, path, data=None, headers=None):
     req = Request(BASE + path, data=None if data is None else json.dumps(data).encode(),
                   method=method, headers={'Content-Type': 'application/json', **(headers or {})})
-    with urlopen(req, timeout=180) as r:
+    with urlopen(req, timeout=300) as r:
         raw = r.read().decode()
         events = [line[6:] for line in raw.splitlines() if line.startswith('data: ')]
         if events:
@@ -62,19 +61,21 @@ def main():
         call('create_bank', {'bank_id': B})
         print(call('retain', {'bank_id': A, 'document_id': DOC, 'content': TEXT}), flush=True)
     elif mode == 'query':
-        result = call('recall', {'bank_id': B, 'query': 'Docker container DNS could not resolve host，宿主机正常，怎么排查修复？', 'max_tokens': 2000})
-        assert result['banks_searched'] == [B, GLOBAL], result
-        assert any(x['source_bank'] == GLOBAL for x in result['results']), result
-        print(json.dumps(result, ensure_ascii=False), flush=True)
+        # Cross-project read is a client action: recall the shared bank explicitly.
+        result = call('recall', {'bank_id': GLOBAL, 'query': 'Docker container DNS could not resolve host，宿主机正常，怎么排查修复？', 'max_tokens': 2000})
+        assert result.get('results'), list(result)
+        blob = json.dumps(result, ensure_ascii=False)
+        assert 'DNS' in blob or 'Docker' in blob, blob[:600]
+        print(json.dumps(result, ensure_ascii=False)[:2500], flush=True)
     elif mode == 'repeat':
         print(call('retain', {'bank_id': A, 'document_id': DOC, 'content': TEXT}), flush=True)
     elif mode == 'cleanup':
         for bank in [A, B]:
             print(call('delete_bank', {'bank_id': bank}), flush=True)
-    elif mode == 'reflect':
-        result = call('reflect', {'bank_id': B, 'query': 'Docker container DNS解析失败而宿主正常应该如何排查？', 'max_tokens': 500})
-        assert result['global_memory_context']['banks_searched'] == [B, GLOBAL]
-        print(json.dumps(result, ensure_ascii=False), flush=True)
+    elif mode == 'purge':
+        # DANGER: wipes the shared bank. Only right after an e2e run.
+        print(call('clear_memories', {'bank_id': GLOBAL}), flush=True)
+
 
 if __name__ == '__main__':
     main()

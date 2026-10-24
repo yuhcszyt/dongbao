@@ -1,2 +1,0 @@
-# Single serialized, resource-bounded global experience worker. Existing 04:00 backup stays intact.
-* * * * * root /usr/bin/flock -n /run/hindsight-global-memory.lock /usr/bin/docker exec hindsight python /app/api/global_memory.py >> /var/log/hindsight-global-memory.log 2>&1

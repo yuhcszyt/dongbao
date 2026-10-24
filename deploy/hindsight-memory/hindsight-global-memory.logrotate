@@ -1,8 +1,0 @@
-/var/log/hindsight-global-memory.log {
-  weekly
-  rotate 4
-  compress
-  missingok
-  notifempty
-  copytruncate
-}

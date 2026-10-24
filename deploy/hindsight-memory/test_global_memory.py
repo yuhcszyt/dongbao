@@ -1,6 +1,6 @@
 import importlib.util
 import json
-import tempfile
+import os
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -9,92 +9,95 @@ spec = importlib.util.spec_from_file_location('gm', Path(__file__).with_name('gl
 gm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gm)
 
+ENV = {'HINDSIGHT_API_LLM_MODEL': 'test-model',
+       'HINDSIGHT_API_LLM_BASE_URL': 'https://llm.invalid/v1',
+       'HINDSIGHT_API_LLM_API_KEY': 'test-key'}
 
-def lesson(**kw):
-    return dict(key='docker-dns-resolution', existing_id=None, symptom='Docker DNS failure',
-                cause='Container resolver configuration', solution='Check resolver in container',
-                conditions='Docker bridge network', **kw)
+GOOD = {'topic': 'docker-dns', 'text': '容器内 DNS 解析失败时先检查 /etc/resolv.conf 是否被宿主机覆盖，适用 Docker 桥接网络'}
+
+
+class FakeResp:
+    def __init__(self, payload):
+        self.buf = json.dumps(payload).encode()
+
+    def read(self):
+        return self.buf
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+def chat(items):
+    return {'choices': [{'message': {'content': json.dumps({'lessons': items}, ensure_ascii=False)}}]}
 
 
 class GlobalMemoryTests(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.prev = gm.DB
-        gm.DB = str(Path(self.tmp.name) / 'state.sqlite')
-        gm.connect().close()
+    def promote(self, items, document=None, invalid=None, recall=None, docs=None):
+        """Run promote() with Hindsight REST stubbed; return the request mock."""
+        responses = [document if document is not None else {'original_text': 'some text'},
+                     invalid if invalid is not None else {'total': 0},
+                     recall if recall is not None else {'chunks': {}},
+                     docs if docs is not None else {'items': []}]
+        responses += [{'success': True}] * len(items)
+        with patch.dict(os.environ, ENV), patch.object(gm, 'urlopen') as opened, \
+                patch.object(gm, 'request', side_effect=responses) as req:
+            opened.side_effect = [FakeResp(chat(items))]
+            gm.promote('proj', 'doc')
+        return req
 
-    def tearDown(self):
-        gm.DB = self.prev
-        self.tmp.cleanup()
+    def test_promote_ignores_fallback_and_global_banks(self):
+        with patch.object(gm, 'request') as req, patch.object(gm, 'urlopen') as opened:
+            gm.promote('default', 'doc')
+            gm.promote('global', 'doc')
+            gm.promote('proj', '')
+        req.assert_not_called()
+        opened.assert_not_called()
 
-    def count(self, table):
-        with gm.connect() as c:
-            return c.execute('SELECT COUNT(*) FROM ' + table).fetchone()[0]
+    def test_promote_skips_missing_and_retired_documents(self):
+        cases = ((None, {'total': 1}, 1), ({'original_text': 'x'}, {'total': 1}, 2),
+                 ({'original_text': ''}, {'total': 0}, 2))
+        for document, invalid, calls in cases:
+            with patch.object(gm, 'request', side_effect=[document, invalid]) as req, \
+                    patch.object(gm, 'urlopen') as opened:
+                gm.promote('proj', 'doc')
+            self.assertEqual(req.call_count, calls, document)
+            opened.assert_not_called()
 
-    def test_outbox_ignores_fallback_and_global_and_deduplicates(self):
-        gm.enqueue('default', 'd')
-        gm.enqueue('global', 'd')
-        gm.enqueue('a', 'd')
-        gm.enqueue('a', 'd')
-        self.assertEqual(self.count('sources'), 1)
+    def test_promote_retains_lesson_into_global_bank(self):
+        req = self.promote([GOOD])
+        calls = [c for c in req.call_args_list if c.args[1].endswith('/memories')]
+        self.assertEqual(len(calls), 1)
+        self.assertIn('/banks/global/', calls[0].args[1])
+        item = calls[0].args[2]['items'][0]
+        self.assertEqual(item['content'], GOOD['text'])
+        self.assertIn('global-experience', item['tags'])
+        self.assertEqual(item['metadata']['source_bank'], 'proj')
 
-    def test_repeated_evidence_one_lesson(self):
-        gm.enqueue('a', 'd')
-        for _ in range(3):
-            gm.replace_evidence('a', 'd', [lesson()], 'hash')
-        self.assertEqual(self.count('evidence'), 1)
-        self.assertEqual(self.count('lessons'), 1)
+    def test_promote_without_lesson_never_retains(self):
+        req = self.promote([])
+        self.assertFalse(any(c.args[1].endswith('/memories') for c in req.call_args_list))
 
-    def test_cross_project_dedup_and_provenance(self):
-        for bank in ('a', 'b'):
-            gm.enqueue(bank, 'd')
-            gm.replace_evidence(bank, 'd', [lesson()], 'hash')
-        self.assertEqual(self.count('lessons'), 1)
-        with patch.object(gm, 'request', return_value={'success': True}) as req:
-            gm.publish()
-        self.assertIn('/banks/global/', req.call_args.args[1])
-        item = req.call_args.args[2]['items'][0]
-        self.assertEqual(json.loads(item['metadata']['sources']), [['a', 'd'], ['b', 'd']])
+    def test_llm_output_rejects_bad_topic(self):
+        with patch.dict(os.environ, ENV), patch.object(gm, 'urlopen') as opened:
+            opened.side_effect = [FakeResp(chat([{'topic': 'Bad Topic!', 'text': 'x' * 40}]))]
+            with self.assertRaises(ValueError):
+                gm.llm_lessons('source', [], [])
 
-    def test_no_republish_unchanged(self):
-        gm.enqueue('a', 'd')
-        gm.replace_evidence('a', 'd', [lesson()], 'hash')
-        with patch.object(gm, 'request', return_value={'success': True}) as req:
-            gm.publish()
-            gm.replace_evidence('a', 'd', [lesson()], 'hash')
-            gm.publish()
-            self.assertEqual(req.call_count, 1)
+    def test_llm_output_rejects_secrets_and_short_text(self):
+        for item in ({'topic': 'ok', 'text': 'password=hunter2 ' + 'x' * 40}, {'topic': 'ok', 'text': 'short'}):
+            with patch.dict(os.environ, ENV), patch.object(gm, 'urlopen') as opened:
+                opened.side_effect = [FakeResp(chat([item]))]
+                with self.assertRaises(ValueError):
+                    gm.llm_lessons('source', [], [])
 
-    def test_retract_deleted_source(self):
-        gm.enqueue('a', 'd')
-        gm.replace_evidence('a', 'd', [lesson()], 'hash')
-        with gm.connect() as c:
-            row = c.execute('SELECT * FROM sources').fetchone()
-        with patch.object(gm, 'request', return_value=None):
-            gm.process_source(row)
-        self.assertEqual(self.count('evidence'), 0)
-        with patch.object(gm, 'request', return_value=None) as req:
-            gm.publish()
-            self.assertEqual(req.call_args.args[0], 'DELETE')
-            self.assertIn('/banks/global/', req.call_args.args[1])
-
-    def test_partial_invalidation_retracts_conservatively(self):
-        gm.enqueue('a', 'd')
-        gm.replace_evidence('a', 'd', [lesson()], 'hash')
-        with gm.connect() as c:
-            row = c.execute('SELECT * FROM sources').fetchone()
-        with patch.object(gm, 'request', side_effect=[{'original_text': 'new'}, {'total': 1}]):
-            gm.process_source(row)
-        self.assertEqual(self.count('evidence'), 0)
-
-    def test_publication_failure_remains_dirty(self):
-        gm.enqueue('a', 'd')
-        gm.replace_evidence('a', 'd', [lesson()], 'hash')
-        with patch.object(gm, 'request', side_effect=TimeoutError):
-            with self.assertRaises(TimeoutError):
-                gm.publish()
-        with gm.connect() as c:
-            self.assertEqual(c.execute('SELECT dirty FROM lessons').fetchone()[0], 1)
+    def test_llm_output_rejects_too_many_lessons(self):
+        with patch.dict(os.environ, ENV), patch.object(gm, 'urlopen') as opened:
+            opened.side_effect = [FakeResp(chat([GOOD, GOOD, GOOD]))]
+            with self.assertRaises(ValueError):
+                gm.llm_lessons('source', [], [])
 
     def test_sensitive_data_redaction(self):
         text = 'password=not-real api_key=demo-value 13812345678 person@example.com 192.0.2.1 /Users/alice/app'
@@ -102,26 +105,19 @@ class GlobalMemoryTests(unittest.TestCase):
         for sensitive in ['not-real', 'demo-value', '13812345678', 'person@example.com', '192.0.2.1', 'alice']:
             self.assertNotIn(sensitive, clean)
 
-    def test_merge_keeps_origin_and_partial_error(self):
-        value = gm.merged([('a', {'results': [{'id': '1', 'text': 'one'}]}), ('default', {'error': 'timeout'})])
-        self.assertEqual(value['results'][0]['source_bank'], 'a')
-        self.assertIn('default', value['errors'])
+    def test_existing_lessons_reads_chunks_and_topics(self):
+        with patch.object(gm, 'request', side_effect=[{'chunks': {'a': {'text': 'old lesson'}}},
+                                                      {'items': [{'tags': ['global-experience', 'topic:docker-dns']}]}]):
+            chunks, topics = gm.existing_lessons('text')
+        self.assertEqual(chunks, ['old lesson'])
+        self.assertEqual(topics, ['docker-dns'])
 
-    def test_fallback_bounded_relevant_only(self):
-        for bank in ('a', 'b', 'c', 'd'):
-            gm.enqueue(bank, 'doc')
-            gm.replace_evidence(bank, 'doc', [lesson()], 'hash')
-        self.assertEqual(len(gm.related_banks('Docker DNS', {'a'})), 2)
-        self.assertEqual(gm.related_banks('unrelated bananas', set()), [])
+    def test_promote_reuses_topic_so_same_lesson_is_replaced(self):
+        req = self.promote([GOOD], docs={'items': [{'tags': ['topic:' + GOOD['topic']]}]})
+        item = [c for c in req.call_args_list if c.args[1].endswith('/memories')][0].args[2]['items'][0]
+        self.assertEqual(item['update_mode'], 'replace')
+        self.assertEqual(item['document_id'], 'gm-' + gm.digest(GOOD['topic'])[:24])
 
-    def test_source_changed_during_extraction_is_not_published(self):
-        gm.enqueue('a', 'd')
-        with gm.connect() as c:
-            row = c.execute('SELECT * FROM sources').fetchone()
-        with patch.object(gm, 'request', side_effect=[{'original_text': 'first'}, {'total': 0}, {'original_text': 'second'}]), patch.object(gm, 'candidates_for', return_value=[]), patch.object(gm, 'extract', return_value=[lesson()]):
-            with self.assertRaises(RuntimeError):
-                gm.process_source(row)
-        self.assertEqual(self.count('evidence'), 0)
 
 if __name__ == '__main__':
     unittest.main()
