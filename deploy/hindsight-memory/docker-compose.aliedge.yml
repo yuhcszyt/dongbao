@@ -1,0 +1,67 @@
+# Hindsight — ali-edge（阿里云 2C2G）外部记忆服务
+# 端口只绑 Tailscale IP（100.91.158.117），公网不可达；nginx 已停用（本机不再做反代）
+#
+# 2026-10-24 改造：embedding / reranker 全部改走硅基流动远程 API，
+# 本机不再加载本地模型（原来 bge-small-en-v1.5 + MiniLM 常驻内存 ~780M，2G 机器扛不住）。
+# 注意：换 embedding 模型会改变向量维度（384 -> 1024），hindsight 不允许在有数据的表上改维度，
+# 所以首次切换必须重建数据卷（docker compose down -v）。
+#
+# 首次启动注意：容器首次起来可能因 pg0 残留 pid 报 "Instance already running" 崩一次，
+# restart 策略会自动拉起，属正常现象。
+
+services:
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight@sha256:50311d02b4d5d2b7c5242bd336edf8735df8374eaad496a92f49c83b37d2aa06
+    container_name: hindsight
+    restart: unless-stopped
+    shm_size: 256m
+    mem_limit: 900m
+    ports:
+      - "100.91.158.117:8888:8888"
+      - "100.91.158.117:9999:9999"
+    environment:
+      HINDSIGHT_API_MCP_EXTENSION: global_memory:GlobalMCP
+      HINDSIGHT_API_OPERATION_VALIDATOR_EXTENSION: global_memory:GlobalHooks
+      GLOBAL_MEMORY_DB: /home/hindsight/.pg0/global-memory.sqlite3
+      GLOBAL_MEMORY_BANK: global
+      HINDSIGHT_API_WORKER_ID: ${HINDSIGHT_API_WORKER_ID:-hindsight-ali-edge}
+      HINDSIGHT_API_LOG_LEVEL: ${HINDSIGHT_API_LOG_LEVEL:-info}
+
+      # ---- MCP：客户端统一连 http://<host>:8888/mcp/ （不带 bank 路径）= multi-bank 模式 ----
+      # 该模式下所有工具都带 bank_id 参数，一套工具服务任意多个 bank，不会随 bank 数量线性膨胀。
+      # 对比：连 /mcp/<bank>/ 是 single-bank 模式，每个 bank 会重复挂一整套工具，bank 一多就撑爆上下文。
+      HINDSIGHT_API_MCP_INSTRUCTIONS: "每次开始项目任务主动 recall，完成有价值工作后 retain。bank_id 使用当前 Git 仓库名；不确定才用 default。服务端 recall/reflect 自动参考项目与 global，项目成功写入后自动提炼可复用经验到 global。无需用户指定 bank。项目内容要去除密钥和个人敏感信息，更新同一事实使用稳定 document_id 与 replace。工具描述是行为建议，不代表客户端自动 hooks。"
+
+      # ---- LLM：腾讯 tokenhub ----
+      HINDSIGHT_API_LLM_PROVIDER: ${HINDSIGHT_API_LLM_PROVIDER:-openai}
+      HINDSIGHT_API_LLM_MODEL: ${HINDSIGHT_API_LLM_MODEL:-deepseek-v4-flash}
+      HINDSIGHT_API_LLM_BASE_URL: ${HINDSIGHT_API_LLM_BASE_URL:-https://tokenhub.tencentmaas.com/v1}
+      HINDSIGHT_API_LLM_API_KEY: ${HINDSIGHT_API_LLM_API_KEY:?set HINDSIGHT_API_LLM_API_KEY in .env}
+
+      # ---- Embedding：硅基流动 BAAI/bge-m3（1024 维，免费额度）----
+      HINDSIGHT_API_EMBEDDINGS_PROVIDER: openai
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY: ${SILICONFLOW_API_KEY:?set SILICONFLOW_API_KEY in .env}
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL: https://api.siliconflow.cn/v1
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL: BAAI/bge-m3
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_BATCH_SIZE: "32"
+      HINDSIGHT_API_EMBEDDINGS_MAX_CONCURRENT_REQUESTS: "4"
+
+      # ---- Reranker：硅基流动 BAAI/bge-reranker-v2-m3（免费额度）----
+      HINDSIGHT_API_ENABLE_RERANKING: "true"
+      HINDSIGHT_API_RERANKER_PROVIDER: siliconflow
+      HINDSIGHT_API_RERANKER_SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:?set SILICONFLOW_API_KEY in .env}
+      HINDSIGHT_API_RERANKER_SILICONFLOW_BASE_URL: https://api.siliconflow.cn/v1
+      HINDSIGHT_API_RERANKER_SILICONFLOW_MODEL: BAAI/bge-reranker-v2-m3
+      HINDSIGHT_API_RERANKER_SILICONFLOW_TIMEOUT: "60"
+    volumes:
+      - hindsight-data:/home/hindsight/.pg0
+      - ./global_memory.py:/app/api/global_memory.py:ro
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8888'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+volumes:
+  hindsight-data:
