@@ -1,0 +1,22 @@
+{
+  "name": "懂宝 1.3",
+  "appid": "",
+  "description": "懂宝交互版，微信小程序优先",
+  "versionName": "1.3.0",
+  "versionCode": "130",
+  "transformPx": false,
+  "h5": {
+    "router": {
+      "mode": "hash"
+    }
+  },
+  "mp-weixin": {
+    "appid": "wxddfd2a5610b90fec",
+    "setting": {
+      "urlCheck": true,
+      "es6": true,
+      "minified": true
+    },
+    "usingComponents": true
+  }
+}

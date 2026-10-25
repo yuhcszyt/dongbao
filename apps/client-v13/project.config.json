@@ -1,0 +1,11 @@
+{
+  "description": "懂宝 1.3 独立小程序",
+  "miniprogramRoot": "dist/build/mp-weixin/",
+  "appid": "wxddfd2a5610b90fec",
+  "projectname": "dongbao-v13",
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "minified": true
+  }
+}
