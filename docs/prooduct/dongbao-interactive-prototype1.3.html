@@ -87,7 +87,7 @@
   .t-row{display:grid;grid-template-columns:18px 52px 1fr;gap:9px;align-items:start;padding:10px 0;position:relative}
   .dot{width:10px;height:10px;border:3px solid #fff;border-radius:50%;margin-top:4px;box-shadow:0 0 0 2px currentColor;background:currentColor;z-index:1}
   .t-time{font-size:12px;color:#777e97;padding-top:1px}.t-main{font-size:13px}.t-main strong{font-weight:850}.t-sub{font-size:11px;color:#9297a9;margin-top:4px}
-  .nav{position:absolute;left:0;right:0;bottom:0;height:76px;background:rgba(255,255,255,.94);backdrop-filter:blur(18px);border-top:1px solid #eceef4;display:grid;grid-template-columns:repeat(5,1fr);z-index:60;padding-bottom:env(safe-area-inset-bottom)}
+  .nav{position:absolute;left:0;right:0;bottom:0;height:76px;background:rgba(255,255,255,.94);backdrop-filter:blur(18px);border-top:1px solid #eceef4;display:grid;grid-template-columns:repeat(4,1fr);z-index:60;padding-bottom:env(safe-area-inset-bottom)}
   .nav button{border:0;background:transparent;color:#9499ab;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px}
   .nav button .n-ico{font-size:20px;line-height:1}.nav button.active{color:var(--primary);font-weight:850}
   .chat-wrap{padding:4px 14px 108px}
@@ -171,6 +171,12 @@
               <div class="t-row"><div class="dot" style="color:#30bf71"></div><div class="t-time">10:30</div><div class="t-main"><strong>辅食</strong><div class="t-sub">鸡肉蔬菜粥 · 半碗</div></div></div>
               <div class="t-row"><div class="dot" style="color:#6d5cf7"></div><div class="t-time">13:00</div><div class="t-main"><strong>小睡 1h20min</strong><div class="t-sub">午睡</div></div></div>
             </div>
+          </div>
+          <div class="section-title">为你推荐</div>
+          <div class="card" style="margin-top:0">
+            <div class="article" data-article="feeding-guide"><div class="thumb">🥗</div><div><b>8个月宝宝辅食添加指南</b><p>从泥糊到小块，怎么吃更科学？</p><small>12.3k 阅读 · 专业医生</small></div></div>
+            <div class="article" data-article="night-wake"><div class="thumb">👶</div><div><b>宝宝夜醒的常见原因与应对方法</b><p>陪伴睡眠训练的关键步骤</p><small>8.7k 阅读 · 儿科医生</small></div></div>
+            <button class="primary-btn wide" style="margin-top:12px" data-nav="discover">推荐文章 →</button>
           </div>
         </div>
       </section>
@@ -272,9 +278,9 @@
         <div class="content hidden" id="growthMilestonePanel"><div class="card"><div class="section-title" style="margin-top:0">里程碑</div><div class="milestone"><div class="m-check">✓</div><div><b>会爬</b><span>已完成 · 8月12日</span></div></div><div class="milestone"><div class="m-check">✓</div><div><b>扶站</b><span>已完成 · 9月3日</span></div></div><div class="milestone"><div class="m-check">○</div><div><b>独立站立</b><span>待观察 · 通常 9–15 个月</span></div></div></div></div>
       </section>
 
-      <!-- 发现 -->
+      <!-- 推荐文章：由首页进入，保留原发现模块 -->
       <section class="page" data-page="discover">
-        <div class="header"><div class="header-title">发现</div><div style="width:38px"></div></div>
+        <div class="header"><button class="icon-btn" data-nav="home" aria-label="返回首页">‹</button><div class="header-title">推荐文章</div><div style="width:38px"></div></div>
         <div class="searchbar">⌕ <input id="articleSearch" placeholder="搜索育儿知识、文章、问题…"></div>
         <div class="rec-tabs"><button class="active" data-article-cat="推荐">为你推荐</button><button data-article-cat="当月">当月月龄</button><button data-article-cat="喂养">喂养</button><button data-article-cat="睡眠">睡眠</button><button data-article-cat="发育">发育</button></div>
         <div class="discover-hero"><div><h3>8个月宝宝<br>睡眠全攻略</h3><p>如何应对夜醒、睡眠倒退？</p><button class="primary-btn" data-article="sleep-guide">立即阅读</button></div><div class="sleep-ill">😴</div></div>
@@ -323,7 +329,6 @@
       <button class="active" data-nav="home"><span class="n-ico">⌂</span><span>首页</span></button>
       <button data-nav="ai"><span class="n-ico">◉</span><span>AI</span></button>
       <button data-nav="record"><span class="n-ico">▣</span><span>记录</span></button>
-      <button data-nav="discover"><span class="n-ico">◌</span><span>发现</span></button>
       <button data-nav="me"><span class="n-ico">♙</span><span>我的</span></button>
     </nav>
 
@@ -348,6 +353,8 @@
   const overlayTitle = document.getElementById('overlayTitle');
   const overlayBody = document.getElementById('overlayBody');
   let currentPage = 'home';
+  let homeScrollY = 0;
+  let articleScrollY = 0;
   let cryRunning = false, crySeconds = 0, cryInt = null;
   let recordDayOffset = 0;
   let curveMode = 0;
@@ -359,12 +366,15 @@
 
   function go(page){
     if(!pages.some(p=>p.dataset.page===page)) return;
+    const returningFromArticles = currentPage === 'discover' && page === 'home';
+    if(currentPage === 'home' && page === 'discover') homeScrollY = window.scrollY;
     currentPage = page;
     pages.forEach(p=>p.classList.toggle('active',p.dataset.page===page));
-    navBtns.forEach(b=>b.classList.toggle('active', b.dataset.nav===page));
-    if(!['home','ai','record','discover','me'].includes(page)) navBtns.forEach(b=>b.classList.remove('active'));
+    const activeTab = page === 'discover' ? 'home' : page;
+    navBtns.forEach(b=>b.classList.toggle('active', b.dataset.nav===activeTab));
     overlay.classList.remove('show');
     app.scrollTop = 0;
+    window.scrollTo(0, returningFromArticles ? homeScrollY : 0);
     if(page==='growth') renderChart();
   }
 
@@ -558,7 +568,7 @@
     'teething':{title:'出牙期护理全攻略',body:`<h2>出牙期护理</h2><p>可以使用干净的磨牙胶、冷藏后的咬咬乐等方式缓解牙龈不适。保持口腔清洁，避免使用未经医生建议的局部麻醉类产品。</p>`},
     'poop':{title:'宝宝便便颜色对照表',body:`<h2>宝宝便便颜色怎么看</h2><p>颜色受奶粉、辅食和肠道状态影响较大。观察时要结合性状、次数、宝宝精神状态和是否伴随血丝、持续腹泻等异常。</p>`}
   };
-  function openArticle(key){const a=articles[key]||articles['sleep-guide'];overlayTitle.textContent=a.title;overlayBody.innerHTML=a.body;overlay.classList.add('show');}
+  function openArticle(key){articleScrollY=window.scrollY;const a=articles[key]||articles['sleep-guide'];overlayTitle.textContent=a.title;overlayBody.innerHTML=a.body;overlay.classList.add('show');overlay.scrollTop=0;window.scrollTo(0,0);}
 
   function filterArticles(cat){
     document.querySelectorAll('[data-article-cat]').forEach(b=>b.classList.toggle('active',b.dataset.articleCat===cat));
@@ -597,7 +607,7 @@
       else if(a==='open-growth-record') quickRecord('身高体重');
       else if(a==='shuffle-articles') toast('已换一批推荐');
       else if(a==='article-sleep') openArticle('sleep-guide');
-      else if(a==='close-overlay') overlay.classList.remove('show');
+      else if(a==='close-overlay'){overlay.classList.remove('show');window.scrollTo(0,articleScrollY);}
       else if(a==='edit-profile') profileSection('基本信息');
       else if(a==='family') familyModal();
       else if(a==='export') {openModal(`<h3>数据导出</h3><p class="small">可按时间范围导出宝宝的喂养、睡眠、排便、成长和 AI 分析记录。</p><div class="form-row"><label>格式</label><select><option>CSV</option><option>JSON</option><option>PDF 报告</option></select></div><button class="primary-btn wide" id="doExport">开始导出</button>`);setTimeout(()=>document.getElementById('doExport').onclick=()=>toast('已生成导出任务（原型）'),0)}
