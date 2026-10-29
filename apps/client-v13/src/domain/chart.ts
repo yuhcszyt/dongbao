@@ -1,9 +1,13 @@
-// Local illustrative asset: no remote image requests and no browser DOM / canvas dependency.
-export const curveNames = ['身高曲线','体重曲线','头围曲线']
-export function chartSource(mode: number): string {
-  const series = [[160,145,125,105,90,78,69],[174,152,129,112,99,89,82],[152,126,107,92,80,72,65]][mode] || []
-  const points = series.map((y,i)=>`${30+i*50},${y}`).join(' ')
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="210" viewBox="0 0 360 210"><rect width="360" height="210" fill="white"/>${[45,80,115,150,185].map(y=>`<path d="M28 ${y}H340" stroke="#edf0f6"/>`).join('')}<polyline points="30,185 80,171 130,159 180,146 230,135 280,126 330,118" fill="none" stroke="#ffae43" stroke-width="2"/><polyline points="30,178 80,162 130,146 180,133 230,120 280,110 330,102" fill="none" stroke="#6bb8ff" stroke-width="2"/><polyline points="${points}" fill="none" stroke="#6759f6" stroke-width="3"/>${series.map((y,i)=>`<circle cx="${30+i*50}" cy="${y}" r="4" fill="#6759f6"/>`).join('')}${[0,2,4,6,8,10,12].map((m,i)=>`<text x="${27+i*50}" y="205" font-size="11" fill="#7b8098">${m}</text>`).join('')}</svg>`
+// Only actual measurements; no invented standards or percentile bands.
+export function chartSource(input: {date:string;value:number}[]): string {
+  const data=input.filter(p=>Number.isFinite(p.value)&&p.value>0).slice(-30)
+  if(!data.length)return ''
+  const values=data.map(p=>p.value),min=Math.min(...values),max=Math.max(...values)
+  const margin=Math.max((max-min)*0.15,0.5),low=min-margin,high=max+margin
+  const first=Date.parse(data[0]!.date),last=Date.parse(data[data.length-1]!.date)
+  const series=data.map(p=>({x:last===first?180:45+(Date.parse(p.date)-first)/(last-first)*275,y:180-(p.value-low)/(high-low)*150}))
+  const points=series.map(p=>`${p.x},${p.y}`).join(' ')
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="210" viewBox="0 0 360 210"><rect width="360" height="210" fill="white"/>${[0,1,2,3].map(i=>`<path d="M40 ${30+i*50}H340" stroke="#edf0f6"/><text x="2" y="${34+i*50}" font-size="10" fill="#7b8098">${(high-i*(high-low)/3).toFixed(1)}</text>`).join('')}<polyline points="${points}" fill="none" stroke="#6759f6" stroke-width="3"/>${series.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="4" fill="#6759f6"/>`).join('')}<text x="40" y="205" font-size="11" fill="#7b8098">${data[0]!.date}</text><text x="260" y="205" font-size="11" fill="#7b8098">${data[data.length-1]!.date}</text></svg>`
   return `data:image/svg+xml;base64,${asciiBase64(svg)}`
 }
 

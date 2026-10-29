@@ -1,381 +1,190 @@
 <script setup lang="ts">
-import { computed, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { onHide } from '@dcloudio/uni-app'
+import { api, session } from '@/services/api'
+import { API_BASE } from '@/services/config'
+import RecordForm from '@/components/RecordForm.vue'
+import { ageText, genderText, draftFormInitial, nowParts, toIsoDateTime, validateBabyProfile, RECORD_TYPES, type RecordInput, type RecordItem, type RecordType, type Baby } from '@/features/record/domain'
+import { createVoiceCapture } from '@/features/record/voiceCapture'
 import RecordTimeline from '../../components/RecordTimeline.vue'
-import { articleMatches, dateKey, decodeState, exportRecords, recordStats, seedState, selectRecords, shiftDateKey, STORAGE_KEY, validateRecord, type Range } from '../../domain/model'
-import { chartSource, curveNames } from '../../domain/chart'
+import FamilyPanel from '../../components/FamilyPanel.vue'
+import DiscoverPanel from '../../components/DiscoverPanel.vue'
+import BabyMetrics from '../../components/BabyMetrics.vue'
+import GrowthPanel from '../../components/GrowthPanel.vue'
+import { createWorkspace, answerText, errorText } from '../../domain/workspace'
+import { recordView, growthPoints } from '../../domain/presentation'
+import { dateKey, rangeLabel, exportRecords, recordStats, selectRecords, shiftDateKey, type Range } from '../../domain/model'
 
-const toast = (title: string) => uni.showToast({ title, icon:'none' })
-let initial = seedState()
-try {
-  const saved: unknown = uni.getStorageSync(STORAGE_KEY)
-  if (saved) {
-    const restored = decodeState(saved)
-    if (restored) initial = restored
-    else toast('本地数据格式异常，已加载演示数据')
-  }
-} catch { toast('暂时无法读取本地数据') }
-const state = reactive(initial)
-function persist(): boolean {
-  try { uni.setStorageSync(STORAGE_KEY, JSON.stringify(state)); return true }
-  catch { toast('本地保存失败，请导出备份后重试'); return false }
+const workspace=createWorkspace(api), state=workspace.state
+const page=ref('home'),modal=ref(''),infoTitle=ref(''),infoText=ref('')
+const range=ref<Range>('day'),selectedDate=ref(dateKey()),recordFilter=ref('全部')
+const chatInput=ref(''),recordInitial=ref<Partial<RecordInput>>({}),editId=ref(''),deletedId=ref('')
+const capturePurpose=ref<'record'|'chat'|'cry'>('record'),recording=ref(false),starting=ref(false),captureSeconds=ref(0),photo=ref('')
+const exportFormat=ref<'CSV'|'JSON'>('CSV')
+const homeQuickTypes=['feeding','sleep','complementary_food','stool','diaper','growth','medication'].map(type=>({...RECORD_TYPES.find(item=>item.value===type)!,icon:({feeding:'🍼',sleep:'🌙',complementary_food:'🥣',stool:'💩',diaper:'🩲',growth:'📈',medication:'💊'} as Record<string,string>)[type]}))
+const quickClasses:Record<string,string>={feeding:'i-feed',sleep:'i-sleep',complementary_food:'i-food',stool:'i-poop',diaper:'i-diaper',growth:'i-height',medication:'i-med'}
+const babyForm=reactive({nickname:'',birth_date:'',gender:'unknown' as Baby['gender']})
+const localError=ref(''),inviteBusy=ref(false),familyBusy=ref(false)
+const toast=(title:string)=>uni.showToast({title,icon:'none'})
+const canManage=computed(()=>state.family?.role==='owner'||state.family?.role==='admin')
+const views=computed(()=>state.records.map(recordView))
+const todayRecords=computed(()=>selectRecords(views.value,dateKey(),'day'))
+const visibleRecords=computed(()=>selectRecords(views.value,selectedDate.value,range.value,recordFilter.value))
+const stats=computed(()=>recordStats(selectRecords(views.value,selectedDate.value,range.value)))
+const filters=['全部',...RECORD_TYPES.map(r=>r.label)]
+const dateLabel=computed(()=>rangeLabel(selectedDate.value,range.value))
+const heightPoints=computed(()=>growthPoints(state.records,'height_cm')),weightPoints=computed(()=>growthPoints(state.records,'weight_kg'))
+const height=computed(()=>heightPoints.value.at(-1)?.value),weight=computed(()=>weightPoints.value.at(-1)?.value)
+const exportText=computed(()=>exportFormat.value==='JSON' ? JSON.stringify(state.records,null,2) : exportRecords(views.value,'CSV'))
+const actionBusy=computed(()=>workspace.busy() || inviteBusy.value || familyBusy.value || recording.value || starting.value)
+let timer: ReturnType<typeof setInterval>|undefined
+let mediaRevision=0
+let pendingMedia: {file:string|Blob;kind:'audio'|'image';duration?:number;purpose:'record'|'chat'|'cry'}|null=null
+
+function info(title:string,text:string){infoTitle.value=title;infoText.value=text;modal.value='info'}
+function unavailable(title:string){info(title,'此功能暂未开放。当前版本没有对应服务，暂不支持保存或提交。')}
+function requireBaby(){if(!state.ready){toast('请先连接服务并完成登录');return false}if(!state.baby){openBaby();return false}return true}
+function clearTimer(){if(timer)clearInterval(timer);timer=undefined;recording.value=false;starting.value=false}
+const voice=createVoiceCapture({
+  started(){starting.value=false;recording.value=true;captureSeconds.value=0;timer=setInterval(()=>{captureSeconds.value++;if(captureSeconds.value>=30)voice.stop()},1000)},
+  stopped(file,duration){clearTimer();pendingMedia={file,kind:'audio',duration,purpose:capturePurpose.value};void processMedia()},
+  failed(message,stillRecording){if(!stillRecording)clearTimer();localError.value=message},
+},{minimumMs:2000})
+function cancelMedia(){mediaRevision++;voice.cancel();clearTimer();workspace.cancelCapture();pendingMedia=null;photo.value=''}
+function closeModal(){if(state.busy.save||inviteBusy.value||familyBusy.value)return;cancelMedia();modal.value='';localError.value='';state.error=''}
+function navigate(destination:string){
+  if(state.busy.save||state.busy.switch||inviteBusy.value||familyBusy.value)return
+  cancelMedia();modal.value='';page.value=destination;localError.value=''
+  uni.pageScrollTo({scrollTop:0,duration:0})
+  if(destination==='ai'&&state.baby)void workspace.loadChat()
 }
-const page = ref('home')
-const modal = ref('')
-const article = ref('')
-const modalTitle = ref('')
-const modalText = ref('')
-const range = ref<Range>('day')
-const selectedDate = ref(dateKey())
-const recordFilter = ref('全部')
-const recordTypes = ['喂奶','睡眠','辅食','排便','尿布','身高体重','用药','体温','不适','疫苗','自定义']
-const recordFilters = ['全部',...recordTypes,'哭声分析']
-const growthTab = ref('data')
-const category = ref('推荐')
-const search = ref('')
-const chatInput = ref('')
-const curveMode = ref(0)
-const chartUrl = computed(()=>chartSource(curveMode.value))
-const todayLabel = computed(()=>dateKey().slice(5).replace('-','月')+'日')
-const todayRecords = computed(()=>selectRecords(state.records,dateKey(),'day'))
-const rangeRecords = computed(()=>selectRecords(state.records,selectedDate.value,range.value))
-const visibleRecords = computed(()=>selectRecords(state.records,selectedDate.value,range.value,recordFilter.value))
-const stats = computed(()=>recordStats(rangeRecords.value))
-const dateLabel = computed(()=>range.value==='month'?selectedDate.value.slice(0,7):range.value==='week'?`${selectedDate.value} 所在周`:selectedDate.value)
-function changeRecordFilter(e: { detail: { value: unknown } }) { recordFilter.value=recordFilters[Number(e.detail.value)] || '全部' }
-function navigate(destination:string) { stopCapture(); resetCry(); modal.value='';article.value='';page.value=destination;uni.pageScrollTo({scrollTop:0,duration:0}) }
-function setRange(value:string) { range.value=value as Range }
-function shiftDate(direction:string) { selectedDate.value=shiftDateKey(selectedDate.value,Number(direction),range.value) }
-function setGrowthTab(value:string) { growthTab.value=value }
-function setCategory(value:string) { category.value=value }
-const hasMatchingArticle = computed(()=>[['喂养','8个月宝宝辅食添加指南'],['睡眠','宝宝夜醒的常见原因与应对方法'],['发育','出牙期护理全攻略'],['喂养','宝宝便便颜色对照表']].some(([cat,title])=>articleMatches(category.value,search.value,cat!,title!)))
-function matchesArticle(cat:string,title:string) { return articleMatches(category.value,search.value,cat,title) }
-function toggleMilestone(name:string) { const index=state.milestones.indexOf(name); if(index<0)state.milestones.push(name);else state.milestones.splice(index,1);persist() }
-
-const draft = reactive({ type:'喂奶',date:dateKey(),time:'',value:'',note:'',source:'手动记录' })
-const defaults: Record<string,string> = { 喂奶:'180',睡眠:'60',辅食:'南瓜泥 50g',排便:'正常',尿布:'已更换',身高体重:'70cm / 8.2kg',用药:'',体温:'36.5' }
-function quickRecord(type:string, source='手动记录') {
-  stopCapture()
-  Object.assign(draft,{type,date:page.value==='record'?selectedDate.value:dateKey(),time:new Date().toTimeString().slice(0,5),value:defaults[type]||'',note:'',source})
+function shiftDate(direction:number){selectedDate.value=shiftDateKey(selectedDate.value,direction,range.value)}
+function selectFilter(event:unknown){recordFilter.value=filters[Number((event as {detail:{value:string}}).detail.value)]||'全部'}
+function quickRecord(type:RecordType){
+  if(!requireBaby())return
+  cancelMedia();editId.value='';state.error='';localError.value=''
+  recordInitial.value={record_type:type,payload:{kind:type},occurred_at:toIsoDateTime(page.value==='record'?selectedDate.value:nowParts().date,nowParts().time)}
   modal.value='record'
 }
-function saveRecord() {
-  const error=validateRecord(draft)
-  if(error) return toast(error)
-  state.records.push({...draft,id:`${Date.now()}-${Math.random().toString(36).slice(2)}`})
-  if (!persist()) {state.records.pop();return}
-  modal.value='';toast('记录已保存到本机')
+function moreRecord(title:string){
+  quickRecord(title==='疫苗'?'vaccine':'custom')
+  if(modal.value==='record'&&title!=='疫苗'&&title!=='自定义')recordInitial.value={...recordInitial.value,payload:{kind:'custom',title}}
 }
-function changeDraftDate(e:{detail:{value:string}}){draft.date=e.detail.value}
-function changeDraftTime(e:{detail:{value:string}}){draft.time=e.detail.value}
-let captureTimer: ReturnType<typeof setInterval> | undefined
-const captureSeconds = ref(0)
-const voicePurpose = ref<'record'|'chat'>('record')
-const photo = ref('')
-function stopCapture(){ if(captureTimer)clearInterval(captureTimer);captureTimer=undefined }
-function closeModal(){stopCapture();modal.value=''}
-function startVoice(){voicePurpose.value='record';beginVoice()}
-function beginVoice(){stopCapture();captureSeconds.value=0;modal.value='voice';captureTimer=setInterval(()=>{captureSeconds.value++;if(captureSeconds.value>=8)finishVoice()},1000)}
-function finishVoice(){stopCapture();if(voicePurpose.value==='chat'){chatInput.value='宝宝最近为什么晚上总醒？';closeModal();return}quickRecord('喂奶','语音演示');draft.note='演示转写：喂了 180 毫升配方奶，请核对';modal.value='record'}
-function startPhoto(){photo.value='';modal.value='photo'}
-function choosePhoto(source:'camera'|'album') {
-  uni.chooseImage({count:1,sizeType:['compressed'],sourceType:[source],success(result){photo.value=result.tempFilePaths[0]||''},fail(){toast('未选择图片，可使用示例体验')}})
+function editRecord(id:string){
+  if(!requireBaby())return
+  const record=state.records.find(row=>row.id===id);if(!record)return
+  cancelMedia();editId.value=id;recordInitial.value={...record};state.error='';modal.value='record'
 }
-function photoDraft(){quickRecord('喂奶','拍照演示');draft.value='160';draft.note='示例草稿：请手动核对实际奶量（未进行图像识别）'}
-const cryRunning=ref(false),cryReady=ref(false),crySeconds=ref(0),crySaved=ref(false)
-let cryTimer: ReturnType<typeof setInterval> | undefined
-function resetCry(){if(cryTimer)clearInterval(cryTimer);cryTimer=undefined;cryRunning.value=false;cryReady.value=false;crySeconds.value=0;crySaved.value=false}
-function finishCry(){if(cryTimer)clearInterval(cryTimer);cryTimer=undefined;cryRunning.value=false;cryReady.value=true}
-function toggleCry(){if(cryRunning.value)return finishCry();resetCry();cryRunning.value=true;cryTimer=setInterval(()=>{crySeconds.value++;if(crySeconds.value>=30)finishCry()},1000)}
-function saveCry(){
-  if(!cryReady.value)return toast('请先完成一次演示分析')
-  if(crySaved.value)return toast('本次结果已保存')
-  state.records.push({id:`cry-${Date.now()}`,date:dateKey(),time:new Date().toTimeString().slice(0,5),type:'哭声分析',value:'演示结果：饥饿 42% · 困倦 28% · 胀气 20% · 不适 10%',note:'模拟数据，不代表真实分析',source:'哭声演示'})
-  if(!persist()){state.records.pop();return}crySaved.value=true;toast('演示结果已保存')
+async function saveRecord(input:RecordInput){
+  if(await workspace.saveRecord(input,editId.value||undefined)){modal.value='';pendingMedia=null;toast('记录已保存')}
 }
-function sendChat(question?: string){
-  const text=(question||chatInput.value).trim();if(!text)return
-  state.messages.push({role:'me',text},{role:'bot',text:`【演示回复】已收到“${text}”。你已记录 ${todayRecords.value.length} 条今日数据。正式 AI 问答尚未接入，此处仅用于体验对话交互。`})
-  chatInput.value='';persist()
+function deleteRecord(){const id=editId.value;if(!id)return;uni.showModal({title:'删除这条记录？',content:'删除后可在当前页面撤销。',success:async result=>{if(result.confirm&&await workspace.removeRecord(id)){deletedId.value=id;modal.value='';toast('已删除，可撤销')}}})}
+async function restoreRecord(){if(await workspace.restoreRecord(deletedId.value)){deletedId.value='';toast('已恢复')}}
+function openBaby(){
+  if(!state.ready)return toast('请先重试连接服务')
+  if(!canManage.value)return info('宝宝档案','请联系家庭创建者或管理员建立、修改宝宝档案。')
+  Object.assign(babyForm,{nickname:state.baby?.nickname||'',birth_date:state.baby?.birth_date||'',gender:state.baby?.gender||'unknown'});localError.value='';modal.value='baby'
 }
-const articleTitles:Record<string,string>={'sleep-guide':'8个月宝宝睡眠全攻略','feeding-guide':'8个月宝宝辅食添加指南','night-wake':'宝宝夜醒的常见原因与应对方法','teething':'出牙期护理全攻略','poop':'宝宝便便颜色对照表'}
-const articleBodies:Record<string,string>={
-  'sleep-guide':'观察宝宝睡眠时，可以记录入睡时间、夜醒次数和白天小睡时长，把连续几天的记录放在一起查看。\n\n本页为原型阅读内容示例，不是个性化医疗建议。',
-  'feeding-guide':'记录每次辅食的食材、份量以及宝宝的反应，方便家人了解当天的喂养情况。\n\n本页为阅读交互示例，正式内容需经过专业审核。',
-  'night-wake':'可以先记录夜醒的时间、次数和安抚过程，方便回看作息变化。\n\n本页展示文章阅读交互，不提供诊断。',
-  'teething':'可以在宝宝档案中补充出牙期的观察记录，并在需要时向专业人员咨询。\n\n本页为内容示例。',
-  'poop':'记录颜色、性状、次数和观察时间，帮助照护者交接信息。\n\n本页为内容示例，不作健康判断。'
+async function saveBaby(){const error=validateBabyProfile(babyForm);if(error){localError.value=error;return}if(await workspace.saveBaby({...babyForm,birth_date:babyForm.birth_date||null})){modal.value='';toast('宝宝档案已保存')}}
+function changeBirthday(event:unknown){babyForm.birth_date=String((event as {detail:{value:string}}).detail.value)}
+function changeGender(event:unknown){babyForm.gender=(['unknown','male','female'] as const)[Number((event as {detail:{value:string}}).detail.value)]||'unknown'}
+function startVoice(purpose:'record'|'chat'|'cry'){
+  if(!requireBaby()||state.busy.save||starting.value||recording.value||state.busy.capture)return
+  cancelMedia();captureSeconds.value=0;capturePurpose.value=purpose;localError.value='';modal.value=purpose==='cry'?'':'voice';if(purpose==='cry'){page.value='cry';state.cry=null}starting.value=true;void voice.start()
 }
-function openArticle(key:string){article.value=key}
-function favoriteArticle(){const index=state.favorites.indexOf(article.value);if(index<0)state.favorites.push(article.value);else state.favorites.splice(index,1);persist()}
-const profileForm=reactive({value:'',note:''})
-function editProfile(name:string){modalTitle.value=name;Object.assign(profileForm,state.profile[name]||{value:name==='基本信息'?state.babyName:'',note:''});modal.value='profile'}
-function saveProfile(){if(!profileForm.value.trim())return toast('请填写信息');if(modalTitle.value==='基本信息')state.babyName=profileForm.value.trim();state.profile[modalTitle.value]={...profileForm};if(persist()){closeModal();toast('档案已保存')}}
-const settingsDraft=reactive({...state.settings})
-function setSetting(key: keyof typeof settingsDraft, event: unknown) {
-  const value = (event as { detail?: { value?: unknown } })?.detail?.value
-  if (typeof value === 'boolean') settingsDraft[key] = value
+function startPhoto(){if(!requireBaby())return;cancelMedia();capturePurpose.value='record';localError.value='';modal.value='photo'}
+function choosePhoto(source:'camera'|'album'){
+  const revision=++mediaRevision
+  localError.value=''
+  uni.chooseImage({count:1,sizeType:['compressed'],sourceType:[source],success(result){if(revision!==mediaRevision)return;photo.value=result.tempFilePaths[0]||''},fail(){if(revision===mediaRevision)localError.value='未选择图片，请重试或检查权限'}})
 }
-function saveSettings(){Object.assign(state.settings,settingsDraft);if(persist()){closeModal();toast('设置已保存在本机')}}
-const feedback = ref('')
-function saveFeedback(){if(!feedback.value.trim())return toast('请填写反馈内容');state.feedback.push(feedback.value.trim());if(persist()){feedback.value='';closeModal();toast('反馈已暂存本机，尚未发送')}}
-const exportFormat=ref<'CSV'|'JSON'>('CSV')
-const exportText=computed(()=>exportRecords(state.records,exportFormat.value))
-function copyExport(){uni.setClipboardData({data:exportText.value,success(){toast('全部记录已复制，可粘贴保存')},fail(){toast('复制失败，请重试')}})}
-function info(title:string,text:string){modalTitle.value=title;modalText.value=text;modal.value='info'}
-function action(name:string,message=''){
-  switch(name){
-    case 'open-record':case 'open-more': modal.value='chooser';break
-    case 'capture-voice':startVoice();break
-    case 'voice':voicePurpose.value='chat';beginVoice();break
-    case 'capture-photo':startPhoto();break
-    case 'send-chat':sendChat();break
-    case 'cry-toggle':toggleCry();break
-    case 'cry-reset':resetCry();break
-    case 'save-cry':saveCry();break
-    case 'switch-curve':curveMode.value=(curveMode.value+1)%3;break
-    case 'open-growth-detail':modal.value='chart';break
-    case 'open-growth-record':quickRecord('身高体重');break
-    case 'shuffle-articles':category.value=['推荐','喂养','睡眠','发育'][(Math.max(0,['推荐','喂养','睡眠','发育'].indexOf(category.value))+1)%4]!;search.value='';break
-    case 'article-sleep':openArticle('sleep-guide');break
-    case 'edit-profile':editProfile('基本信息');break
-    case 'family':modal.value='family';break
-    case 'export':modal.value='export';break
-    case 'feedback':modal.value='feedback';break
-    case 'settings':Object.assign(settingsDraft,state.settings);modal.value='settings';break
-    case 'upgrade':info('懂宝 Pro','会员权益演示：更长对话上下文、成长报告和家庭协作。支付尚未接入，不会产生扣费。');break
-    case 'toast':
-      if(message==='设置已打开') action('settings')
-      else if(message==='收藏夹')modal.value='favorites'
-      else if(message==='历史对话')navigate('ai')
-      else if(message==='使用帮助')info('使用帮助','在首页选择记录类型填写内容，确认后保存。语音、拍照和哭声功能为演示。记录与设置只保存在当前设备，可通过“数据导出”复制备份。')
-      else if(message==='暂无历史分析')info('哭声分析历史',state.records.filter(r=>r.type==='哭声分析').map(r=>`${r.date} ${r.time}\n${r.value}`).join('\n\n')||'还没有保存分析结果')
-      else toast(message||'暂无新消息')
-      break
-  }
+async function processMedia(){
+  if(!pendingMedia||state.busy.capture)return
+  const revision=mediaRevision,media=pendingMedia;localError.value='';modal.value=media.purpose==='cry'?'':'processing'
+  const result=await workspace.capture(media.file,media.kind,media.purpose,media.duration)
+  if(revision!==mediaRevision)return
+  if(result===false)return
+  if(media.purpose==='chat'){chatInput.value=String(result);modal.value='';page.value='ai'}
+  else if(media.purpose==='cry'){modal.value='';page.value='cry'}
+  else if(state.draft){recordInitial.value=draftFormInitial(state.draft);editId.value='';modal.value='record'}
+  pendingMedia=null
 }
-function suspend(){stopCapture();if(modal.value==='voice')modal.value='';if(cryRunning.value)resetCry()}
+function submitPhoto(){if(!photo.value)return;pendingMedia={file:photo.value,kind:'image',purpose:'record'};void processMedia()}
+async function sendChat(question?:string){if(!requireBaby())return;const text=(question||chatInput.value).trim();if(!text)return;chatInput.value=text;if(await workspace.sendChat(text)){if(chatInput.value===text)chatInput.value=''}}
+function observe(){navigate('ai');chatInput.value='请根据宝宝最近几天的记录，总结喂养和睡眠情况，并说明需要关注的变化。'}
+async function showCryHistory(){if(!requireBaby())return;modal.value='cryHistory';await workspace.loadCryHistory()}
+async function explainCry(){if(!state.cry||state.busy.explain)return;const id=state.cry.id;state.busy.explain=true;localError.value='';try{const result=await api.explainCry(id);if(state.cry?.id===id)state.cry.explanation=result.answer}catch(e){localError.value=errorText(e)}finally{state.busy.explain=false}}
+function clearInputs(){chatInput.value='';recordInitial.value={};editId.value='';deletedId.value='';localError.value='';Object.assign(babyForm,{nickname:'',birth_date:'',gender:'unknown'})}
+async function switchFamily(id:string,invite=false){if(actionBusy.value)return;cancelMedia();clearInputs();modal.value='';page.value='home';await workspace.switchFamily(id,invite)}
+async function refresh(){if(actionBusy.value)return;cancelMedia();clearInputs();await workspace.load()}
+async function familyChanged(){inviteBusy.value=true;try{state.family=await api.family()}catch(e){state.error=errorText(e)}finally{inviteBusy.value=false}}
+function copyExport(){uni.setClipboardData({data:exportText.value,success(){toast('已复制真实记录')},fail(){toast('复制失败，请重试')}})}
+function copySource(url:string){uni.setClipboardData({data:url})}
+function recordRelated(ids:string[]){navigate('record');if(ids.length){const item=state.records.find(r=>r.id===ids[0]);if(item)selectedDate.value=recordView(item).date;range.value='day';recordFilter.value='全部'}}
+function deleteAccount(){uni.showModal({title:'注销账号',content:'注销会永久删除你的账号，相关数据按家庭成员规则清理，无法撤销。',confirmText:'确认注销',success:async result=>{if(!result.confirm)return;inviteBusy.value=true;try{await api.deleteAccount();session.logout();cancelMedia();workspace.clear();state.error='账号已注销，请重新进入小程序';modal.value=''}catch(e){state.error=errorText(e)}finally{inviteBusy.value=false}}})}
+function suspend(){if(recording.value||starting.value){cancelMedia();modal.value=''} }
 onHide(suspend)
-onUnmounted(suspend)
+onUnmounted(()=>{cancelMedia();workspace.clear()})
+onMounted(()=>void workspace.load())
 </script>
 
 <template>
-<view>
-
-<view class="stage">
-  <view class="phone" id="app"><view class="demo-banner">交互演示 · 数据保存在本机 · AI / 识别结果为示例</view>
-    <view class="main">
-
-      <view class="page" v-if="page === 'home'">
-        <view class="header">
-          <view><view class="brand">懂宝</view><view class="tagline">用 AI 陪伴每一个小小的成长</view></view>
-          <view style="display:flex;gap:8px"><button class="icon-btn" @tap="action('toast', '暂无新通知')">🔔</button><button class="icon-btn circle-add" @tap="action('open-record', '')">＋</button></view>
-        </view>
-        <view class="content">
-          <view class="hero" @tap="navigate('profile')">
-            <view class="avatar">👶🏻</view>
-            <view style="flex:1"><view class="h3">{{ state.babyName }} <text style="color:#ff69a8" class="span">♀</text></view><view class="p">8个月12天</view><view class="p">“今天也要开心呀～” <text class="tiny-heart span">❤</text></view></view>
-          </view>
-
-          <view class="card observe">
-            <view class="card-title">💡 AI 今日观察</view>
-            <view class="small">基于最近 5 天的记录</view>
-            <view class="p">宝宝昨晚睡眠时间略有减少，夜醒 3 次；可能与出牙或白天睡眠不足有关。整体状态正常，建议关注白天小睡时长。</view>
-            <button class="primary-btn wide" @tap="navigate('ai')">查看详细分析 →</button>
-          </view>
-
-          <view class="section-title">记一笔</view>
-          <view class="capture-row">
-            <button class="capture-btn voice" @tap="action('capture-voice', '')"><text class="cap-ico span">🎙</text><text class="b">语音记录</text><text class="span">说一句，AI 帮你填</text></button>
-            <button class="capture-btn photo" @tap="action('capture-photo', '')"><text class="cap-ico span">📷</text><text class="b">拍照记录</text><text class="span">拍奶瓶 / 辅食 / 便便</text></button>
-          </view>
-          <view class="section-title">手动快捷</view>
-          <view class="quick-grid">
-            <button class="quick-item" @tap="quickRecord('喂奶')"><view class="quick-icon i-feed">🍼</view><text class="span">喂奶</text></button>
-            <button class="quick-item" @tap="quickRecord('睡眠')"><view class="quick-icon i-sleep">🌙</view><text class="span">睡眠</text></button>
-            <button class="quick-item" @tap="quickRecord('辅食')"><view class="quick-icon i-food">🥣</view><text class="span">辅食</text></button>
-            <button class="quick-item" @tap="quickRecord('排便')"><view class="quick-icon i-poop">💩</view><text class="span">排便</text></button>
-            <button class="quick-item" @tap="quickRecord('尿布')"><view class="quick-icon i-diaper">🩲</view><text class="span">尿布</text></button>
-            <button class="quick-item" @tap="quickRecord('身高体重')"><view class="quick-icon i-height">📈</view><text class="span">身高体重</text></button>
-            <button class="quick-item" @tap="quickRecord('用药')"><view class="quick-icon i-med">💊</view><text class="span">用药</text></button>
-            <button class="quick-item" @tap="action('open-more', '')"><view class="quick-icon i-more">•••</view><text class="span">更多</text></button>
-          </view>
-
-          <view class="card cry-card">
-            <view><view class="card-title">宝宝哭了？</view><view class="small" style="margin:4px 0 10px">AI 陪你分辨哭声，找出可能原因</view><button class="primary-btn" @tap="navigate('cry')">开始哭声分析 →</button></view>
-            <view class="cry-whale">🐳</view>
-          </view>
-
-          <view class="section-title">今天 · {{ todayLabel }} <button class="link" @tap="navigate('record')">{{ todayRecords.length }} 条记录</button></view>
-          <view class="card" style="margin-top:0">
-            <view class="timeline" id="homeTimeline"><RecordTimeline :records="todayRecords" /></view>
-          </view>
-        </view>
-      </view>
-
-
-      <view class="page" v-if="page === 'ai'">
-        <view class="header"><button class="icon-btn" @tap="navigate('home')">‹</button><view style="text-align:center;flex:1"><view class="header-title" style="justify-content:center">懂宝 AI</view><view class="tagline">基于宝宝数据的专属育儿助手</view></view><view style="width:38px"></view></view>
-        <view class="chat-wrap" id="chatList"><view v-for="(message, i) in state.messages" :key="i" class="bubble-row" :class="message.role"><view class="bubble history-text">{{ message.text }}</view></view></view>
-        <view class="suggests"><view class="h4">你可能还想问</view>
-          <button class="chip" @tap="sendChat('8个月宝宝一天应该喝多少奶？')">8个月宝宝一天应该喝多少奶？</button>
-          <button class="chip" @tap="sendChat('如何判断宝宝是否出牙？')">如何判断宝宝是否出牙？</button>
-          <button class="chip" @tap="sendChat('宝宝睡眠倒退一般持续多久？')">宝宝睡眠倒退一般持续多久？</button>
-        </view>
-        <view class="composer"><input id="chatInput" placeholder="有什么育儿问题都可以问我…" v-model="chatInput" @confirm="sendChat()" confirm-type="send"></input><button class="mic" @tap="action('voice', '')">🎙</button><button class="send" @tap="action('send-chat', '')">➤</button></view>
-      </view>
-
-
-      <view class="page" v-if="page === 'record'">
-        <view class="header"><button class="icon-btn" @tap="navigate('home')">‹</button><view class="header-title">记录</view><view style="width:38px"></view></view>
-        <view class="seg"><button class="" @tap="setRange('day')" :class="{ active: range === 'day' }">日</button><button @tap="setRange('week')" :class="{ active: range === 'week' }" class="">周</button><button @tap="setRange('month')" :class="{ active: range === 'month' }" class="">月</button></view>
-        <view class="datebar"><button @tap="shiftDate('-1')">‹</button><text id="recordDateLabel" class="span">{{ dateLabel }}</text><button @tap="shiftDate('1')">›</button></view>
-        <view class="content">
-          <view class="card" style="margin-top:10px"><view class="stats-grid"><view v-for="stat in stats" :key="stat.name" class="stat"><text class="b">{{ stat.name }}</text><text class="span">{{ stat.value }}</text><text class="small">{{ stat.count }} 次</text></view></view>
-            <view class="capture-row record-cta">
-              <button class="capture-btn voice" @tap="action('capture-voice', '')"><text class="cap-ico span">🎙</text><text class="b">语音</text><text class="span">说完自动识别</text></button>
-              <button class="capture-btn photo" @tap="action('capture-photo', '')"><text class="cap-ico span">📷</text><text class="b">拍照</text><text class="span">看图帮你填</text></button>
-            </view>
-            <button class="soft-btn wide" style="margin-top:10px" @tap="action('open-record', '')">手动选择类型</button>
-          </view>
-          <view class="section-title">记录时间线 <picker :range="recordFilters" @change="changeRecordFilter"><text class="link">{{ recordFilter }} ▾</text></picker></view>
-          <view class="timeline" id="recordTimeline"><RecordTimeline :records="visibleRecords" /></view>
-        </view>
-      </view>
-
-
-      <view class="page cry-page" v-if="page === 'cry'">
-        <view class="header"><button class="icon-btn" @tap="navigate('home')">‹</button><view class="header-title">哭声分析</view><button class="link" @tap="action('toast', '暂无历史分析')">历史</button></view>
-        <view class="cry-stage">
-          <view class="baby-circle"><view class="wave"><text class="span">≋</text><text class="span">≋</text></view>😭</view>
-          <view id="cryStatus" class="h3">{{ cryRunning ? '正在演示监听…' : cryReady ? '演示分析完成' : '点击体验哭声分析' }}</view><view id="cryTip" class="p">演示模式，不会采集或分析真实哭声。</view>
-          <button class="record-btn" id="cryBtn" @tap="action('cry-toggle', '')">{{ cryRunning ? '■' : '●' }}</button>
-          <view class="record-time" id="cryTimer">00:{{ String(crySeconds).padStart(2, '0') }} / 00:30</view>
-        </view>
-        <view class="analysis-card">
-          <view class="card-title">分析结果 <text class="small span" id="crySample">（演示数据）</text></view>
-          <view id="reasonList">
-            <view class="reason"><text class="span">1.</text><view>饥饿<view class="bar"><view class="fill" style="width:42%"></view></view></view><text class="b">42%</text></view>
-            <view class="reason"><text class="span">2.</text><view>困倦<view class="bar"><view class="fill" style="width:28%"></view></view></view><text class="b">28%</text></view>
-            <view class="reason"><text class="span">3.</text><view>胀肚气<view class="bar"><view class="fill" style="width:20%"></view></view></view><text class="b">20%</text></view>
-            <view class="reason"><text class="span">4.</text><view>不适<view class="bar"><view class="fill" style="width:10%"></view></view></view><text class="b">10%</text></view>
-          </view>
-          <view class="disclaimer">AI 分析仅供参考，如宝宝持续哭闹或伴随其他异常症状，建议及时咨询医生。</view>
-          <view class="row-btns"><button class="outline-btn" @tap="action('cry-reset', '')">重新录制</button><button class="primary-btn" @tap="action('save-cry', '')">保存结果</button></view>
-        </view>
-      </view>
-
-
-      <view class="page" v-if="page === 'growth'">
-        <view class="header"><view class="header-title">成长</view><button class="icon-btn" @tap="action('open-growth-record', '')">＋</button></view>
-        <view class="growth-top"><view class="growth-tabs"><button class="" @tap="setGrowthTab('data')" :class="{ active: growthTab === 'data' }">数据</button><button @tap="setGrowthTab('timeline')" :class="{ active: growthTab === 'timeline' }" class="">时间线</button><button @tap="setGrowthTab('milestone')" :class="{ active: growthTab === 'milestone' }" class="">里程碑</button></view></view>
-        <view class="content" id="growthData" v-if="growthTab === 'data'">
-          <view class="section-title" style="margin-top:12px">生长发育</view>
-          <view class="card" style="margin-top:0">
-            <view style="display:flex;justify-content:space-between;align-items:center"><view><text style="font-size:18px" class="b">8个月12天</text><view class="small">矫正月龄：8个月12天</view></view><button class="outline-btn" @tap="action('switch-curve', '')">切换曲线</button></view>
-            <view class="metrics" style="margin-top:12px"><view class="metric"><text class="span">体重</text><text class="b">8.2 kg</text><view class="ok">P60 正常</view></view><view class="metric"><text class="span">身高</text><text class="b">70 cm</text><view class="ok">P55 正常</view></view><view class="metric"><text class="span">头围</text><text class="b">43.2 cm</text><view class="ok">P58 正常</view></view></view>
-            <view class="chart-wrap" id="chartArea"><image class="chart-image" :src="chartUrl" mode="aspectFit" /><view class="small">{{ curveNames[curveMode] }} · 原型示意，非医学标准曲线</view></view>
-            <view class="legend"><text style="color:#6d5cf7" class="span">身高</text><text style="color:#73b7ff" class="span">体重</text><text style="color:#ffad55" class="span">头围</text></view>
-            <button class="link wide" style="margin-top:7px" @tap="action('open-growth-detail', '')">查看详细生长曲线 →</button>
-          </view>
-          <view class="section-title">发育里程碑 <button class="link" @tap="setGrowthTab('milestone')">全部 ›</button></view>
-          <view class="card" style="margin-top:0">
-            <view class="milestone" @tap="toggleMilestone('会爬')"><view class="m-check">{{ state.milestones.includes('会爬') ? '✓' : '○' }}</view><view><text class="b">会爬</text><text class="span">通常 7–10 个月</text></view></view>
-            <view class="milestone" @tap="toggleMilestone('扶站')"><view class="m-check">{{ state.milestones.includes('扶站') ? '✓' : '○' }}</view><view><text class="b">扶站</text><text class="span">通常 8–12 个月</text></view></view>
-            <view class="milestone" @tap="toggleMilestone('会叫爸爸妈妈')"><view class="m-check">{{ state.milestones.includes('会叫爸爸妈妈') ? '✓' : '○' }}</view><view><text class="b">会叫爸爸妈妈</text><text class="span">通常 9–12 个月</text></view></view>
-          </view>
-        </view>
-        <view class="content" id="growthTimelinePanel" v-if="growthTab === 'timeline'"><RecordTimeline :records="state.records.filter(record => record.type === '身高体重')" /><view class="card"><view class="section-title" style="margin-top:0">成长时间线</view><view class="timeline"><view class="t-row"><view class="dot" style="color:#3bc879"></view><view class="t-time">9/14</view><view class="t-main"><text class="strong">身高 70cm</text><view class="t-sub">体重 8.2kg · 头围 43.2cm</view></view></view><view class="t-row"><view class="dot" style="color:#6d5cf7"></view><view class="t-time">8/12</view><view class="t-main"><text class="strong">第一次独立爬行</text><view class="t-sub">成长里程碑</view></view></view></view></view></view>
-        <view class="content" id="growthMilestonePanel" v-if="growthTab === 'milestone'"><view class="card"><view class="section-title" style="margin-top:0">里程碑</view><view class="milestone" @tap="toggleMilestone('会爬')"><view class="m-check">{{ state.milestones.includes('会爬') ? '✓' : '○' }}</view><view><text class="b">会爬</text><text class="span">{{ state.milestones.includes('会爬') ? '已完成' : '待观察' }}</text></view></view><view class="milestone" @tap="toggleMilestone('扶站')"><view class="m-check">{{ state.milestones.includes('扶站') ? '✓' : '○' }}</view><view><text class="b">扶站</text><text class="span">{{ state.milestones.includes('扶站') ? '已完成' : '待观察' }}</text></view></view><view class="milestone" @tap="toggleMilestone('独立站立')"><view class="m-check">{{ state.milestones.includes('独立站立') ? '✓' : '○' }}</view><view><text class="b">独立站立</text><text class="span">{{ state.milestones.includes('独立站立') ? '已完成' : '待观察' }}</text></view></view></view></view>
-      </view>
-
-
-      <view class="page" v-if="page === 'discover'">
-        <view class="header"><view class="header-title">发现</view><view style="width:38px"></view></view>
-        <view class="searchbar">⌕ <input id="articleSearch" placeholder="搜索育儿知识、文章、问题…" v-model="search"></input></view>
-        <view class="rec-tabs"><button class="" @tap="setCategory('推荐')" :class="{ active: category === '推荐' }">为你推荐</button><button @tap="setCategory('当月')" :class="{ active: category === '当月' }" class="">当月月龄</button><button @tap="setCategory('喂养')" :class="{ active: category === '喂养' }" class="">喂养</button><button @tap="setCategory('睡眠')" :class="{ active: category === '睡眠' }" class="">睡眠</button><button @tap="setCategory('发育')" :class="{ active: category === '发育' }" class="">发育</button></view>
-        <view class="discover-hero"><view><view class="h3">8个月宝宝<text>
-</text>睡眠全攻略</view><view class="p">如何应对夜醒、睡眠倒退？</view><button class="primary-btn" @tap="openArticle('sleep-guide')">立即阅读</button></view><view class="sleep-ill">😴</view></view>
-        <view class="section-title" style="padding:0 14px;margin-top:0">猜你喜欢 <button class="link" @tap="action('shuffle-articles', '')">换一批</button></view>
-        <view class="article-list" id="articleList"><view v-if="!hasMatchingArticle" class="empty">没有匹配的文章，试试其他关键词或分类</view>
-          <view class="article" @tap="openArticle('feeding-guide')" v-show="matchesArticle('喂养', '8个月宝宝辅食添加指南')"><view class="thumb">🥗</view><view><text class="b">8个月宝宝辅食添加指南</text><view class="p">从泥糊到小块，怎么吃更科学？</view><text class="small">12.3k 阅读 · 专业医生</text></view></view>
-          <view class="article" @tap="openArticle('night-wake')" v-show="matchesArticle('睡眠', '宝宝夜醒的常见原因与应对方法')"><view class="thumb">👶</view><view><text class="b">宝宝夜醒的常见原因与应对方法</text><view class="p">陪伴睡眠训练的关键步骤</view><text class="small">8.7k 阅读 · 儿科医生</text></view></view>
-          <view class="article" @tap="openArticle('teething')" v-show="matchesArticle('发育', '出牙期护理全攻略')"><view class="thumb">🦷</view><view><text class="b">出牙期护理全攻略</text><view class="p">如何缓解宝宝出牙不适</view><text class="small">6.5k 阅读 · 育儿专家</text></view></view>
-          <view class="article" @tap="openArticle('poop')" v-show="matchesArticle('喂养', '宝宝便便颜色对照表')"><view class="thumb">🥣</view><view><text class="b">宝宝便便颜色对照表</text><view class="p">一张图看懂正常与异常</view><text class="small">9.1k 阅读 · 专业医生</text></view></view>
-        </view>
-      </view>
-
-
-      <view class="page" v-if="page === 'profile'">
-        <view class="header"><button class="icon-btn" @tap="navigate('home')">‹</button><view class="header-title">宝宝档案</view><button class="link" @tap="action('edit-profile', '')">编辑</button></view>
-        <view class="profile-head"><view class="baby-profile"><view class="avatar">👶🏻</view><view><view class="h3">{{ state.babyName }} <text style="color:#ff6da8" class="span">♀</text></view><view class="p">8个月12天 · 女宝宝</view><view class="p">2026年1月6日出生</view></view></view>
-          <view class="mini-metrics"><view class="metric"><text class="span">身高</text><text class="b">70 cm</text><text class="small">(8月龄 P55)</text></view><view class="metric"><text class="span">体重</text><text class="b">8.2 kg</text><text class="small">(8月龄 P60)</text></view><view class="metric"><text class="span">头围</text><text class="b">43.2 cm</text><text class="small">(8月龄 P58)</text></view></view></view>
-        <view class="settings-list">
-          <view class="setting-row" @tap="editProfile('基本信息')"><view class="setting-ico">👤</view><text class="b">基本信息</text><text class="chev span">›</text></view>
-          <view class="setting-row" @tap="navigate('growth')"><view class="setting-ico">📈</view><text class="b">生长发育</text><text class="chev span">›</text></view>
-          <view class="setting-row" @tap="editProfile('喂养偏好')"><view class="setting-ico">🛡</view><text class="b">喂养偏好</text><text class="small">{{ state.profile['喂养偏好']?.value || '配方奶 · 无特殊忌口' }}</text><text class="chev span">›</text></view>
-          <view class="setting-row" @tap="editProfile('睡眠习惯')"><view class="setting-ico">🌙</view><text class="b">睡眠习惯</text><text class="small">{{ state.profile['睡眠习惯']?.value || '通常 20:30 入睡' }}</text><text class="chev span">›</text></view>
-          <view class="setting-row" @tap="editProfile('过敏信息')"><view class="setting-ico">📍</view><text class="b">过敏信息</text><text class="small">{{ state.profile['过敏信息']?.value || '无已知过敏' }}</text><text class="chev span">›</text></view>
-          <view class="setting-row" @tap="editProfile('疫苗接种')"><view class="setting-ico">💉</view><text class="b">疫苗接种</text><text class="small">{{ state.profile['疫苗接种']?.value || '按计划接种' }}</text><text class="chev span">›</text></view>
-          <view class="setting-row" @tap="editProfile('家人信息')"><view class="setting-ico">👨‍👩‍👧</view><text class="b">家人信息</text><text class="small">{{ state.profile['家人信息']?.value || '爸爸、妈妈、爷爷奶奶' }}</text><text class="chev span">›</text></view>
-          <view class="setting-row" @tap="editProfile('医疗记录')"><view class="setting-ico">🧾</view><text class="b">医疗记录</text><text class="small">{{ state.profile['医疗记录']?.value || '体检、用药、病史' }}</text><text class="chev span">›</text></view>
-        </view>
-      </view>
-
-
-      <view class="page" v-if="page === 'me'">
-        <view class="header"><view class="header-title"></view><button class="icon-btn" @tap="action('toast', '设置已打开')">⚙</button></view>
-        <view class="me-head"><view class="me-card"><view class="person"><view class="person-avatar">👨🏻</view><view style="flex:1"><view class="h3">余海昌</view><view class="p">陪伴{{ state.babyName }}成长的第 251 天</view></view></view><view class="membership"><view><text class="b">♛ 普通会员</text><view class="small">升级会员，解锁更多 AI 能力</view></view><button class="member-btn" @tap="action('upgrade', '')">立即升级</button></view><view class="icon-grid"><view class="gitem" @tap="action('toast', '收藏夹')"><view class="gico">⭐</view>收藏</view><view class="gitem" @tap="action('toast', '历史对话')"><view class="gico">💬</view>历史对话</view><view class="gitem" @tap="navigate('profile')"><view class="gico">👶</view>我的宝宝</view><view class="gitem" @tap="action('toast', '暂无新消息')"><view class="gico">🔔</view>消息</view></view></view></view>
-        <view class="settings-list">
-          <view class="setting-row" @tap="action('family', '')"><view class="setting-ico">👥</view><text class="b">家庭成员管理</text><text class="chev span">›</text></view>
-          <view class="setting-row" @tap="action('export', '')"><view class="setting-ico">⇩</view><text class="b">数据导出</text><text class="chev span">›</text></view>
-          <view class="setting-row" @tap="action('toast', '使用帮助')"><view class="setting-ico">?</view><text class="b">使用帮助</text><text class="chev span">›</text></view>
-          <view class="setting-row" @tap="action('feedback', '')"><view class="setting-ico">✉</view><text class="b">意见反馈</text><text class="chev span">›</text></view>
-          <view class="setting-row" @tap="action('settings', '')"><view class="setting-ico">⚙</view><text class="b">设置</text><text class="chev span">›</text></view>
-        </view>
-        <view class="banner"><text class="span">每一个小小的成长<text>
-</text>都值得被认真记录 ❤</text><text class="art span">🤱🏻</text></view>
-      </view>
+  <view class="phone">
+    <view v-if="!state.ready" class="content connection-state">
+      <view class="brand">懂宝</view><view class="tagline">用 AI 陪伴每一个小小的成长</view>
+      <view class="card"><view>{{ state.busy.load || state.busy.switch ? '正在登录并读取家庭数据…' : '暂时无法连接服务' }}</view><view v-if="state.error" class="error-box">{{ state.error }}</view><button class="primary-btn wide" :disabled="actionBusy" @tap="refresh">重新连接</button><text class="small" selectable>{{ API_BASE }}</text></view>
     </view>
-
-    <view class="nav">
-      <button class="" @tap="navigate('home')" :class="{ active: page === 'home' }"><text class="n-ico span">⌂</text><text class="span">首页</text></button>
-      <button @tap="navigate('ai')" :class="{ active: page === 'ai' }" class=""><text class="n-ico span">◉</text><text class="span">AI</text></button>
-      <button @tap="navigate('record')" :class="{ active: page === 'record' }" class=""><text class="n-ico span">▣</text><text class="span">记录</text></button>
-      <button @tap="navigate('discover')" :class="{ active: page === 'discover' }" class=""><text class="n-ico span">◌</text><text class="span">发现</text></button>
-      <button @tap="navigate('me')" :class="{ active: page === 'me' }" class=""><text class="n-ico span">♙</text><text class="span">我的</text></button>
+    <view v-else class="main">
+      <view v-if="state.error && !modal" class="error-box">{{ state.error }}</view>
+      <view v-if="!state.baby" class="content"><view class="card"><view class="card-title">先为宝宝建立档案</view><view class="small">{{ canManage ? '填写昵称、生日和性别后，就可以记录成长了。' : '请联系家庭管理员建立宝宝档案。' }}</view><button v-if="canManage" class="primary-btn wide" @tap="openBaby">建立宝宝档案</button></view></view>
+      <view v-if="page === 'home'" class="page">
+        <view class="header"><view><view class="brand">懂宝</view><view class="tagline">用 AI 陪伴每一个小小的成长</view></view><button class="icon-btn circle-add" @tap="requireBaby() && (modal = 'chooser')">＋</button></view>
+        <view class="content">
+          <view class="hero" @tap="navigate('profile')"><view class="avatar">👶🏻</view><view><view class="h3">{{ state.baby?.nickname || '我的宝宝' }}</view><view class="p">{{ ageText(state.baby?.birth_date) }} · {{ state.baby ? genderText(state.baby.gender) : '待建档' }}</view><view class="small">今天也要开心呀 ❤</view></view></view>
+          <view class="card observe"><view class="card-title">💡 AI 今日观察</view><view class="p">结合宝宝的真实记录，向懂宝询问近期喂养、睡眠和成长变化。</view><button class="primary-btn wide" @tap="observe">查看详细分析 →</button></view>
+          <view class="section-title">记一笔</view><view class="capture-row"><button class="capture-btn voice" @tap="startVoice('record')"><text class="cap-ico">🎙</text><text class="b">语音记录</text><text class="span">说一句，AI 帮你填</text></button><button class="capture-btn photo" @tap="startPhoto"><text class="cap-ico">📷</text><text class="b">拍照记录</text><text class="span">拍奶瓶 / 辅食 / 便便</text></button></view>
+          <view class="section-title">手动快捷</view><view class="quick-grid"><button v-for="item in homeQuickTypes" :key="item.value" class="quick-item" @tap="quickRecord(item.value)"><view class="quick-icon" :class="quickClasses[item.value]">{{ item.icon }}</view><text class="span">{{ item.label }}</text></button><button class="quick-item" @tap="requireBaby() && (modal = 'more')"><view class="quick-icon i-more">•••</view><text class="span">更多</text></button></view>
+          <view class="card cry-card"><view><view class="card-title">宝宝哭了？</view><view class="small">辅助了解哭声特征</view><button class="primary-btn" @tap="navigate('cry')">开始哭声分析 →</button></view><view class="cry-whale">🐳</view></view>
+          <view class="section-title">今天 · {{ dateKey() }}<button class="link" @tap="navigate('record')">{{ todayRecords.length }} 条记录</button></view><view class="card"><RecordTimeline :records="todayRecords" @select="editRecord" /></view>
+        </view>
+      </view>
+      <view v-else-if="page === 'ai'" class="page">
+        <view class="header"><button class="icon-btn" @tap="navigate('home')">‹</button><view class="ai-heading"><view class="header-title">懂宝 AI</view><view class="tagline">基于宝宝数据的专属育儿助手</view></view><button class="link" :disabled="state.busy.chat || !state.baby" @tap="workspace.newChat">新对话</button></view>
+        <view class="chat-wrap"><view v-if="!state.messages.length" class="empty">你好，有什么育儿问题想问懂宝？</view><view v-for="message in state.messages" :key="message.id" class="bubble-row" :class="message.role === 'user' ? 'me' : 'bot'"><view class="bubble history-text">{{ message.structured_payload?.summary ? answerText(message.structured_payload) : message.content }}<view v-if="message.structured_payload?.related_record_ids?.length" class="bubble-actions"><button @tap="recordRelated(message.structured_payload.related_record_ids)">查看相关记录</button></view><view v-for="source in message.structured_payload?.sources || []" :key="source.title" class="source"><text>{{ source.title }} · {{ source.publisher }}</text><button v-if="source.source_url" class="link" @tap="copySource(source.source_url)">复制资料链接</button></view></view></view><view v-if="state.busy.chat" class="small">正在处理…</view><view v-if="state.chatError" class="error-box">{{ state.chatError }}<button class="link" :disabled="state.busy.chat" @tap="workspace.loadChat">刷新会话</button></view></view>
+        <view class="suggests"><view class="small">你可能还想问</view><button v-for="question in ['宝宝最近的奶量怎么样？','宝宝最近为什么夜醒？','怎样记录辅食更清楚？']" :key="question" class="chip" :disabled="state.busy.chat" @tap="sendChat(question)">{{ question }}</button></view>
+        <view class="composer"><input v-model="chatInput" :maxlength="2000" placeholder="有什么育儿问题都可以问我…" confirm-type="send" @confirm="sendChat()" /><button class="mic" :disabled="state.busy.chat" @tap="startVoice('chat')">🎙</button><button class="send" :disabled="state.busy.chat" @tap="sendChat()">➤</button></view>
+      </view>
+      <view v-else-if="page === 'record'" class="page">
+        <view class="header"><button class="icon-btn" @tap="navigate('home')">‹</button><view class="header-title">记录</view><button class="icon-btn" @tap="requireBaby() && (modal = 'chooser')">＋</button></view>
+        <view class="seg"><button v-for="item in [{key:'day',name:'日'},{key:'week',name:'周'},{key:'month',name:'月'}]" :key="item.key" :class="{active:range === item.key}" @tap="range = item.key as Range">{{ item.name }}</button></view>
+        <view class="datebar"><button @tap="shiftDate(-1)">‹</button><text>{{ dateLabel }}</text><button @tap="shiftDate(1)">›</button></view>
+        <view class="content"><view class="card"><view class="stats-grid"><view v-for="stat in stats" :key="stat.name" class="stat"><text class="b">{{ stat.icon }} {{ stat.name }}</text><text class="span">{{ stat.value }}</text><text class="small">{{ stat.count }} 次</text></view></view><view class="capture-row record-cta"><button class="capture-btn voice" @tap="startVoice('record')"><text class="cap-ico">🎙</text><text class="b">语音</text><text class="span">说完自动识别</text></button><button class="capture-btn photo" @tap="startPhoto"><text class="cap-ico">📷</text><text class="b">拍照</text><text class="span">看图帮你填</text></button></view><button class="soft-btn wide" @tap="requireBaby() && (modal = 'chooser')">手动选择类型</button></view><view class="section-title">记录时间线<picker :range="filters" @change="selectFilter"><text class="link">{{ recordFilter }} ▾</text></picker></view><button v-if="deletedId" class="soft-btn wide" :disabled="state.busy.save" @tap="restoreRecord">撤销刚才的删除</button><view class="timeline"><RecordTimeline :records="visibleRecords" @select="editRecord" /></view></view>
+      </view>
+      <view v-else-if="page === 'cry'" class="page cry-page">
+        <view class="header"><button class="icon-btn" @tap="navigate('home')">‹</button><view class="header-title">哭声分析</view><button class="link" :disabled="actionBusy" @tap="showCryHistory">历史</button></view>
+        <view class="cry-stage"><view class="baby-circle"><view class="wave"><text>≋</text><text>≋</text></view>😭</view><view class="h3">{{ starting ? '等待麦克风授权…' : recording ? '正在聆听…' : state.busy.capture ? '正在分析…' : state.cry ? '分析完成' : '点击开始监听' }}</view><view class="p">{{ recording ? '请保持手机靠近宝宝，环境尽量安静' : '请在安静环境下录制，建议 10–30 秒。此功能仅作辅助判断。' }}</view><button class="record-btn" :disabled="starting || state.busy.capture" @tap="recording ? voice.stop() : startVoice('cry')">{{ recording ? '■' : '●' }}</button><view class="record-time">00:{{ String(captureSeconds).padStart(2,'0') }} / 00:30</view></view>
+        <view v-if="state.captureError" class="error-box">{{ state.captureError }}<button class="link" :disabled="state.busy.capture" @tap="processMedia">重试分析</button></view>
+        <view v-if="state.cry" class="analysis-card"><view class="card-title">{{ state.cry.status === 'uncertain' ? '暂不能确定' : '哭声特征分析' }}</view><view class="p">{{ state.cry.summary }}</view><view v-for="(item,index) in state.cry.candidates" :key="item.category" class="reason"><text>{{ index+1 }}.</text><view>{{ item.label }}<view class="bar"><view class="fill" :style="{width:Math.max(0,Math.min(100,item.score*100))+'%'}" /></view></view><text>{{ item.possibility }}</text></view><view class="disclaimer">{{ state.cry.disclaimer }} · 匹配度不是实际哭闹原因概率。</view><view class="small">分析已保存至历史</view><view class="row-btns"><button class="outline-btn" @tap="startVoice('cry')">重新录制</button><button class="primary-btn" @tap="showCryHistory">查看历史</button></view><button class="soft-btn wide" :disabled="state.busy.explain" @tap="explainCry">{{ state.busy.explain ? '正在解释…' : 'AI 解读' }}</button><view v-if="state.cry.explanation" class="history-text">{{ answerText(state.cry.explanation) }}</view></view><view v-else class="analysis-card"><view class="card-title">分析结果</view><view class="empty">{{ state.busy.capture ? '正在处理录音，请稍候…' : '完成录音后展示分析结果' }}</view></view><view v-if="localError" class="error-box">{{ localError }}</view>
+      </view>
+      <GrowthPanel v-else-if="page === 'growth'" :records="state.records" :age="ageText(state.baby?.birth_date)" @create="quickRecord('growth')" @select="editRecord" />
+      <DiscoverPanel v-else-if="page === 'discover'" :age="ageText(state.baby?.birth_date)" @unavailable="unavailable" />
+      <view v-else-if="page === 'profile'" class="page"><view class="header"><button class="icon-btn" @tap="navigate('home')">‹</button><view class="header-title">宝宝档案</view><button v-if="canManage" class="link" @tap="openBaby">编辑</button></view><view class="profile-head"><view class="baby-profile"><view class="avatar">👶🏻</view><view><view class="h3">{{ state.baby?.nickname || '待建档' }}</view><view class="p">{{ ageText(state.baby?.birth_date) }} · {{ state.baby ? genderText(state.baby.gender) : '' }}</view><view class="p">{{ state.baby?.birth_date || '生日待完善' }}</view></view></view><BabyMetrics :height="height" :weight="weight" /></view><view class="settings-list"><view class="setting-row" @tap="openBaby"><view class="setting-ico">👤</view><text class="b">基本信息</text><text>›</text></view><view class="setting-row" @tap="navigate('growth')"><view class="setting-ico">📈</view><text class="b">生长发育</text><text>›</text></view><view v-for="name in ['喂养偏好','睡眠习惯','过敏信息']" :key="name" class="setting-row" @tap="unavailable(name)"><view class="setting-ico">{{ ({喂养偏好:'🛡',睡眠习惯:'🌙',过敏信息:'📍'} as Record<string,string>)[name] }}</view><text class="b">{{ name }}</text><text class="small">暂未开放</text></view><view class="setting-row" @tap="quickRecord('vaccine')"><view class="setting-ico">💉</view><text class="b">疫苗接种</text><text>记录 ›</text></view><view class="setting-row" @tap="modal = 'family'"><view class="setting-ico">👨‍👩‍👧</view><text class="b">家人信息</text><text>›</text></view><view class="setting-row" @tap="quickRecord('medication')"><view class="setting-ico">🧾</view><text class="b">用药记录</text><text>记录 ›</text></view></view></view>
+      <view v-else-if="page === 'me'" class="page"><view class="header"><view class="header-title">我的</view><button class="icon-btn" @tap="modal = 'settings'">⚙</button></view><view class="me-head"><view class="me-card"><view class="person"><view class="person-avatar">👤</view><view><view class="h3">{{ state.family?.display_name || '家人' }}</view><view class="p">{{ state.family?.name }}</view></view></view><view class="membership"><text>懂宝会员 · 暂未开放</text><button class="member-btn" @tap="unavailable('会员')">了解更多</button></view><view class="icon-grid"><view class="gitem" @tap="unavailable('收藏')"><view class="gico">⭐</view>收藏</view><view class="gitem" @tap="navigate('ai')"><view class="gico">💬</view>历史对话</view><view class="gitem" @tap="navigate('profile')"><view class="gico">👶</view>我的宝宝</view><view class="gitem" @tap="unavailable('消息')"><view class="gico">🔔</view>消息</view></view></view></view><view class="settings-list"><view class="setting-row" @tap="modal = 'family'"><view class="setting-ico">👥</view><text class="b">家庭成员管理</text><text>›</text></view><view class="setting-row" @tap="modal = 'export'"><view class="setting-ico">⇩</view><text class="b">数据导出</text><text>›</text></view><view class="setting-row" @tap="info('使用帮助','先建立宝宝档案，再添加记录。语音和照片会上传至当前家庭的后端，识别后请核对并确认保存。哭声结果自动进入历史。网络失败会显示错误，不生成模拟结果。')"><view class="setting-ico">?</view><text class="b">使用帮助</text><text>›</text></view><view class="setting-row" @tap="unavailable('意见反馈')"><view class="setting-ico">✉</view><text class="b">意见反馈</text><text class="small">暂未开放</text></view><view class="setting-row" @tap="modal = 'settings'"><view class="setting-ico">⚙</view><text class="b">设置</text><text>›</text></view></view><view class="banner"><view>每一个小小的成长<br />都值得被认真记录 ❤</view><text class="art">🤱🏻</text></view></view>
     </view>
+    <view class="nav"><button v-for="item in [{key:'home',name:'首页',icon:'⌂'},{key:'ai',name:'AI',icon:'◉'},{key:'record',name:'记录',icon:'▣'},{key:'discover',name:'发现',icon:'◌'},{key:'me',name:'我的',icon:'♙'}]" :key="item.key" :class="{active:page === item.key}" @tap="navigate(item.key)"><text class="n-ico">{{ item.icon }}</text><text>{{ item.name }}</text></button></view>
+    <view v-if="modal" class="modal-mask" @tap="closeModal"><scroll-view scroll-y class="sheet" @tap.stop><view class="grab" /><view class="close-row"><text class="sheet-title">{{ modal === 'record' ? (state.draft ? '识别完成，请确认' : (editId ? '编辑 · ' : '记录 · ')+(recordInitial.payload?.title || RECORD_TYPES.find(item=>item.value===recordInitial.record_type)?.label || '自定义')) : modal === 'baby' ? '宝宝基本信息' : modal === 'family' ? '家庭成员管理' : modal === 'voice' ? '正在录音' : modal === 'photo' ? '拍照记录' : modal === 'processing' ? '上传与识别' : modal === 'export' ? '数据导出' : modal === 'cryHistory' ? '哭声历史' : modal === 'settings' ? '设置' : modal === 'chooser' ? '记一笔' : modal === 'more' ? '更多记录' : infoTitle }}</text><button class="icon-btn" :disabled="state.busy.save || inviteBusy" @tap="closeModal">×</button></view>
+      <view v-if="localError || state.error" class="error-box">{{ localError || state.error }}</view>
+      <view v-if="modal === 'chooser' || modal === 'more'"><view class="capture-row"><button class="capture-btn voice" @tap="startVoice('record')"><text class="cap-ico">🎙</text><text class="b">语音</text><text class="span">说完自动识别</text></button><button class="capture-btn photo" @tap="startPhoto"><text class="cap-ico">📷</text><text class="b">拍照</text><text class="span">看图帮你填</text></button></view><view v-if="modal === 'chooser'" class="quick-grid chooser-grid"><button v-for="item in homeQuickTypes" :key="item.value" class="quick-item" @tap="quickRecord(item.value)"><view class="quick-icon" :class="quickClasses[item.value]">{{ item.icon }}</view><text class="span">{{ item.label }}</text></button><button class="quick-item" @tap="modal = 'more'"><view class="quick-icon i-more">•••</view><text class="span">更多</text></button></view><view v-else class="quick-grid chooser-grid"><button v-for="item in [{title:'体温',icon:'🌡'},{title:'不适',icon:'🤒'},{title:'疫苗',icon:'💉'},{title:'自定义',icon:'📝'}]" :key="item.title" class="quick-item" @tap="moreRecord(item.title)"><view class="quick-icon i-more">{{ item.icon }}</view><text class="span">{{ item.title }}</text></button></view><view v-if="modal === 'more'" class="small">体温、不适使用自定义记录保存，可在内容中填写测量值和症状。</view></view>
+      <view v-else-if="modal === 'record'"><image v-if="state.draft?.source === 'photo' && photo" class="photo-preview" :src="photo" mode="aspectFit" /><view v-if="state.draft" class="draft-preview"><view class="tag">{{ state.draft.source === 'voice' ? '语音识别' : '拍照识别' }}</view><view v-if="state.draft.transcript">转写：{{ state.draft.transcript }}</view><view v-for="warning in state.draft.recognition_warnings" :key="warning">{{ warning }}</view><view v-if="state.draft.missing_fields.length">待补充：{{ state.draft.missing_fields.join('、') }}</view><button class="link" @tap="state.draft?.source === 'voice' ? startVoice('record') : startPhoto()">重新采集</button></view><RecordForm :initial="recordInitial" :submitting="state.busy.save" :lock-type="!state.draft" :submit-text="state.draft ? '确认保存' : '保存记录'" @submit="saveRecord" /><button v-if="editId" class="danger-btn wide" :disabled="state.busy.save" @tap="deleteRecord">删除记录</button></view>
+      <view v-else-if="modal === 'baby'"><view class="form-row"><text>昵称</text><input v-model="babyForm.nickname" maxlength="30" placeholder="宝宝昵称" /></view><view class="form-row"><text>生日</text><picker mode="date" :value="babyForm.birth_date" :end="dateKey()" @change="changeBirthday"><view class="choice">{{ babyForm.birth_date || '请选择（可选）' }}</view></picker></view><view class="form-row"><text>性别</text><picker :range="['未填写','男宝宝','女宝宝']" @change="changeGender"><view class="choice">{{ genderText(babyForm.gender) }}</view></picker></view><button class="primary-btn wide" :disabled="state.busy.save" @tap="saveBaby">{{ state.busy.save ? '正在保存…' : '保存档案' }}</button></view>
+      <view v-else-if="modal === 'voice'" class="listen-panel"><view class="listen-orb" :class="{pulse:recording}">🎙</view><view>{{ starting ? '等待麦克风授权…' : recording ? '正在听你说…' : '录音未开始' }}</view><view class="record-time">{{ captureSeconds }} 秒</view><view class="small">{{ capturePurpose === 'cry' ? '建议录制 10–30 秒宝宝哭声。' : '说完后结束录音，上传识别。' }}</view><button class="primary-btn wide" :disabled="!recording" @tap="voice.stop">说完了，结束录音</button><button v-if="!starting && !recording" class="outline-btn wide" @tap="startVoice(capturePurpose)">重试录音</button></view>
+      <view v-else-if="modal === 'photo'"><image v-if="photo" class="photo-preview" :src="photo" mode="aspectFit" /><view v-else class="photo-slot" @tap="choosePhoto('camera')">点击拍照 / 选图</view><view class="row-btns"><button class="outline-btn" @tap="choosePhoto('camera')">拍照</button><button class="outline-btn" @tap="choosePhoto('album')">从相册选择</button></view><view class="small">确认后上传至后端识别，请核对生成的草稿。</view><button class="primary-btn wide" :disabled="!photo" @tap="submitPhoto">上传识别</button></view>
+      <view v-else-if="modal === 'processing'"><view class="listen-panel">{{ state.busy.capture ? '正在上传并处理，请稍候…' : '处理未完成' }}</view><view v-if="state.captureError" class="error-box">{{ state.captureError }}</view><button v-if="!state.busy.capture" class="primary-btn wide" @tap="processMedia">重试</button><view class="small">关闭可停止等待；已上传的媒体由后端管理。草稿未经确认不会成为日常记录。</view></view>
+      <FamilyPanel v-else-if="modal === 'family' && state.family" :family="state.family" @busy="familyBusy = $event" @changed="familyChanged" @switch="switchFamily($event)" @join="switchFamily($event,true)" />
+      <view v-else-if="modal === 'cryHistory'"><view v-if="state.historyError" class="error-box">{{ state.historyError }}<button class="link" @tap="workspace.loadCryHistory()">重试</button></view><view v-for="result in state.cryHistory" :key="result.id" class="card" @tap="state.cry = result; modal = ''; page = 'cry'"><view>{{ result.summary }}</view><view class="small">{{ result.created_at }} · {{ result.status === 'uncertain' ? '不确定' : '特征匹配' }}</view></view><view v-if="!state.cryHistory.length && !state.busy.history" class="empty">暂无分析记录</view><button class="soft-btn wide" :disabled="state.busy.history" @tap="workspace.loadCryHistory(true)">{{ state.busy.history ? '加载中…' : '加载更多' }}</button></view>
+      <view v-else-if="modal === 'export'"><view class="small">导出当前家庭宝宝的 {{ state.records.length }} 条真实记录</view><view class="row-btns"><button class="outline-btn" @tap="exportFormat = 'CSV'">CSV</button><button class="outline-btn" @tap="exportFormat = 'JSON'">JSON</button></view><textarea :value="exportText" disabled /><button class="primary-btn wide" @tap="copyExport">复制 {{ exportFormat }} 内容</button></view>
+      <view v-else-if="modal === 'settings'"><view class="small">通知与个性化偏好暂未开放。</view><button class="soft-btn wide" :disabled="actionBusy" @tap="closeModal(); refresh()">重新读取服务端数据</button><button class="danger-btn wide" :disabled="actionBusy" @tap="deleteAccount">注销账号</button></view>
+      <view v-else class="history-text">{{ infoText }}</view>
+    </scroll-view></view>
   </view>
-</view>
-
-  <view v-if="modal" class="modal-mask" @tap="closeModal">
-    <scroll-view scroll-y class="sheet" @tap.stop>
-      <view class="close-row"><text class="sheet-title">{{ modal === 'record' ? '记录 · ' + draft.type : modal === 'chooser' ? '记一笔' : modal === 'voice' ? '语音记录 · 演示' : modal === 'photo' ? '拍照记录' : modal === 'settings' ? '设置' : modal === 'export' ? '数据导出' : modal === 'feedback' ? '意见反馈' : modal === 'family' ? '家庭成员' : modal === 'favorites' ? '我的收藏' : modal === 'chart' ? '详细生长曲线' : modalTitle }}</text><button class="icon-btn" @tap="closeModal">×</button></view>
-      <view v-if="modal === 'chooser'">
-        <view class="capture-row"><button class="capture-btn voice" @tap="startVoice">🎙 语音记录</button><button class="capture-btn photo" @tap="startPhoto">📷 拍照记录</button></view>
-        <view class="quick-grid"><button v-for="type in recordTypes" :key="type" class="quick-item" @tap="quickRecord(type)">{{ type }}</button></view>
-      </view>
-      <view v-else-if="modal === 'record'">
-        <view v-if="draft.source !== '手动记录'" class="draft-preview">{{ draft.source }}草稿 · 请核对后确认保存，尚未进行真实识别。</view>
-        <view class="form-row"><text class="label">日期</text><picker mode="date" :value="draft.date" @change="changeDraftDate"><view class="choice">{{ draft.date }}</view></picker></view>
-        <view class="form-row"><text class="label">时间</text><picker mode="time" :value="draft.time" @change="changeDraftTime"><view class="choice">{{ draft.time }}</view></picker></view>
-        <view class="form-row"><text class="label">{{ draft.type === '喂奶' ? '奶量 (ml)' : draft.type === '睡眠' ? '时长 (分)' : draft.type === '体温' ? '体温 (℃)' : '内容' }}</text><input v-model="draft.value" :type="['喂奶','睡眠','体温'].includes(draft.type) ? 'digit' : 'text'" :maxlength="300" placeholder="请填写记录内容" /></view>
-        <view class="form-row"><text class="label">备注</text><textarea v-model="draft.note" :maxlength="500" placeholder="可选" /></view>
-        <view class="row-btns"><button class="outline-btn" @tap="draft.source === '语音演示' ? startVoice() : draft.source === '拍照演示' ? startPhoto() : closeModal()">{{ draft.source === '手动记录' ? '取消' : '重新采集' }}</button><button class="primary-btn" @tap="saveRecord">确认保存</button></view>
-      </view>
-      <view v-else-if="modal === 'voice'" class="listen-panel"><view class="listen-orb pulse">🎙</view><view>模拟聆听 {{ captureSeconds }} 秒</view><view class="small">不调用麦克风，演示转写为“{{ voicePurpose === 'chat' ? '宝宝最近为什么晚上总醒？' : '喂了 180 毫升配方奶' }}”。</view><button class="primary-btn wide" @tap="finishVoice">结束演示，确认内容</button></view>
-      <view v-else-if="modal === 'photo'"><image v-if="photo" class="photo-preview" :src="photo" mode="aspectFit" /><view v-else class="photo-slot">📷 拍摄或选择图片</view><view class="small">图片仅在本次预览，不上传。下一步生成固定示例草稿，请手动核对。</view><view class="row-btns"><button class="outline-btn" @tap="choosePhoto('camera')">拍照</button><button class="outline-btn" @tap="choosePhoto('album')">从相册选择</button></view><button class="primary-btn wide" @tap="photoDraft">{{ photo ? '查看示例草稿' : '使用示例体验' }}</button></view>
-      <view v-else-if="modal === 'profile'"><view class="form-row"><text class="label">{{ modalTitle === '基本信息' ? '宝宝昵称' : '当前状态' }}</text><input v-model="profileForm.value" :maxlength="80" placeholder="填写信息" /></view><view class="form-row"><text class="label">备注</text><textarea v-model="profileForm.note" :maxlength="500" placeholder="补充信息" /></view><button class="primary-btn wide" @tap="saveProfile">保存</button></view>
-      <view v-else-if="modal === 'settings'"><view class="small">这些是本机偏好，通知推送、家庭同步和 AI 个性化服务尚未接入。</view><view class="setting-row"><text>通知偏好</text><switch :checked="settingsDraft.notifications" @change="setSetting('notifications', $event)" /></view><view class="setting-row"><text>家庭共享偏好</text><switch :checked="settingsDraft.sharing" @change="setSetting('sharing', $event)" /></view><view class="setting-row"><text>AI 个性化偏好</text><switch :checked="settingsDraft.personalized" @change="setSetting('personalized', $event)" /></view><button class="primary-btn wide" @tap="saveSettings">保存设置</button></view>
-      <view v-else-if="modal === 'feedback'"><view class="small">反馈暂存本机，尚未接入发送服务。</view><textarea v-model="feedback" :maxlength="1000" placeholder="告诉我们哪里还可以做得更好…" /><button class="primary-btn wide" @tap="saveFeedback">保存反馈</button></view>
-      <view v-else-if="modal === 'family'"><view v-for="member in ['👨🏻 爸爸 · 管理员','👩🏻 妈妈 · 管理员','👵🏻 奶奶 · 可记录']" :key="member" class="setting-row">{{ member }}</view><view class="small">以上为原型家庭示例，尚未连接真实家庭账号。</view><button class="primary-btn wide" @tap="info('邀请家庭成员','家庭邀请需要接入账号与家庭服务，当前仅展示交互流程。')">＋ 邀请家庭成员</button></view>
-      <view v-else-if="modal === 'export'"><view class="small">导出本机全部 {{ state.records.length }} 条记录。选择格式后复制为文本保存。</view><view class="row-btns"><button :class="exportFormat === 'CSV' ? 'primary-btn' : 'outline-btn'" @tap="exportFormat = 'CSV'">CSV</button><button :class="exportFormat === 'JSON' ? 'primary-btn' : 'outline-btn'" @tap="exportFormat = 'JSON'">JSON</button></view><textarea :value="exportText" disabled /><button class="primary-btn wide" @tap="copyExport">复制导出内容</button></view>
-      <view v-else-if="modal === 'favorites'"><view v-if="!state.favorites.length" class="empty">暂无收藏，在文章中点击收藏即可添加。</view><button v-for="key in state.favorites" :key="key" class="soft-btn wide" @tap="closeModal(); openArticle(key)">{{ articleTitles[key] }}</button></view>
-      <view v-else-if="modal === 'chart'"><image class="chart-image" :src="chartUrl" mode="aspectFit" /><view class="small">{{ curveNames[curveMode] }} · 示例曲线，不代表真实百分位。</view><button class="soft-btn wide" @tap="action('switch-curve')">切换曲线</button></view>
-      <view v-else class="history-text">{{ modalText }}</view>
-    </scroll-view>
-  </view>
-  <view v-if="article" class="overlay-view"><view class="overlay-head"><button class="icon-btn" @tap="article = ''">‹</button><text class="h3">{{ articleTitles[article] }}</text></view><view class="overlay-body"><view class="history-text">{{ articleBodies[article] }}</view><button class="primary-btn wide" @tap="favoriteArticle">{{ state.favorites.includes(article) ? '取消收藏' : '收藏文章' }}</button></view></view>
-
-</view>
 </template>
