@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { onHide } from '@dcloudio/uni-app'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { onHide, onPageScroll } from '@dcloudio/uni-app'
 import { api, session } from '@/services/api'
 import { API_BASE } from '@/services/config'
 import RecordForm from '@/components/RecordForm.vue'
@@ -11,6 +11,7 @@ import FamilyPanel from '../../components/FamilyPanel.vue'
 import DiscoverPanel from '../../components/DiscoverPanel.vue'
 import BabyMetrics from '../../components/BabyMetrics.vue'
 import GrowthPanel from '../../components/GrowthPanel.vue'
+import { articleTopics } from '../../domain/articleTopics'
 import { createWorkspace, answerText, errorText } from '../../domain/workspace'
 import { recordView, growthPoints } from '../../domain/presentation'
 import { dateKey, rangeLabel, exportRecords, recordStats, selectRecords, shiftDateKey, type Range } from '../../domain/model'
@@ -38,6 +39,8 @@ const height=computed(()=>heightPoints.value.at(-1)?.value),weight=computed(()=>
 const exportText=computed(()=>exportFormat.value==='JSON' ? JSON.stringify(state.records,null,2) : exportRecords(views.value,'CSV'))
 const actionBusy=computed(()=>workspace.busy() || inviteBusy.value || familyBusy.value || recording.value || starting.value)
 let timer: ReturnType<typeof setInterval>|undefined
+let homeScrollTop=0
+onPageScroll(({scrollTop})=>{if(page.value==='home')homeScrollTop=scrollTop})
 let mediaRevision=0
 let pendingMedia: {file:string|Blob;kind:'audio'|'image';duration?:number;purpose:'record'|'chat'|'cry'}|null=null
 
@@ -54,8 +57,9 @@ function cancelMedia(){mediaRevision++;voice.cancel();clearTimer();workspace.can
 function closeModal(){if(state.busy.save||inviteBusy.value||familyBusy.value)return;cancelMedia();modal.value='';localError.value='';state.error=''}
 function navigate(destination:string){
   if(state.busy.save||state.busy.switch||inviteBusy.value||familyBusy.value)return
+  const scrollTop=page.value==='discover'&&destination==='home'?homeScrollTop:0
   cancelMedia();modal.value='';page.value=destination;localError.value=''
-  uni.pageScrollTo({scrollTop:0,duration:0})
+  void nextTick(()=>{if(page.value===destination)uni.pageScrollTo({scrollTop,duration:0})})
   if(destination==='ai'&&state.baby)void workspace.loadChat()
 }
 function shiftDate(direction:number){selectedDate.value=shiftDateKey(selectedDate.value,direction,range.value)}
@@ -146,6 +150,11 @@ onMounted(()=>void workspace.load())
           <view class="section-title">手动快捷</view><view class="quick-grid"><button v-for="item in homeQuickTypes" :key="item.value" class="quick-item" @tap="quickRecord(item.value)"><view class="quick-icon" :class="quickClasses[item.value]">{{ item.icon }}</view><text class="span">{{ item.label }}</text></button><button class="quick-item" @tap="requireBaby() && (modal = 'more')"><view class="quick-icon i-more">•••</view><text class="span">更多</text></button></view>
           <view class="card cry-card"><view><view class="card-title">宝宝哭了？</view><view class="small">辅助了解哭声特征</view><button class="primary-btn" @tap="navigate('cry')">开始哭声分析 →</button></view><view class="cry-whale">🐳</view></view>
           <view class="section-title">今天 · {{ dateKey() }}<button class="link" @tap="navigate('record')">{{ todayRecords.length }} 条记录</button></view><view class="card"><RecordTimeline :records="todayRecords" @select="editRecord" /></view>
+          <view class="section-title">为你推荐</view>
+          <view class="card home-recommendations">
+            <view v-for="item in articleTopics.slice(0,2)" :key="item.title" class="article" @tap="unavailable(item.title)"><view class="thumb">{{ item.emoji }}</view><view><text class="b">{{ item.title }}</text><view class="p">{{ item.intro }}</view><text class="small">内容暂未开放</text></view></view>
+            <button class="primary-btn wide" @tap="navigate('discover')">推荐文章 →</button>
+          </view>
         </view>
       </view>
       <view v-else-if="page === 'ai'" class="page">
@@ -167,11 +176,11 @@ onMounted(()=>void workspace.load())
         <view v-if="state.cry" class="analysis-card"><view class="card-title">{{ state.cry.status === 'uncertain' ? '暂不能确定' : '哭声特征分析' }}</view><view class="p">{{ state.cry.summary }}</view><view v-for="(item,index) in state.cry.candidates" :key="item.category" class="reason"><text>{{ index+1 }}.</text><view>{{ item.label }}<view class="bar"><view class="fill" :style="{width:Math.max(0,Math.min(100,item.score*100))+'%'}" /></view></view><text>{{ item.possibility }}</text></view><view class="disclaimer">{{ state.cry.disclaimer }} · 匹配度不是实际哭闹原因概率。</view><view class="small">分析已保存至历史</view><view class="row-btns"><button class="outline-btn" @tap="startVoice('cry')">重新录制</button><button class="primary-btn" @tap="showCryHistory">查看历史</button></view><button class="soft-btn wide" :disabled="state.busy.explain" @tap="explainCry">{{ state.busy.explain ? '正在解释…' : 'AI 解读' }}</button><view v-if="state.cry.explanation" class="history-text">{{ answerText(state.cry.explanation) }}</view></view><view v-else class="analysis-card"><view class="card-title">分析结果</view><view class="empty">{{ state.busy.capture ? '正在处理录音，请稍候…' : '完成录音后展示分析结果' }}</view></view><view v-if="localError" class="error-box">{{ localError }}</view>
       </view>
       <GrowthPanel v-else-if="page === 'growth'" :records="state.records" :age="ageText(state.baby?.birth_date)" @create="quickRecord('growth')" @select="editRecord" />
-      <DiscoverPanel v-else-if="page === 'discover'" :age="ageText(state.baby?.birth_date)" @unavailable="unavailable" />
+      <DiscoverPanel v-else-if="page === 'discover'" :age="ageText(state.baby?.birth_date)" @back="navigate('home')" @unavailable="unavailable" />
       <view v-else-if="page === 'profile'" class="page"><view class="header"><button class="icon-btn" @tap="navigate('home')">‹</button><view class="header-title">宝宝档案</view><button v-if="canManage" class="link" @tap="openBaby">编辑</button></view><view class="profile-head"><view class="baby-profile"><view class="avatar">👶🏻</view><view><view class="h3">{{ state.baby?.nickname || '待建档' }}</view><view class="p">{{ ageText(state.baby?.birth_date) }} · {{ state.baby ? genderText(state.baby.gender) : '' }}</view><view class="p">{{ state.baby?.birth_date || '生日待完善' }}</view></view></view><BabyMetrics :height="height" :weight="weight" /></view><view class="settings-list"><view class="setting-row" @tap="openBaby"><view class="setting-ico">👤</view><text class="b">基本信息</text><text>›</text></view><view class="setting-row" @tap="navigate('growth')"><view class="setting-ico">📈</view><text class="b">生长发育</text><text>›</text></view><view v-for="name in ['喂养偏好','睡眠习惯','过敏信息']" :key="name" class="setting-row" @tap="unavailable(name)"><view class="setting-ico">{{ ({喂养偏好:'🛡',睡眠习惯:'🌙',过敏信息:'📍'} as Record<string,string>)[name] }}</view><text class="b">{{ name }}</text><text class="small">暂未开放</text></view><view class="setting-row" @tap="quickRecord('vaccine')"><view class="setting-ico">💉</view><text class="b">疫苗接种</text><text>记录 ›</text></view><view class="setting-row" @tap="modal = 'family'"><view class="setting-ico">👨‍👩‍👧</view><text class="b">家人信息</text><text>›</text></view><view class="setting-row" @tap="quickRecord('medication')"><view class="setting-ico">🧾</view><text class="b">用药记录</text><text>记录 ›</text></view></view></view>
       <view v-else-if="page === 'me'" class="page"><view class="header"><view class="header-title">我的</view><button class="icon-btn" @tap="modal = 'settings'">⚙</button></view><view class="me-head"><view class="me-card"><view class="person"><view class="person-avatar">👤</view><view><view class="h3">{{ state.family?.display_name || '家人' }}</view><view class="p">{{ state.family?.name }}</view></view></view><view class="membership"><text>懂宝会员 · 暂未开放</text><button class="member-btn" @tap="unavailable('会员')">了解更多</button></view><view class="icon-grid"><view class="gitem" @tap="unavailable('收藏')"><view class="gico">⭐</view>收藏</view><view class="gitem" @tap="navigate('ai')"><view class="gico">💬</view>历史对话</view><view class="gitem" @tap="navigate('profile')"><view class="gico">👶</view>我的宝宝</view><view class="gitem" @tap="unavailable('消息')"><view class="gico">🔔</view>消息</view></view></view></view><view class="settings-list"><view class="setting-row" @tap="modal = 'family'"><view class="setting-ico">👥</view><text class="b">家庭成员管理</text><text>›</text></view><view class="setting-row" @tap="modal = 'export'"><view class="setting-ico">⇩</view><text class="b">数据导出</text><text>›</text></view><view class="setting-row" @tap="info('使用帮助','先建立宝宝档案，再添加记录。语音和照片会上传至当前家庭的后端，识别后请核对并确认保存。哭声结果自动进入历史。网络失败会显示错误，不生成模拟结果。')"><view class="setting-ico">?</view><text class="b">使用帮助</text><text>›</text></view><view class="setting-row" @tap="unavailable('意见反馈')"><view class="setting-ico">✉</view><text class="b">意见反馈</text><text class="small">暂未开放</text></view><view class="setting-row" @tap="modal = 'settings'"><view class="setting-ico">⚙</view><text class="b">设置</text><text>›</text></view></view><view class="banner"><view>每一个小小的成长<br />都值得被认真记录 ❤</view><text class="art">🤱🏻</text></view></view>
     </view>
-    <view class="nav"><button v-for="item in [{key:'home',name:'首页',icon:'⌂'},{key:'ai',name:'AI',icon:'◉'},{key:'record',name:'记录',icon:'▣'},{key:'discover',name:'发现',icon:'◌'},{key:'me',name:'我的',icon:'♙'}]" :key="item.key" :class="{active:page === item.key}" @tap="navigate(item.key)"><text class="n-ico">{{ item.icon }}</text><text>{{ item.name }}</text></button></view>
+    <view class="nav"><button v-for="item in [{key:'home',name:'首页',icon:'⌂'},{key:'ai',name:'AI',icon:'◉'},{key:'record',name:'记录',icon:'▣'},{key:'me',name:'我的',icon:'♙'}]" :key="item.key" :class="{active:(page === 'discover' ? 'home' : page) === item.key}" @tap="navigate(item.key)"><text class="n-ico">{{ item.icon }}</text><text>{{ item.name }}</text></button></view>
     <view v-if="modal" class="modal-mask" @tap="closeModal"><scroll-view scroll-y class="sheet" @tap.stop><view class="grab" /><view class="close-row"><text class="sheet-title">{{ modal === 'record' ? (state.draft ? '识别完成，请确认' : (editId ? '编辑 · ' : '记录 · ')+(recordInitial.payload?.title || RECORD_TYPES.find(item=>item.value===recordInitial.record_type)?.label || '自定义')) : modal === 'baby' ? '宝宝基本信息' : modal === 'family' ? '家庭成员管理' : modal === 'voice' ? '正在录音' : modal === 'photo' ? '拍照记录' : modal === 'processing' ? '上传与识别' : modal === 'export' ? '数据导出' : modal === 'cryHistory' ? '哭声历史' : modal === 'settings' ? '设置' : modal === 'chooser' ? '记一笔' : modal === 'more' ? '更多记录' : infoTitle }}</text><button class="icon-btn" :disabled="state.busy.save || inviteBusy" @tap="closeModal">×</button></view>
       <view v-if="localError || state.error" class="error-box">{{ localError || state.error }}</view>
       <view v-if="modal === 'chooser' || modal === 'more'"><view class="capture-row"><button class="capture-btn voice" @tap="startVoice('record')"><text class="cap-ico">🎙</text><text class="b">语音</text><text class="span">说完自动识别</text></button><button class="capture-btn photo" @tap="startPhoto"><text class="cap-ico">📷</text><text class="b">拍照</text><text class="span">看图帮你填</text></button></view><view v-if="modal === 'chooser'" class="quick-grid chooser-grid"><button v-for="item in homeQuickTypes" :key="item.value" class="quick-item" @tap="quickRecord(item.value)"><view class="quick-icon" :class="quickClasses[item.value]">{{ item.icon }}</view><text class="span">{{ item.label }}</text></button><button class="quick-item" @tap="modal = 'more'"><view class="quick-icon i-more">•••</view><text class="span">更多</text></button></view><view v-else class="quick-grid chooser-grid"><button v-for="item in [{title:'体温',icon:'🌡'},{title:'不适',icon:'🤒'},{title:'疫苗',icon:'💉'},{title:'自定义',icon:'📝'}]" :key="item.title" class="quick-item" @tap="moreRecord(item.title)"><view class="quick-icon i-more">{{ item.icon }}</view><text class="span">{{ item.title }}</text></button></view><view v-if="modal === 'more'" class="small">体温、不适使用自定义记录保存，可在内容中填写测量值和症状。</view></view>

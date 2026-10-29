@@ -81,7 +81,7 @@
   .t-row{display:grid;grid-template-columns:18px 52px 1fr;gap:9px;align-items:start;padding:10px 0;position:relative}
   .dot{width:10px;height:10px;border:3px solid #fff;border-radius:50%;margin-top:4px;box-shadow:0 0 0 2px currentColor;background:currentColor;z-index:1}
   .t-time{font-size:12px;color:#777e97;padding-top:1px}.t-main{font-size:13px}.t-main .strong{font-weight:850}.t-sub{font-size:11px;color:#9297a9;margin-top:4px}
-  .nav{position:absolute;left:0;right:0;bottom:0;height:76px;background:rgba(255,255,255,.94);backdrop-filter:blur(18px);border-top:1px solid #eceef4;display:grid;grid-template-columns:repeat(5,1fr);z-index:60;padding-bottom:env(safe-area-inset-bottom)}
+  .nav{position:absolute;left:0;right:0;bottom:0;height:76px;background:rgba(255,255,255,.94);backdrop-filter:blur(18px);border-top:1px solid #eceef4;display:grid;grid-template-columns:repeat(4,1fr);z-index:60;padding-bottom:env(safe-area-inset-bottom)}
   .nav button{border:0;background:transparent;color:#9499ab;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px}
   .nav button .n-ico{font-size:20px;line-height:1}.nav button.active{color:var(--primary);font-weight:850}
   .chat-wrap{padding:4px 14px 108px}
@@ -126,3 +126,5 @@ page,.phone{--db-text:#181b2b;--db-muted:#7b8098;--db-border:#eceef5;--db-surfac
 .sheet{height:72vh;max-height:78vh}.sheet .grab{margin-top:0}.sheet .close-row{margin-bottom:14px}
 button[disabled]{opacity:.55}.history-text,.t-main{overflow-wrap:anywhere}
 @media(min-width:700px){.sheet{max-width:430px;margin:0 auto}}
+
+.header-spacer{width:38px;flex-shrink:0}.home-recommendations{margin-top:0}.home-recommendations .primary-btn{margin-top:12px}

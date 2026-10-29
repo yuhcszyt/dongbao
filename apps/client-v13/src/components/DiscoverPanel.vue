@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { articleTopics } from '../domain/articleTopics'
 defineProps<{ age:string }>()
-const emit=defineEmits<{ unavailable:[title:string] }>()
+const emit=defineEmits<{ unavailable:[title:string]; back:[] }>()
 const search=ref(''),category=ref('推荐')
-// Navigation topics from the design, never presented as published articles or medical advice.
-const topics=[{title:'宝宝辅食添加指南',category:'喂养',emoji:'🥗',intro:'从泥糊到小块，怎么吃更科学？'},{title:'宝宝夜醒的常见原因与应对方法',category:'睡眠',emoji:'👶',intro:'了解宝宝的睡眠节奏'},{title:'出牙期护理全攻略',category:'发育',emoji:'🦷',intro:'了解宝宝出牙期的变化'},{title:'宝宝便便颜色对照表',category:'喂养',emoji:'🥣',intro:'学习观察与记录'}]
-const visible=computed(()=>topics.filter(item=>(['推荐','当月'].includes(category.value)||item.category===category.value)&&item.title.includes(search.value.trim())))
+
+const visible=computed(()=>articleTopics.filter(item=>(['推荐','当月'].includes(category.value)||item.category===category.value)&&item.title.includes(search.value.trim())))
 </script>
 <template>
   <view class="page">
-    <view class="header"><view class="header-title">发现</view></view>
+    <view class="header"><button class="icon-btn" aria-label="返回首页" @tap="emit('back')">‹</button><view class="header-title">推荐文章</view><view class="header-spacer" /></view>
     <view class="searchbar">⌕ <input v-model="search" placeholder="搜索育儿知识、文章、问题…" /></view>
     <view class="rec-tabs"><button v-for="item in ['推荐','当月','喂养','睡眠','发育']" :key="item" :class="{active:category === item}" @tap="category = item">{{ item === '推荐' ? '为你推荐' : item === '当月' ? '当月月龄' : item }}</button></view>
     <view class="discover-hero"><view><view class="h3">{{ age === '生日待完善' ? '宝宝' : age+'宝宝' }}<br />睡眠全攻略</view><view class="p">如何应对夜醒、睡眠倒退？</view><button class="primary-btn" @tap="emit('unavailable','文章阅读')">暂未开放</button></view><view class="sleep-ill">😴</view></view>
