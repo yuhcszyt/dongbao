@@ -116,6 +116,9 @@
   .modal-mask{display:none;position:absolute;inset:0;background:rgba(24,28,49,.35);backdrop-filter:blur(2px);z-index:100;align-items:flex-end}.modal-mask.show{display:flex}.sheet{width:100%;background:#fff;border-radius:26px 26px 0 0;padding:14px 16px 22px;max-height:78vh;overflow:auto;box-shadow:0 -18px 50px rgba(23,28,62,.18)}
   .grab{width:48px;height:5px;border-radius:10px;background:#dfe2ea;margin:0 auto 12px}.sheet h3{margin:3px 0 14px}.form-row{display:grid;grid-template-columns:76px 1fr;align-items:center;gap:10px;margin:10px 0}.form-row label{font-size:13px;color:#666d84}.form-row input,.form-row select,.form-row textarea{width:100%;border:1px solid #e2e5ee;border-radius:12px;padding:10px 11px;outline:none;background:#fafbfe}.form-row textarea{min-height:86px;resize:vertical}.options{display:flex;gap:8px;flex-wrap:wrap}.opt{border:1px solid #e0e3ee;background:#fff;border-radius:13px;padding:8px 10px;font-size:12px}.opt.active{border-color:#8d82ff;background:#f1efff;color:#5f54e7}.toast{position:absolute;left:50%;transform:translateX(-50%) translateY(20px);bottom:104px;z-index:200;background:rgba(26,29,42,.9);color:#fff;border-radius:12px;padding:10px 14px;font-size:12px;opacity:0;pointer-events:none;transition:.22s}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .overlay-view{position:absolute;inset:28px 0 76px;background:var(--bg);z-index:70;display:none;overflow:auto}.overlay-view.show{display:block}.overlay-head{position:sticky;top:0;background:rgba(246,247,251,.95);backdrop-filter:blur(12px);padding:14px;display:flex;align-items:center;gap:10px;z-index:4;border-bottom:1px solid #eceef4}.overlay-head h3{margin:0;font-size:18px}.overlay-body{padding:14px 14px 28px}.article-body{font-size:14px;line-height:1.85;color:#42475e}.article-body h2{font-size:22px}.tipbox{background:#eef6ff;border-radius:15px;padding:12px;margin:12px 0;color:#4d5878}.empty{padding:38px;text-align:center;color:#989daf}.hidden{display:none!important}
+  .guest-only{display:none}.guest .guest-only{display:block}.guest .auth-only{display:none!important}
+  .guest [data-page="me"] > :not(.header):not(.guest-only){display:none}
+  .login-consent{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sub);margin:16px 0}.login-consent input{width:18px;height:18px}.login-note{font-size:12px;line-height:1.7;color:var(--sub);margin:12px 0}
 </style>
 </head>
 <body>
@@ -130,18 +133,20 @@
           <div style="display:flex;gap:8px"><button class="icon-btn" data-action="toast" data-message="暂无新通知">🔔</button><button class="icon-btn circle-add" data-action="open-record">＋</button></div>
         </div>
         <div class="content">
-          <div class="hero">
+          <div class="hero guest-only" data-action="login"><h3>欢迎来到懂宝</h3><p>游客模式 · 登录后与家人一起记录宝宝成长</p><button class="primary-btn">登录 / 注册</button></div>
+          <div class="hero auth-only">
             <div class="avatar">👶🏻</div>
             <div style="flex:1"><h3>小米粥 <span style="color:#ff69a8">♀</span></h3><p>8个月12天</p><p>“今天也要开心呀～” <span class="tiny-heart">❤</span></p></div>
           </div>
 
-          <div class="card observe">
+          <div class="card observe auth-only">
             <div class="card-title">💡 AI 今日观察</div>
             <div class="small">基于最近 5 天的记录</div>
             <p>宝宝昨晚睡眠时间略有减少，夜醒 3 次；可能与出牙或白天睡眠不足有关。整体状态正常，建议关注白天小睡时长。</p>
             <button class="primary-btn wide" data-nav="ai">查看详细分析 →</button>
           </div>
 
+          <div class="card observe guest-only"><div class="card-title">💡 AI 今日观察</div><p>登录并记录后，懂宝将结合宝宝的数据提供育儿建议。</p><button class="primary-btn wide" data-nav="ai">登录后查看 →</button></div>
           <div class="section-title">记一笔</div>
           <div class="capture-row">
             <button class="capture-btn voice" data-action="capture-voice"><span class="cap-ico">🎙</span><b>语音记录</b><span>说一句，AI 帮你填</span></button>
@@ -164,9 +169,9 @@
             <div class="cry-whale">🐳</div>
           </div>
 
-          <div class="section-title">今天 · 9月14日 <button class="link" data-nav="record">3 条记录</button></div>
+          <div class="section-title auth-only">今天 · 9月14日 <button class="link" data-nav="record">3 条记录</button></div>
           <div class="card" style="margin-top:0">
-            <div class="timeline" id="homeTimeline">
+            <div class="empty guest-only">登录后查看宝宝的日常记录<button class="link" data-action="login">登录 / 注册 →</button></div><div class="timeline auth-only" id="homeTimeline">
               <div class="t-row"><div class="dot" style="color:#6d5cf7"></div><div class="t-time">09:30</div><div class="t-main"><strong>喂奶 150ml</strong><div class="t-sub">配方奶</div></div></div>
               <div class="t-row"><div class="dot" style="color:#30bf71"></div><div class="t-time">10:30</div><div class="t-main"><strong>辅食</strong><div class="t-sub">鸡肉蔬菜粥 · 半碗</div></div></div>
               <div class="t-row"><div class="dot" style="color:#6d5cf7"></div><div class="t-time">13:00</div><div class="t-main"><strong>小睡 1h20min</strong><div class="t-sub">午睡</div></div></div>
@@ -312,6 +317,7 @@
 
       <!-- 我的 -->
       <section class="page" data-page="me">
+        <div class="content guest-only"><div class="card"><div class="person"><div class="person-avatar">👤</div><div><h3>游客</h3><p>登录后与家人一起记录宝宝成长</p></div></div><button class="primary-btn wide" style="margin-top:16px" data-action="login">登录 / 注册</button></div><div class="setting-row" data-nav="profile"><b>我的宝宝</b><span class="chev">›</span></div><div class="setting-row" data-action="family"><b>家庭成员管理</b><span class="chev">›</span></div></div>
         <div class="header"><div class="header-title"></div><button class="icon-btn" data-action="toast" data-message="设置已打开">⚙</button></div>
         <div class="me-head"><div class="me-card"><div class="person"><div class="person-avatar">👨🏻</div><div style="flex:1"><h3>余海昌</h3><p>陪伴小米粥成长的第 251 天</p></div></div><div class="membership"><div><b>♛ 普通会员</b><div class="small">升级会员，解锁更多 AI 能力</div></div><button class="member-btn" data-action="upgrade">立即升级</button></div><div class="icon-grid"><div class="gitem" data-action="toast" data-message="收藏夹"><div class="gico">⭐</div>收藏</div><div class="gitem" data-action="toast" data-message="历史对话"><div class="gico">💬</div>历史对话</div><div class="gitem" data-nav="profile"><div class="gico">👶</div>我的宝宝</div><div class="gitem" data-action="toast" data-message="暂无新消息"><div class="gico">🔔</div>消息</div></div></div></div>
         <div class="settings-list">
@@ -352,6 +358,8 @@
   const overlay = document.getElementById('overlayView');
   const overlayTitle = document.getElementById('overlayTitle');
   const overlayBody = document.getElementById('overlayBody');
+  let signedIn = false, pendingLogin = null;
+  app.classList.add('guest');
   let currentPage = 'home';
   let homeScrollY = 0;
   let articleScrollY = 0;
@@ -383,7 +391,7 @@
     toastEl.classList.add('show');
     setTimeout(()=>toastEl.classList.remove('show'),1500);
   }
-  function closeModal(){modalMask.classList.remove('show')}
+  function closeModal(){pendingLogin=null;modalMask.classList.remove('show')}
   function openModal(html){modalContent.innerHTML=html;modalMask.classList.add('show')}
 
   function quickRecord(type){
@@ -586,6 +594,28 @@
   function moreModal(){openModal(`<h3>更多记录</h3><div class="capture-row" style="margin-bottom:12px"><button class="capture-btn voice" id="moreVoice"><span class="cap-ico">🎙</span><b>语音</b><span>说一句</span></button><button class="capture-btn photo" id="morePhoto"><span class="cap-ico">📷</span><b>拍照</b><span>看图填</span></button></div><div class="quick-grid" style="grid-template-columns:repeat(4,1fr)"><button class="quick-item"><div class="quick-icon i-more">🌡</div><span>体温</span></button><button class="quick-item"><div class="quick-icon i-more">🤒</div><span>不适</span></button><button class="quick-item"><div class="quick-icon i-more">💉</div><span>疫苗</span></button><button class="quick-item"><div class="quick-icon i-more">📝</div><span>自定义</span></button></div><div class="small" style="margin-top:12px">语音 / 拍照是主路径；体温、疫苗等可继续手动补。</div>`);setTimeout(()=>{document.getElementById('moreVoice').onclick=()=>startVoiceCapture();document.getElementById('morePhoto').onclick=()=>startPhotoCapture()},0)}
 
   function upgradeModal(){openModal(`<h3>升级会员</h3><div class="card" style="background:linear-gradient(135deg,#fff2dc,#f7dfb2);margin:0 0 12px"><b>懂宝 Pro</b><p class="small">更长 AI 上下文、知识库深度问答、成长报告、家庭多人高级权限。</p></div><button class="primary-btn wide" id="payMock">模拟开通</button>`);setTimeout(()=>document.getElementById('payMock').onclick=()=>{closeModal();toast('会员购买流程占位')},0)}
+
+  function showLogin(resume){
+    pendingLogin=resume;
+    openModal(`<h3>登录懂宝</h3><p>登录后，记录宝宝的每一步成长</p><p class="small">首次微信登录自动注册懂宝账号，已有账号直接登录。</p><button class="primary-btn wide" data-action="confirm-login">微信登录 / 注册（原型）</button><label class="login-consent"><input type="checkbox" id="loginAgree">我已阅读并同意登录及数据使用说明</label><details class="login-note"><summary>查看登录及数据使用说明</summary>微信登录用于识别账号；首次登录创建账号和家庭。宝宝档案和记录保存至服务端，并按家庭权限共享。语音、照片在主动采集上传时处理。不要求提供手机号、头像或昵称。本页仅演示交互，不创建真实账号；正式发布需提供正式用户协议及隐私政策。</details><button class="soft-btn wide" data-action="cancel-login">暂不登录，继续浏览</button>`);
+  }
+  // Browse home, recommendations and My freely; private actions require explicit login.
+  document.addEventListener('click',e=>{
+    const target=e.target.closest('[data-nav],[data-record],[data-action],[data-question],[data-profile-section]');
+    if(!target)return;
+    const action=target.dataset.action;
+    if(action==='confirm-login'){
+      e.stopImmediatePropagation();
+      if(!document.getElementById('loginAgree').checked){toast('请先阅读并同意登录及数据使用说明');return}
+      signedIn=true;app.classList.remove('guest');const resume=pendingLogin;pendingLogin=null;closeModal();toast('原型：登录成功，首次登录自动注册');resume?.();return;
+    }
+    if(action==='cancel-login'){e.stopImmediatePropagation();pendingLogin=null;closeModal();return}
+    if(action==='login'){e.stopImmediatePropagation();showLogin(null);return}
+    if(signedIn)return;
+    const publicNav=target.dataset.nav && ['home','discover','me'].includes(target.dataset.nav);
+    const publicAction=['close-overlay','shuffle-articles','article-sleep'].includes(action);
+    if(!publicNav&&!publicAction){e.stopImmediatePropagation();showLogin(()=>target.click())}
+  },true);
 
   document.addEventListener('click',e=>{
     const nav=e.target.closest('[data-nav]');if(nav){go(nav.dataset.nav);return}

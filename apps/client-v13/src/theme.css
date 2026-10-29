@@ -128,3 +128,4 @@ button[disabled]{opacity:.55}.history-text,.t-main{overflow-wrap:anywhere}
 @media(min-width:700px){.sheet{max-width:430px;margin:0 auto}}
 
 .header-spacer{width:38px;flex-shrink:0}.home-recommendations{margin-top:0}.home-recommendations .primary-btn{margin-top:12px}
+.guest-login{margin-top:16px}
