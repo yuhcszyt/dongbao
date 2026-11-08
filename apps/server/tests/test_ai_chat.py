@@ -16,6 +16,19 @@ def _create_baby(client: TestClient, headers: dict) -> str:
     return response.json()["id"]
 
 
+def test_ensure_seeded_skips_missing_seed_file(monkeypatch, tmp_path):
+    from unittest.mock import Mock
+
+    from app.ai import seed
+
+    monkeypatch.setattr(seed, "SEED_PATH", tmp_path / "missing.json")
+    monkeypatch.setattr(seed, "ensure_collection", lambda: None)
+    db = Mock()
+    db.scalar.return_value = None
+
+    seed.ensure_seeded(db)
+
+
 def test_rag_search_hits_seed_for_feeding_query(auth):
     ensure_collection()
     with SessionLocal() as db:

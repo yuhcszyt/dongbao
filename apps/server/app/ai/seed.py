@@ -84,13 +84,13 @@ def seed_knowledge(db: Session, *, path: Path | None = None, force: bool = False
 
 
 def ensure_seeded(db: Session) -> None:
-    """若库中尚无 approved 文档则自动 seed。无 embedding 时跳过（聊天仍可用宝宝 tools）。"""
+    """若库中尚无 approved 文档则自动 seed。无种子文件或 embedding 时跳过（聊天仍可用宝宝 tools）。"""
     has_any = db.scalar(select(RagDocument.id).limit(1))
     if has_any is not None:
         return
     try:
         seed_knowledge(db)
-    except EmbeddingUnavailable:
+    except (EmbeddingUnavailable, FileNotFoundError):
         return
 
 
